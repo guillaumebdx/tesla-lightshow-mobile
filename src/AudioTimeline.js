@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -11,26 +11,12 @@ import {
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { MP3_TRACKS } from '../assets/mp3/index';
+import { PART_EMOJIS, PART_COLORS, EFFECT_TYPES } from './constants';
 
 const BAR_GAP = 1;
 const ZOOM_LEVELS = [1, 2, 4, 8, 16];
 const BAR_BASE_WIDTH = 1;
 const PLAYBACK_UPDATE_MS = 100;
-
-const PART_EMOJIS = {
-  window_left_front: '🪟',
-  window_right_front: '🪟',
-  window_left_back: '🪟',
-  window_right_back: '🪟',
-  retro_left: '🪞',
-  retro_right: '🪞',
-  flap: '⚡',
-  trunk: '📦',
-  light_left_front: '💡',
-  light_right_front: '💡',
-  light_left_back: '🔴',
-  light_right_back: '🔴',
-};
 
 function formatTime(ms) {
   const totalSec = Math.floor(ms / 1000);
@@ -39,14 +25,14 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-export default function AudioTimeline({ selectedPart, eventOptions, onMarkersChange, onPositionChange }) {
+function AudioTimeline({ selectedPart, eventOptions, onEventsChange, onPositionChange }, ref) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [waveform, setWaveform] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
-  const [markers, setMarkers] = useState([]);
+  const [events, setEvents] = useState([]);
   const soundRef = useRef(null);
   const scrollRef = useRef(null);
   const containerWidthRef = useRef(1);
@@ -56,10 +42,12 @@ export default function AudioTimeline({ selectedPart, eventOptions, onMarkersCha
   const [zoomIndex, setZoomIndex] = useState(0);
   const touchStartRef = useRef({ x: 0, time: 0 });
 
-  // Smooth cursor animation
+  useImperativeHandle(ref, () => ({
+    openTrackPicker: () => setModalVisible(true),
+  }));
+
+  // Cursor animation (Animated — no re-render)
   const cursorAnim = useRef(new Animated.Value(0)).current;
-  const lastPositionRef = useRef(0);
-  const lastUpdateTimeRef = useRef(Date.now());
 
   useEffect(() => {
     return () => {
@@ -81,7 +69,7 @@ export default function AudioTimeline({ selectedPart, eventOptions, onMarkersCha
     setWaveform(track.waveform?.bars || []);
     setIsPlaying(false);
     setPosition(0);
-    setMarkers([]);
+    setEvents([]);
     cursorAnim.setValue(0);
 
     try {
@@ -101,24 +89,22 @@ export default function AudioTimeline({ selectedPart, eventOptions, onMarkersCha
 
   const onPlaybackStatusUpdate = useCallback((status) => {
     if (status.isLoaded) {
-      const now = Date.now();
       const newPos = status.positionMillis || 0;
       const dur = status.durationMillis || 1;
 
       setPosition(newPos);
       if (status.durationMillis) {
-        setDuration(status.durationMillis);
+        setDuration(dur);
       }
 
-      // Notify parent of position for light event triggers
+      // Report position to parent via ref (no re-render)
       if (onPositionChange) {
         onPositionChange(newPos, dur);
       }
 
-      // Smooth interpolation: animate from current to new position
-      const targetProgress = newPos / dur;
+      // Cursor: animate smoothly to current position, predicting ahead
+      const progress = newPos / dur;
       if (status.isPlaying) {
-        // Predict next position for smooth animation
         const nextProgress = Math.min(1, (newPos + PLAYBACK_UPDATE_MS) / dur);
         Animated.timing(cursorAnim, {
           toValue: nextProgress,
@@ -126,11 +112,8 @@ export default function AudioTimeline({ selectedPart, eventOptions, onMarkersCha
           useNativeDriver: false,
         }).start();
       } else {
-        cursorAnim.setValue(targetProgress);
+        cursorAnim.setValue(progress);
       }
-
-      lastPositionRef.current = newPos;
-      lastUpdateTimeRef.current = now;
 
       if (status.didJustFinish) {
         setIsPlaying(false);
@@ -138,7 +121,7 @@ export default function AudioTimeline({ selectedPart, eventOptions, onMarkersCha
         cursorAnim.setValue(0);
       }
     }
-  }, [cursorAnim]);
+  }, [cursorAnim, onPositionChange]);
 
   const togglePlay = async () => {
     if (!soundRef.current) return;
@@ -176,22 +159,25 @@ export default function AudioTimeline({ selectedPart, eventOptions, onMarkersCha
 
   const handleWaveTap = (localX) => {
     const ratio = localX / totalWaveWidth;
-    const timeMs = Math.round(ratio * duration);
+    const startMs = Math.round(ratio * duration);
 
-    // If a mesh part is selected, place a marker
+    // If a mesh part is selected, place an event
     if (selectedPart && duration > 0) {
-      const newMarker = {
+      const durationMs = eventOptions?.durationMs || 500;
+      const endMs = Math.min(startMs + durationMs, duration);
+      const newEvent = {
         id: Date.now().toString(),
         part: selectedPart,
         emoji: PART_EMOJIS[selectedPart] || '📍',
-        timeMs,
-        ratio,
-        durationMs: eventOptions?.durationMs || 500,
-        blink: eventOptions?.blink || false,
+        startMs,
+        endMs,
+        effect: eventOptions?.effect || EFFECT_TYPES.SOLID,
+        power: eventOptions?.power ?? 100,
+        blinkSpeed: eventOptions?.blinkSpeed ?? 0,
       };
-      setMarkers((prev) => {
-        const updated = [...prev, newMarker].sort((a, b) => a.timeMs - b.timeMs);
-        if (onMarkersChange) onMarkersChange(updated);
+      setEvents((prev) => {
+        const updated = [...prev, newEvent].sort((a, b) => a.startMs - b.startMs);
+        if (onEventsChange) onEventsChange(updated);
         return updated;
       });
     }
@@ -206,18 +192,11 @@ export default function AudioTimeline({ selectedPart, eventOptions, onMarkersCha
     outputRange: [0, totalWaveWidth],
   });
 
-  // No track selected: show button
+  // No track selected: show hint
   if (!selectedTrack) {
     return (
       <View style={styles.container}>
-        <TouchableOpacity
-          style={styles.selectButton}
-          onPress={() => setModalVisible(true)}
-        >
-          <Text style={styles.selectButtonIcon}>♪</Text>
-          <Text style={styles.selectButtonText}>Choisir une musique</Text>
-        </TouchableOpacity>
-
+        <Text style={styles.noTrackHint}>Aucune musique sélectionnée</Text>
         <TrackModal
           visible={modalVisible}
           onClose={() => setModalVisible(false)}
@@ -230,27 +209,6 @@ export default function AudioTimeline({ selectedPart, eventOptions, onMarkersCha
   // Track selected: show timeline
   return (
     <View style={styles.container}>
-      {/* Track info + change button */}
-      <View style={styles.trackHeader}>
-        <View style={styles.trackInfo}>
-          <Text style={styles.trackTitle}>{selectedTrack.title}</Text>
-          <Text style={styles.trackArtist}>{selectedTrack.artist}</Text>
-        </View>
-        {selectedPart && (
-          <View style={styles.placingHint}>
-            <Text style={styles.placingHintText}>
-              {PART_EMOJIS[selectedPart] || '📍'} Tap la wave pour placer
-            </Text>
-          </View>
-        )}
-        <TouchableOpacity
-          style={styles.changeButton}
-          onPress={() => setModalVisible(true)}
-        >
-          <Text style={styles.changeButtonText}>♪</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Waveform timeline */}
       <View
         ref={containerRef}
@@ -313,19 +271,26 @@ export default function AudioTimeline({ selectedPart, eventOptions, onMarkersCha
               );
             })}
 
-            {/* Markers */}
-            {markers.map((m) => (
-              <View
-                key={m.id}
-                style={[
-                  styles.marker,
-                  { left: m.ratio * totalWaveWidth },
-                ]}
-              >
-                <Text style={styles.markerEmoji}>{m.emoji}</Text>
-                <View style={styles.markerLine} />
-              </View>
-            ))}
+            {/* Events as colored rectangles */}
+            {events.map((evt) => {
+              const startRatio = evt.startMs / duration;
+              const endRatio = evt.endMs / duration;
+              const leftPx = startRatio * totalWaveWidth;
+              const widthPx = Math.max(2, (endRatio - startRatio) * totalWaveWidth);
+              const color = PART_COLORS[evt.part] || '#44aaff';
+              return (
+                <View
+                  key={evt.id}
+                  style={[
+                    styles.eventBlock,
+                    { left: leftPx, width: widthPx, backgroundColor: color + '40' },
+                  ]}
+                >
+                  <View style={[styles.eventBlockBorder, { backgroundColor: color + '99' }]} />
+                  <Text style={styles.eventEmoji}>{evt.emoji}</Text>
+                </View>
+              );
+            })}
 
             {/* Playback cursor (smooth) */}
             <Animated.View
@@ -369,10 +334,10 @@ export default function AudioTimeline({ selectedPart, eventOptions, onMarkersCha
         <Text style={styles.timeText}>{formatTime(duration)}</Text>
       </View>
 
-      {/* Markers count */}
-      {markers.length > 0 && (
+      {/* Events count */}
+      {events.length > 0 && (
         <Text style={styles.markerCount}>
-          {markers.length} événement{markers.length > 1 ? 's' : ''} placé{markers.length > 1 ? 's' : ''}
+          {events.length} événement{events.length > 1 ? 's' : ''} placé{events.length > 1 ? 's' : ''}
         </Text>
       )}
 
@@ -425,78 +390,13 @@ function TrackModal({ visible, onClose, onSelect }) {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 12,
+    padding: 8,
   },
-
-  // Select button (no track)
-  selectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(233, 69, 96, 0.15)',
-    borderWidth: 1,
-    borderColor: '#e94560',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    gap: 10,
-  },
-  selectButtonIcon: {
-    color: '#e94560',
-    fontSize: 20,
-  },
-  selectButtonText: {
-    color: '#e94560',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  // Track header
-  trackHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  trackInfo: {
-    flex: 1,
-  },
-  trackTitle: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  trackArtist: {
-    color: '#6666aa',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  placingHint: {
-    backgroundColor: 'rgba(68, 170, 255, 0.2)',
-    borderWidth: 1,
-    borderColor: '#44aaff',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginRight: 8,
-  },
-  placingHintText: {
-    color: '#44aaff',
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  changeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: 'rgba(233, 69, 96, 0.2)',
-    borderWidth: 1,
-    borderColor: '#e94560',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  changeButtonText: {
-    color: '#e94560',
-    fontSize: 18,
+  noTrackHint: {
+    color: '#555577',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: 12,
   },
 
   // Timeline / Waveform
@@ -531,19 +431,26 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  marker: {
+  eventBlock: {
     position: 'absolute',
     top: 0,
+    bottom: 0,
+    borderRadius: 2,
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    overflow: 'hidden',
   },
-  markerEmoji: {
-    fontSize: 12,
+  eventBlockBorder: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 2,
   },
-  markerLine: {
-    width: 1,
-    height: 80,
-    backgroundColor: '#44aaff',
-    opacity: 0.6,
+  eventEmoji: {
+    fontSize: 10,
+    marginTop: 2,
+    marginLeft: 4,
   },
   markerCount: {
     color: '#6666aa',
@@ -665,3 +572,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 });
+
+export default forwardRef(AudioTimeline);

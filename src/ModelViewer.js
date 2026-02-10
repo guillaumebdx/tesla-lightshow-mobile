@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable } from 'react-native';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import * as THREE from 'three';
@@ -12,40 +12,18 @@ import {
 } from 'react-native-gesture-handler';
 import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
-
-const INTERACTIVE_PARTS = [
-  'window_left_front', 'window_right_front',
-  'window_left_back', 'window_right_back',
-  'retro_left', 'retro_right',
-  'flap', 'trunk',
-  'light_left_front', 'light_right_front',
-  'light_left_back', 'light_right_back',
-];
-
-const PART_LABELS = {
-  window_left_front: 'Fenêtre AV gauche',
-  window_right_front: 'Fenêtre AV droite',
-  window_left_back: 'Fenêtre AR gauche',
-  window_right_back: 'Fenêtre AR droite',
-  retro_left: 'Rétro gauche',
-  retro_right: 'Rétro droit',
-  flap: 'Trappe de charge',
-  trunk: 'Coffre',
-  light_left_front: 'Phare AV gauche',
-  light_right_front: 'Phare AV droit',
-  light_left_back: 'Feu AR gauche',
-  light_right_back: 'Feu AR droit',
-};
+import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS } from './constants';
 
 export default function ModelViewer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
-  const markersRef = useRef([]);
+  const eventsRef = useRef([]);
   const playbackPositionRef = useRef(0);
   const playbackDurationRef = useRef(0);
-  const litMeshesRef = useRef(new Map()); // meshName -> timeout id
-  const [eventOptions, setEventOptions] = useState({ durationMs: 500, blink: false });
+  const [eventOptions, setEventOptions] = useState({ ...DEFAULT_EVENT_OPTIONS });
+  const [menuVisible, setMenuVisible] = useState(false);
+  const audioTimelineRef = useRef(null);
 
   // Refs for Three.js objects
   const rendererRef = useRef(null);
@@ -82,7 +60,6 @@ export default function ModelViewer() {
   const selectedMeshRef = useRef(null);
   const litHeadlightMatRef = useRef(null);
   const litTaillightMatRef = useRef(null);
-  const lastCheckedPosRef = useRef(0);
   const [activeColor, setActiveColor] = useState('#222222');
 
   const BODY_COLORS = [
@@ -367,7 +344,7 @@ export default function ModelViewer() {
       setLoading(false);
     }
 
-    // Animation loop
+    // Animation loop — reads events directly, no setTimeout
     const animate = () => {
       frameIdRef.current = requestAnimationFrame(animate);
 
@@ -378,76 +355,64 @@ export default function ModelViewer() {
         const s = scaleRef.current;
         modelRef.current.scale.set(s, s, s);
 
-        // Check markers for light triggers
+        // Determine which parts are active at current playback position
         const pos = playbackPositionRef.current;
-        const lastPos = lastCheckedPosRef.current;
-        if (pos !== lastPos) {
-          const markers = markersRef.current;
-          for (const marker of markers) {
-            // Trigger if playback just crossed this marker
-            if (marker.timeMs > lastPos && marker.timeMs <= pos) {
-              triggerLightEvent(marker.part, marker.durationMs || 500, marker.blink || false);
+        const events = eventsRef.current;
+
+        // Build a map: partName -> active event
+        const activeMap = new Map();
+        for (const evt of events) {
+          if (pos >= evt.startMs && pos < evt.endMs) {
+            activeMap.set(evt.part, evt);
+          }
+        }
+
+        // Apply materials based on active events
+        modelRef.current.traverse((child) => {
+          if (!child.isMesh) return;
+          const partName = child.userData.interactiveName;
+          if (!partName) return;
+          // Don't override highlight on selected mesh
+          if (selectedMeshRef.current && selectedMeshRef.current.userData.interactiveName === partName) return;
+
+          const activeEvt = activeMap.get(partName);
+          if (activeEvt) {
+            const isHeadlight = partName.includes('light') && partName.includes('front');
+            const isTaillight = partName.includes('light') && partName.includes('back');
+            const litMat = isHeadlight ? litHeadlightMatRef.current
+                         : isTaillight ? litTaillightMatRef.current
+                         : null;
+            if (!litMat) return;
+
+            // Apply power: scale emissive intensity (power 1-100 → 0.01-1.0)
+            const powerFactor = (activeEvt.power ?? 100) / 100;
+            const poweredMat = litMat.clone();
+            poweredMat.emissiveIntensity = litMat.emissiveIntensity * powerFactor;
+
+            if (activeEvt.effect === 'blink') {
+              // Blink: use time within event + speed level
+              const speedIdx = activeEvt.blinkSpeed ?? 0;
+              const periodMs = BLINK_SPEEDS[speedIdx]?.periodMs ?? 80;
+              const elapsed = pos - activeEvt.startMs;
+              const on = (Math.floor(elapsed / (periodMs / 2)) % 2) === 0;
+              const originalMat = meshMaterialsRef.current.get(partName);
+              child.material = on ? poweredMat : (originalMat || child.material);
+            } else {
+              // Solid
+              child.material = poweredMat;
+            }
+          } else {
+            // Not active — restore original material
+            const originalMat = meshMaterialsRef.current.get(partName);
+            if (originalMat && child.material !== originalMat) {
+              child.material = originalMat;
             }
           }
-          lastCheckedPosRef.current = pos;
-        }
+        });
       }
 
       renderer.render(scene, camera);
       gl.endFrameEXP();
-    };
-
-    const triggerLightEvent = (partName, markerDurationMs = 500, markerBlink = false) => {
-      const model = modelRef.current;
-      if (!model) return;
-
-      const isHeadlight = partName.includes('light') && partName.includes('front');
-      const isTaillight = partName.includes('light') && partName.includes('back');
-      if (!isHeadlight && !isTaillight) return;
-
-      const litMat = isHeadlight ? litHeadlightMatRef.current : litTaillightMatRef.current;
-      if (!litMat) return;
-
-      model.traverse((child) => {
-        if (child.isMesh && child.userData.interactiveName === partName) {
-          if (selectedMeshRef.current && selectedMeshRef.current.userData.interactiveName === partName) return;
-
-          // Clear previous timeouts/intervals
-          const prev = litMeshesRef.current.get(partName);
-          if (prev) {
-            if (prev.timeout) clearTimeout(prev.timeout);
-            if (prev.interval) clearInterval(prev.interval);
-          }
-
-          const originalMat = meshMaterialsRef.current.get(partName);
-
-          if (markerBlink) {
-            // Blink mode: toggle on/off every 80ms
-            let on = true;
-            child.material = litMat;
-            const interval = setInterval(() => {
-              on = !on;
-              child.material = on ? litMat : originalMat;
-            }, 80);
-            const timeout = setTimeout(() => {
-              clearInterval(interval);
-              if (originalMat) child.material = originalMat;
-              litMeshesRef.current.delete(partName);
-            }, markerDurationMs);
-            litMeshesRef.current.set(partName, { timeout, interval });
-          } else {
-            // Solid on for duration
-            child.material = litMat;
-            const timeout = setTimeout(() => {
-              if (originalMat && child.material === litMat) {
-                child.material = originalMat;
-              }
-              litMeshesRef.current.delete(partName);
-            }, markerDurationMs);
-            litMeshesRef.current.set(partName, { timeout });
-          }
-        }
-      });
     };
 
     animate();
@@ -563,9 +528,10 @@ export default function ModelViewer() {
         {/* Timeline */}
         <View style={styles.timelineSection}>
           <AudioTimeline
+            ref={audioTimelineRef}
             selectedPart={selectedPart}
             eventOptions={eventOptions}
-            onMarkersChange={(m) => { markersRef.current = m; }}
+            onEventsChange={(evts) => { eventsRef.current = evts; }}
             onPositionChange={(pos, dur) => {
               playbackPositionRef.current = pos;
               playbackDurationRef.current = dur;
@@ -582,6 +548,37 @@ export default function ModelViewer() {
           />
         </View>
       </ScrollView>
+
+      {/* Burger menu button */}
+      <TouchableOpacity
+        style={styles.burgerButton}
+        onPress={() => setMenuVisible(true)}
+      >
+        <Text style={styles.burgerIcon}>☰</Text>
+      </TouchableOpacity>
+
+      {/* Burger menu modal */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
+          <View style={styles.menuContent}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                audioTimelineRef.current?.openTrackPicker();
+              }}
+            >
+              <Text style={styles.menuItemIcon}>♪</Text>
+              <Text style={styles.menuItemText}>Choisir une musique</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </GestureHandlerRootView>
   );
 }
@@ -691,5 +688,55 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '300',
     lineHeight: 22,
+  },
+  burgerButton: {
+    position: 'absolute',
+    top: 46,
+    right: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(30, 30, 60, 0.85)',
+    borderWidth: 1,
+    borderColor: '#3a3a5a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  burgerIcon: {
+    color: '#ccccee',
+    fontSize: 18,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 86,
+    paddingRight: 14,
+  },
+  menuContent: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2a2a4a',
+    paddingVertical: 6,
+    minWidth: 200,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  menuItemIcon: {
+    color: '#e94560',
+    fontSize: 18,
+  },
+  menuItemText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
