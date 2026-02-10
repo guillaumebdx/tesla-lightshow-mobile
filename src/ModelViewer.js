@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import * as THREE from 'three';
@@ -11,6 +11,7 @@ import {
   Gesture,
 } from 'react-native-gesture-handler';
 import AudioTimeline from './AudioTimeline';
+import PartOptionsPanel from './PartOptionsPanel';
 
 const INTERACTIVE_PARTS = [
   'window_left_front', 'window_right_front',
@@ -40,6 +41,11 @@ export default function ModelViewer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
+  const markersRef = useRef([]);
+  const playbackPositionRef = useRef(0);
+  const playbackDurationRef = useRef(0);
+  const litMeshesRef = useRef(new Map()); // meshName -> timeout id
+  const [eventOptions, setEventOptions] = useState({ durationMs: 500, blink: false });
 
   // Refs for Three.js objects
   const rendererRef = useRef(null);
@@ -56,16 +62,17 @@ export default function ModelViewer() {
   const savedRotationRef = useRef({ x: 0, y: 0 });
   const scaleRef = useRef(1);
   const savedScaleRef = useRef(1);
+  const baseScaleRef = useRef(1);
 
-  const ZOOM_MAX = 2.074;  // 1.2^4 = 4 taps max
-  const ZOOM_MIN = 0.3;
+  const getZoomMax = () => baseScaleRef.current * 2.074; // ~4 taps of 1.2x
+  const getZoomMin = () => baseScaleRef.current * 0.3;
 
   const zoomIn = () => {
-    scaleRef.current = Math.min(ZOOM_MAX, scaleRef.current * 1.2);
+    scaleRef.current = Math.min(getZoomMax(), scaleRef.current * 1.2);
   };
 
   const zoomOut = () => {
-    scaleRef.current = Math.max(ZOOM_MIN, scaleRef.current / 1.2);
+    scaleRef.current = Math.max(getZoomMin(), scaleRef.current / 1.2);
   };
 
   // Materials
@@ -73,6 +80,9 @@ export default function ModelViewer() {
   const highlightMaterialRef = useRef(null);
   const meshMaterialsRef = useRef(new Map());
   const selectedMeshRef = useRef(null);
+  const litHeadlightMatRef = useRef(null);
+  const litTaillightMatRef = useRef(null);
+  const lastCheckedPosRef = useRef(0);
   const [activeColor, setActiveColor] = useState('#222222');
 
   const BODY_COLORS = [
@@ -99,19 +109,20 @@ export default function ModelViewer() {
     // Deselect previous
     if (selectedMeshRef.current) {
       const prev = selectedMeshRef.current;
-      const originalMat = meshMaterialsRef.current.get(prev.name);
+      const prevKey = prev.userData.interactiveName || prev.name;
+      const originalMat = meshMaterialsRef.current.get(prevKey);
       if (originalMat) prev.material = originalMat;
     }
 
-    if (meshName === null || (selectedMeshRef.current && selectedMeshRef.current.name === meshName)) {
+    if (meshName === null || (selectedMeshRef.current && selectedMeshRef.current.userData.interactiveName === meshName)) {
       selectedMeshRef.current = null;
       setSelectedPart(null);
       return;
     }
 
-    // Find and select new
+    // Find and select new (match by userData.interactiveName)
     model.traverse((child) => {
-      if (child.isMesh && child.name === meshName) {
+      if (child.isMesh && child.userData.interactiveName === meshName) {
         child.material = highlightMaterialRef.current;
         selectedMeshRef.current = child;
         setSelectedPart(meshName);
@@ -145,19 +156,13 @@ export default function ModelViewer() {
 
     const intersects = raycaster.intersectObjects(allMeshes, false);
     if (intersects.length > 0) {
-      const hitName = intersects[0].object.name;
-      console.log('Tap hit mesh:', hitName);
-      if (INTERACTIVE_PARTS.includes(hitName)) {
-        selectPart(hitName);
+      const hit = intersects[0].object;
+      const interactiveName = hit.userData.interactiveName;
+      console.log('Tap hit:', interactiveName || hit.name);
+      if (interactiveName) {
+        selectPart(interactiveName);
       } else {
-        // Check parent node name (Three.js may use mesh name, not node name)
-        const parentName = intersects[0].object.parent?.name;
-        console.log('Parent name:', parentName);
-        if (parentName && INTERACTIVE_PARTS.includes(parentName)) {
-          selectPart(parentName);
-        } else {
-          selectPart(null);
-        }
+        selectPart(null);
       }
     } else {
       console.log('Tap miss - no intersection');
@@ -244,21 +249,41 @@ export default function ModelViewer() {
       transparent: true,
     });
 
+    // Lights OFF (default: dark gray, like glass)
     const headlightMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.3,
-      roughness: 0.1,
-      emissive: 0xffffff,
-      emissiveIntensity: 0.15,
+      color: 0x333333,
+      metalness: 0.5,
+      roughness: 0.15,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
     });
 
     const taillightMaterial = new THREE.MeshStandardMaterial({
-      color: 0xcc0000,
-      metalness: 0.3,
-      roughness: 0.1,
-      emissive: 0xcc0000,
-      emissiveIntensity: 0.15,
+      color: 0x331111,
+      metalness: 0.5,
+      roughness: 0.15,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
     });
+
+    // Lights ON (bright emissive)
+    const litHeadlightMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      metalness: 0.2,
+      roughness: 0.05,
+      emissive: 0xffffff,
+      emissiveIntensity: 1.5,
+    });
+    litHeadlightMatRef.current = litHeadlightMat;
+
+    const litTaillightMat = new THREE.MeshStandardMaterial({
+      color: 0xff0000,
+      metalness: 0.2,
+      roughness: 0.05,
+      emissive: 0xff0000,
+      emissiveIntensity: 1.5,
+    });
+    litTaillightMatRef.current = litTaillightMat;
 
     const fixedPartMaterials = {
       window_left_front: windowMaterial,
@@ -287,12 +312,33 @@ export default function ModelViewer() {
 
       const model = gltf.scene;
 
-      // Apply materials per mesh
+      // Debug: log full hierarchy to find correct name level
       model.traverse((child) => {
         if (child.isMesh) {
-          const mat = fixedPartMaterials[child.name] || bodyMaterial;
+          console.log(`MESH: "${child.name}" parent: "${child.parent?.name}" grandparent: "${child.parent?.parent?.name}"`);
+        }
+      });
+
+      // Apply materials per mesh - find the interactive name by walking up the hierarchy
+      const getInteractiveName = (mesh) => {
+        let node = mesh;
+        while (node) {
+          if (INTERACTIVE_PARTS.includes(node.name)) return node.name;
+          node = node.parent;
+        }
+        return null;
+      };
+
+      model.traverse((child) => {
+        if (child.isMesh) {
+          const interactiveName = getInteractiveName(child);
+          const mat = (interactiveName && fixedPartMaterials[interactiveName]) || bodyMaterial;
           child.material = mat;
-          meshMaterialsRef.current.set(child.name, mat);
+          // Store with a key we can look up later
+          const key = interactiveName || child.name;
+          meshMaterialsRef.current.set(key, mat);
+          // Also tag the mesh with its interactive name for quick lookup
+          child.userData.interactiveName = interactiveName;
         }
       });
 
@@ -306,6 +352,11 @@ export default function ModelViewer() {
       model.scale.setScalar(scaleFactor);
       model.position.sub(center.multiplyScalar(scaleFactor));
       model.position.y = -size.y * scaleFactor / 2;
+
+      // Initialize zoom refs with the computed scale
+      scaleRef.current = scaleFactor;
+      savedScaleRef.current = scaleFactor;
+      baseScaleRef.current = scaleFactor;
 
       scene.add(model);
       modelRef.current = model;
@@ -326,10 +377,77 @@ export default function ModelViewer() {
 
         const s = scaleRef.current;
         modelRef.current.scale.set(s, s, s);
+
+        // Check markers for light triggers
+        const pos = playbackPositionRef.current;
+        const lastPos = lastCheckedPosRef.current;
+        if (pos !== lastPos) {
+          const markers = markersRef.current;
+          for (const marker of markers) {
+            // Trigger if playback just crossed this marker
+            if (marker.timeMs > lastPos && marker.timeMs <= pos) {
+              triggerLightEvent(marker.part, marker.durationMs || 500, marker.blink || false);
+            }
+          }
+          lastCheckedPosRef.current = pos;
+        }
       }
 
       renderer.render(scene, camera);
       gl.endFrameEXP();
+    };
+
+    const triggerLightEvent = (partName, markerDurationMs = 500, markerBlink = false) => {
+      const model = modelRef.current;
+      if (!model) return;
+
+      const isHeadlight = partName.includes('light') && partName.includes('front');
+      const isTaillight = partName.includes('light') && partName.includes('back');
+      if (!isHeadlight && !isTaillight) return;
+
+      const litMat = isHeadlight ? litHeadlightMatRef.current : litTaillightMatRef.current;
+      if (!litMat) return;
+
+      model.traverse((child) => {
+        if (child.isMesh && child.userData.interactiveName === partName) {
+          if (selectedMeshRef.current && selectedMeshRef.current.userData.interactiveName === partName) return;
+
+          // Clear previous timeouts/intervals
+          const prev = litMeshesRef.current.get(partName);
+          if (prev) {
+            if (prev.timeout) clearTimeout(prev.timeout);
+            if (prev.interval) clearInterval(prev.interval);
+          }
+
+          const originalMat = meshMaterialsRef.current.get(partName);
+
+          if (markerBlink) {
+            // Blink mode: toggle on/off every 80ms
+            let on = true;
+            child.material = litMat;
+            const interval = setInterval(() => {
+              on = !on;
+              child.material = on ? litMat : originalMat;
+            }, 80);
+            const timeout = setTimeout(() => {
+              clearInterval(interval);
+              if (originalMat) child.material = originalMat;
+              litMeshesRef.current.delete(partName);
+            }, markerDurationMs);
+            litMeshesRef.current.set(partName, { timeout, interval });
+          } else {
+            // Solid on for duration
+            child.material = litMat;
+            const timeout = setTimeout(() => {
+              if (originalMat && child.material === litMat) {
+                child.material = originalMat;
+              }
+              litMeshesRef.current.delete(partName);
+            }, markerDurationMs);
+            litMeshesRef.current.set(partName, { timeout });
+          }
+        }
+      });
     };
 
     animate();
@@ -368,7 +486,7 @@ export default function ModelViewer() {
     })
     .onUpdate((event) => {
       const newScale = savedScaleRef.current * event.scale;
-      scaleRef.current = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newScale));
+      scaleRef.current = Math.max(getZoomMin(), Math.min(getZoomMax(), newScale));
     });
 
   // Combine gestures
@@ -440,10 +558,30 @@ export default function ModelViewer() {
         ))}
       </View>
 
-      {/* Bottom section: Timeline / Config */}
-      <View style={styles.timelineSection}>
-        <AudioTimeline />
-      </View>
+      {/* Bottom: scrollable timeline + options */}
+      <ScrollView style={styles.bottomSection} contentContainerStyle={styles.bottomContent}>
+        {/* Timeline */}
+        <View style={styles.timelineSection}>
+          <AudioTimeline
+            selectedPart={selectedPart}
+            eventOptions={eventOptions}
+            onMarkersChange={(m) => { markersRef.current = m; }}
+            onPositionChange={(pos, dur) => {
+              playbackPositionRef.current = pos;
+              playbackDurationRef.current = dur;
+            }}
+          />
+        </View>
+
+        {/* Part options panel */}
+        <View style={styles.optionsSection}>
+          <PartOptionsPanel
+            selectedPart={selectedPart}
+            eventOptions={eventOptions}
+            onOptionsChange={setEventOptions}
+          />
+        </View>
+      </ScrollView>
     </GestureHandlerRootView>
   );
 }
@@ -455,12 +593,22 @@ const styles = StyleSheet.create({
     paddingTop: 40,
   },
   viewerSection: {
-    flex: 35,
+    height: Math.round(Dimensions.get('window').height * 0.38),
+  },
+  bottomSection: {
+    flex: 1,
+  },
+  bottomContent: {
+    flexGrow: 1,
   },
   timelineSection: {
-    flex: 65,
     borderTopWidth: 1,
     borderTopColor: '#2a2a4a',
+  },
+  optionsSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#2a2a4a',
+    minHeight: 150,
   },
   canvasContainer: {
     flex: 1,

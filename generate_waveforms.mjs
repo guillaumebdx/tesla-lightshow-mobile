@@ -11,7 +11,7 @@ import { join, basename } from 'path';
 import { MPEGDecoder } from 'mpg123-decoder';
 
 const MP3_DIR = './assets/mp3';
-const NUM_BARS = 150;  // number of waveform bars to generate
+const NUM_BARS = 2000;  // ~4 bars/sec for an 8min track
 
 async function generateWaveform(filePath) {
   const mp3Data = readFileSync(filePath);

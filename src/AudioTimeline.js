@@ -6,12 +6,31 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
-  Dimensions,
+  ScrollView,
+  Animated,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { MP3_TRACKS } from '../assets/mp3/index';
 
 const BAR_GAP = 1;
+const ZOOM_LEVELS = [1, 2, 4, 8, 16];
+const BAR_BASE_WIDTH = 1;
+const PLAYBACK_UPDATE_MS = 100;
+
+const PART_EMOJIS = {
+  window_left_front: '🪟',
+  window_right_front: '🪟',
+  window_left_back: '🪟',
+  window_right_back: '🪟',
+  retro_left: '🪞',
+  retro_right: '🪞',
+  flap: '⚡',
+  trunk: '📦',
+  light_left_front: '💡',
+  light_right_front: '💡',
+  light_left_back: '🔴',
+  light_right_back: '🔴',
+};
 
 function formatTime(ms) {
   const totalSec = Math.floor(ms / 1000);
@@ -20,17 +39,27 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-export default function AudioTimeline() {
+export default function AudioTimeline({ selectedPart, eventOptions, onMarkersChange, onPositionChange }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [waveform, setWaveform] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
+  const [markers, setMarkers] = useState([]);
   const soundRef = useRef(null);
-  const timelineWidthRef = useRef(1);
-  const timelineLeftRef = useRef(0);
-  const waveformRef = useRef(null);
+  const scrollRef = useRef(null);
+  const containerWidthRef = useRef(1);
+  const containerLeftRef = useRef(0);
+  const scrollOffsetRef = useRef(0);
+  const containerRef = useRef(null);
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const touchStartRef = useRef({ x: 0, time: 0 });
+
+  // Smooth cursor animation
+  const cursorAnim = useRef(new Animated.Value(0)).current;
+  const lastPositionRef = useRef(0);
+  const lastUpdateTimeRef = useRef(Date.now());
 
   useEffect(() => {
     return () => {
@@ -43,7 +72,6 @@ export default function AudioTimeline() {
   const selectTrack = async (track) => {
     setModalVisible(false);
 
-    // Unload previous
     if (soundRef.current) {
       await soundRef.current.unloadAsync();
       soundRef.current = null;
@@ -53,11 +81,13 @@ export default function AudioTimeline() {
     setWaveform(track.waveform?.bars || []);
     setIsPlaying(false);
     setPosition(0);
+    setMarkers([]);
+    cursorAnim.setValue(0);
 
     try {
       const { sound, status } = await Audio.Sound.createAsync(
         track.file,
-        { shouldPlay: false },
+        { shouldPlay: false, progressUpdateIntervalMillis: PLAYBACK_UPDATE_MS },
         onPlaybackStatusUpdate
       );
       soundRef.current = sound;
@@ -71,16 +101,44 @@ export default function AudioTimeline() {
 
   const onPlaybackStatusUpdate = useCallback((status) => {
     if (status.isLoaded) {
-      setPosition(status.positionMillis || 0);
+      const now = Date.now();
+      const newPos = status.positionMillis || 0;
+      const dur = status.durationMillis || 1;
+
+      setPosition(newPos);
       if (status.durationMillis) {
         setDuration(status.durationMillis);
       }
+
+      // Notify parent of position for light event triggers
+      if (onPositionChange) {
+        onPositionChange(newPos, dur);
+      }
+
+      // Smooth interpolation: animate from current to new position
+      const targetProgress = newPos / dur;
+      if (status.isPlaying) {
+        // Predict next position for smooth animation
+        const nextProgress = Math.min(1, (newPos + PLAYBACK_UPDATE_MS) / dur);
+        Animated.timing(cursorAnim, {
+          toValue: nextProgress,
+          duration: PLAYBACK_UPDATE_MS,
+          useNativeDriver: false,
+        }).start();
+      } else {
+        cursorAnim.setValue(targetProgress);
+      }
+
+      lastPositionRef.current = newPos;
+      lastUpdateTimeRef.current = now;
+
       if (status.didJustFinish) {
         setIsPlaying(false);
         setPosition(0);
+        cursorAnim.setValue(0);
       }
     }
-  }, []);
+  }, [cursorAnim]);
 
   const togglePlay = async () => {
     if (!soundRef.current) return;
@@ -94,25 +152,59 @@ export default function AudioTimeline() {
     }
   };
 
-  const seekTo = async (pageX) => {
+  const zoom = ZOOM_LEVELS[zoomIndex];
+  const totalWaveWidth = waveform.length * (BAR_BASE_WIDTH * zoom + BAR_GAP);
+
+  const seekToRatio = async (ratio) => {
     if (!soundRef.current || duration === 0) return;
-    const localX = pageX - timelineLeftRef.current;
-    const ratio = Math.max(0, Math.min(1, localX / timelineWidthRef.current));
-    const seekMs = Math.round(ratio * duration);
+    const clamped = Math.max(0, Math.min(1, ratio));
+    const seekMs = Math.round(clamped * duration);
     await soundRef.current.setPositionAsync(seekMs);
     setPosition(seekMs);
+    cursorAnim.setValue(clamped);
   };
 
-  const measureWaveform = () => {
-    if (waveformRef.current) {
-      waveformRef.current.measureInWindow((x, y, width, height) => {
-        timelineLeftRef.current = x;
-        timelineWidthRef.current = width;
-      });
-    }
+  const waveZoomIn = () => {
+    setZoomIndex((prev) => Math.min(ZOOM_LEVELS.length - 1, prev + 1));
+  };
+
+  const waveZoomOut = () => {
+    setZoomIndex((prev) => Math.max(0, prev - 1));
   };
 
   const progress = duration > 0 ? position / duration : 0;
+
+  const handleWaveTap = (localX) => {
+    const ratio = localX / totalWaveWidth;
+    const timeMs = Math.round(ratio * duration);
+
+    // If a mesh part is selected, place a marker
+    if (selectedPart && duration > 0) {
+      const newMarker = {
+        id: Date.now().toString(),
+        part: selectedPart,
+        emoji: PART_EMOJIS[selectedPart] || '📍',
+        timeMs,
+        ratio,
+        durationMs: eventOptions?.durationMs || 500,
+        blink: eventOptions?.blink || false,
+      };
+      setMarkers((prev) => {
+        const updated = [...prev, newMarker].sort((a, b) => a.timeMs - b.timeMs);
+        if (onMarkersChange) onMarkersChange(updated);
+        return updated;
+      });
+    }
+
+    // Also seek to that position
+    seekToRatio(ratio);
+  };
+
+  // Animated cursor left value
+  const animatedCursorLeft = cursorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, totalWaveWidth],
+  });
 
   // No track selected: show button
   if (!selectedTrack) {
@@ -144,6 +236,13 @@ export default function AudioTimeline() {
           <Text style={styles.trackTitle}>{selectedTrack.title}</Text>
           <Text style={styles.trackArtist}>{selectedTrack.artist}</Text>
         </View>
+        {selectedPart && (
+          <View style={styles.placingHint}>
+            <Text style={styles.placingHintText}>
+              {PART_EMOJIS[selectedPart] || '📍'} Tap la wave pour placer
+            </Text>
+          </View>
+        )}
         <TouchableOpacity
           style={styles.changeButton}
           onPress={() => setModalVisible(true)}
@@ -153,47 +252,107 @@ export default function AudioTimeline() {
       </View>
 
       {/* Waveform timeline */}
-      <View style={styles.timelineContainer}>
-        <View
-          ref={waveformRef}
-          style={styles.waveformContainer}
-          onLayout={() => {
-            setTimeout(measureWaveform, 100);
+      <View
+        ref={containerRef}
+        style={styles.timelineContainer}
+        onLayout={(e) => {
+          containerWidthRef.current = e.nativeEvent.layout.width;
+          setTimeout(() => {
+            if (containerRef.current) {
+              containerRef.current.measureInWindow((x) => {
+                containerLeftRef.current = x;
+              });
+            }
+          }, 50);
+        }}
+      >
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={zoom > 1}
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            scrollOffsetRef.current = e.nativeEvent.contentOffset.x;
           }}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderGrant={(e) => {
-            measureWaveform();
-            seekTo(e.nativeEvent.pageX);
+          onTouchStart={(e) => {
+            if (containerRef.current) {
+              containerRef.current.measureInWindow((x) => {
+                containerLeftRef.current = x;
+              });
+            }
+            touchStartRef.current = {
+              x: e.nativeEvent.pageX,
+              time: Date.now(),
+            };
           }}
-          onResponderMove={(e) => {
-            seekTo(e.nativeEvent.pageX);
+          onTouchEnd={(e) => {
+            const dx = Math.abs(e.nativeEvent.pageX - touchStartRef.current.x);
+            const dt = Date.now() - touchStartRef.current.time;
+            if (dt < 250 && dx < 8) {
+              const localX = e.nativeEvent.pageX - containerLeftRef.current + scrollOffsetRef.current;
+              handleWaveTap(localX);
+            }
           }}
         >
-          {waveform.map((val, i) => {
-            const barProgress = (i + 1) / waveform.length;
-            const isPast = barProgress <= progress;
-            return (
-              <View
-                key={i}
-                style={[
-                  styles.waveformBar,
-                  {
-                    height: Math.max(2, val * 60),
-                    backgroundColor: isPast ? '#e94560' : '#333355',
-                  },
-                ]}
-              />
-            );
-          })}
+          <View style={[styles.waveformContainer, { width: totalWaveWidth }]}>
+            {waveform.map((val, i) => {
+              const barProgress = (i + 1) / waveform.length;
+              const isPast = barProgress <= progress;
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.waveformBar,
+                    {
+                      width: BAR_BASE_WIDTH * zoom,
+                      height: Math.max(2, val * 70),
+                      backgroundColor: isPast ? '#e94560' : '#333355',
+                    },
+                  ]}
+                />
+              );
+            })}
 
-          {/* Playback cursor */}
-          <View
-            style={[
-              styles.cursor,
-              { left: `${progress * 100}%` },
-            ]}
-          />
+            {/* Markers */}
+            {markers.map((m) => (
+              <View
+                key={m.id}
+                style={[
+                  styles.marker,
+                  { left: m.ratio * totalWaveWidth },
+                ]}
+              >
+                <Text style={styles.markerEmoji}>{m.emoji}</Text>
+                <View style={styles.markerLine} />
+              </View>
+            ))}
+
+            {/* Playback cursor (smooth) */}
+            <Animated.View
+              style={[
+                styles.cursor,
+                { left: animatedCursorLeft },
+              ]}
+            />
+          </View>
+        </ScrollView>
+
+        {/* Zoom controls */}
+        <View style={styles.waveZoomControls}>
+          <TouchableOpacity
+            style={[styles.waveZoomBtn, zoomIndex >= ZOOM_LEVELS.length - 1 && styles.waveZoomBtnDisabled]}
+            onPress={waveZoomIn}
+            disabled={zoomIndex >= ZOOM_LEVELS.length - 1}
+          >
+            <Text style={styles.waveZoomBtnText}>+</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.waveZoomBtn, zoomIndex <= 0 && styles.waveZoomBtnDisabled]}
+            onPress={waveZoomOut}
+            disabled={zoomIndex <= 0}
+          >
+            <Text style={styles.waveZoomBtnText}>−</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -209,6 +368,13 @@ export default function AudioTimeline() {
 
         <Text style={styles.timeText}>{formatTime(duration)}</Text>
       </View>
+
+      {/* Markers count */}
+      {markers.length > 0 && (
+        <Text style={styles.markerCount}>
+          {markers.length} événement{markers.length > 1 ? 's' : ''} placé{markers.length > 1 ? 's' : ''}
+        </Text>
+      )}
 
       <TrackModal
         visible={modalVisible}
@@ -259,9 +425,7 @@ function TrackModal({ visible, onClose, onSelect }) {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    padding: 16,
-    justifyContent: 'center',
+    padding: 12,
   },
 
   // Select button (no track)
@@ -291,7 +455,7 @@ const styles = StyleSheet.create({
   trackHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   trackInfo: {
     flex: 1,
@@ -305,6 +469,20 @@ const styles = StyleSheet.create({
     color: '#6666aa',
     fontSize: 12,
     marginTop: 2,
+  },
+  placingHint: {
+    backgroundColor: 'rgba(68, 170, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: '#44aaff',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+  },
+  placingHintText: {
+    color: '#44aaff',
+    fontSize: 11,
+    fontWeight: '500',
   },
   changeButton: {
     width: 36,
@@ -339,8 +517,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   waveformBar: {
-    flex: 1,
-    minWidth: 1,
     borderRadius: 1,
   },
   cursor: {
@@ -355,13 +531,59 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  marker: {
+    position: 'absolute',
+    top: 0,
+    alignItems: 'center',
+  },
+  markerEmoji: {
+    fontSize: 12,
+  },
+  markerLine: {
+    width: 1,
+    height: 80,
+    backgroundColor: '#44aaff',
+    opacity: 0.6,
+  },
+  markerCount: {
+    color: '#6666aa',
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  waveZoomControls: {
+    position: 'absolute',
+    right: 6,
+    top: 6,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  waveZoomBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: 'rgba(30, 30, 60, 0.9)',
+    borderWidth: 1,
+    borderColor: '#3a3a5a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  waveZoomBtnDisabled: {
+    opacity: 0.3,
+  },
+  waveZoomBtnText: {
+    color: '#ccccee',
+    fontSize: 14,
+    fontWeight: '300',
+    lineHeight: 16,
+  },
 
   // Controls
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: 8,
     gap: 20,
   },
   playButton: {
