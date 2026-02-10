@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { MP3_TRACKS } from '../assets/mp3/index';
-import { PART_EMOJIS, PART_COLORS, EFFECT_TYPES } from './constants';
+import { PART_EMOJIS, PART_COLORS, EFFECT_TYPES, isAnimatable } from './constants';
 
 const BAR_GAP = 1;
 const ZOOM_LEVELS = [1, 2, 4, 8, 16];
@@ -25,7 +25,7 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function AudioTimeline({ selectedPart, eventOptions, onEventsChange, onPositionChange }, ref) {
+function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate }, ref) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [waveform, setWaveform] = useState([]);
@@ -41,15 +41,31 @@ function AudioTimeline({ selectedPart, eventOptions, onEventsChange, onPositionC
   const containerRef = useRef(null);
   const [zoomIndex, setZoomIndex] = useState(0);
   const touchStartRef = useRef({ x: 0, time: 0 });
+  const eventTappedRef = useRef(false);
 
   useImperativeHandle(ref, () => ({
     openTrackPicker: () => setModalVisible(true),
+    updateEvent: (updatedEvt) => {
+      setEvents((prev) => {
+        const updated = prev.map((e) => e.id === updatedEvt.id ? updatedEvt : e);
+        if (onEventsChange) onEventsChange(updated);
+        return updated;
+      });
+    },
+    clearAllEvents: () => {
+      setEvents([]);
+      if (onEventsChange) onEventsChange([]);
+    },
   }));
 
   // Cursor animation (Animated — no re-render)
   const cursorAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Load first track (Danse Macabre) by default
+    if (!selectedTrack && MP3_TRACKS.length > 0) {
+      selectTrack(MP3_TRACKS[0]);
+    }
     return () => {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
@@ -87,32 +103,36 @@ function AudioTimeline({ selectedPart, eventOptions, onEventsChange, onPositionC
     }
   };
 
+  const cursorOffsetMsRef = useRef(cursorOffsetMs);
+  cursorOffsetMsRef.current = cursorOffsetMs;
+
   const onPlaybackStatusUpdate = useCallback((status) => {
     if (status.isLoaded) {
       const newPos = status.positionMillis || 0;
       const dur = status.durationMillis || 1;
+      const offset = cursorOffsetMsRef.current || 0;
+      const offsetPos = Math.max(0, Math.min(newPos + offset, dur));
 
-      setPosition(newPos);
+      setPosition(offsetPos);
       if (status.durationMillis) {
         setDuration(dur);
       }
 
-      // Report position to parent via ref (no re-render)
+      // Report offset position to parent (for lights sync)
       if (onPositionChange) {
-        onPositionChange(newPos, dur);
+        onPositionChange(offsetPos, dur);
       }
 
-      // Cursor: animate smoothly to current position, predicting ahead
-      const progress = newPos / dur;
+      // Cursor: animate smoothly with offset applied
       if (status.isPlaying) {
-        const nextProgress = Math.min(1, (newPos + PLAYBACK_UPDATE_MS) / dur);
+        const nextPos = Math.max(0, Math.min(newPos + offset + PLAYBACK_UPDATE_MS, dur));
         Animated.timing(cursorAnim, {
-          toValue: nextProgress,
+          toValue: nextPos / dur,
           duration: PLAYBACK_UPDATE_MS,
           useNativeDriver: false,
         }).start();
       } else {
-        cursorAnim.setValue(progress);
+        cursorAnim.setValue(offsetPos / dur);
       }
 
       if (status.didJustFinish) {
@@ -157,6 +177,34 @@ function AudioTimeline({ selectedPart, eventOptions, onEventsChange, onPositionC
 
   const progress = duration > 0 ? position / duration : 0;
 
+  // Compute overlap lanes for events
+  const computeLanes = (evts) => {
+    const lanes = new Map(); // eventId -> { lane, totalLanes }
+    for (let i = 0; i < evts.length; i++) {
+      const evt = evts[i];
+      // Find all events overlapping with this one
+      const overlapping = evts.filter(
+        (other) => other.startMs < evt.endMs && other.endMs > evt.startMs
+      );
+      // Sort overlapping group consistently by startMs then id
+      overlapping.sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id));
+      const laneIdx = overlapping.findIndex((o) => o.id === evt.id);
+      lanes.set(evt.id, { lane: laneIdx, totalLanes: overlapping.length });
+    }
+    return lanes;
+  };
+
+  const eventLanes = computeLanes(events);
+
+  const isPlacementMode = selectedPart && isAnimatable(selectedPart);
+
+  const handleEventTap = (evt) => {
+    eventTappedRef.current = true;
+    if (onEventSelect) {
+      onEventSelect(evt);
+    }
+  };
+
   const handleWaveTap = (localX) => {
     const ratio = localX / totalWaveWidth;
     const startMs = Math.round(ratio * duration);
@@ -174,6 +222,11 @@ function AudioTimeline({ selectedPart, eventOptions, onEventsChange, onPositionC
         effect: eventOptions?.effect || EFFECT_TYPES.SOLID,
         power: eventOptions?.power ?? 100,
         blinkSpeed: eventOptions?.blinkSpeed ?? 0,
+        easeIn: eventOptions?.easeIn ?? false,
+        easeOut: eventOptions?.easeOut ?? false,
+        retroMode: eventOptions?.retroMode ?? 'roundtrip',
+        windowMode: eventOptions?.windowMode ?? 'window_down',
+        windowDurationMs: eventOptions?.windowDurationMs ?? 3000,
       };
       setEvents((prev) => {
         const updated = [...prev, newEvent].sort((a, b) => a.startMs - b.startMs);
@@ -244,6 +297,10 @@ function AudioTimeline({ selectedPart, eventOptions, onEventsChange, onPositionC
             };
           }}
           onTouchEnd={(e) => {
+            if (eventTappedRef.current) {
+              eventTappedRef.current = false;
+              return;
+            }
             const dx = Math.abs(e.nativeEvent.pageX - touchStartRef.current.x);
             const dt = Date.now() - touchStartRef.current.time;
             if (dt < 250 && dx < 8) {
@@ -271,24 +328,39 @@ function AudioTimeline({ selectedPart, eventOptions, onEventsChange, onPositionC
               );
             })}
 
-            {/* Events as colored rectangles */}
+            {/* Events as colored rectangles with lane stacking */}
             {events.map((evt) => {
               const startRatio = evt.startMs / duration;
               const endRatio = evt.endMs / duration;
               const leftPx = startRatio * totalWaveWidth;
-              const widthPx = Math.max(2, (endRatio - startRatio) * totalWaveWidth);
+              const widthPx = Math.max(4, (endRatio - startRatio) * totalWaveWidth);
               const color = PART_COLORS[evt.part] || '#44aaff';
+              const isSelected = evt.id === selectedEventId;
+              const laneInfo = eventLanes.get(evt.id) || { lane: 0, totalLanes: 1 };
+              const laneHeight = 80 / laneInfo.totalLanes;
+              const laneTop = laneInfo.lane * laneHeight;
               return (
-                <View
+                <TouchableOpacity
                   key={evt.id}
+                  activeOpacity={isPlacementMode ? 1 : 0.7}
+                  onPress={isPlacementMode ? undefined : () => handleEventTap(evt)}
+                  pointerEvents={isPlacementMode ? 'none' : 'auto'}
                   style={[
                     styles.eventBlock,
-                    { left: leftPx, width: widthPx, backgroundColor: color + '40' },
+                    {
+                      left: leftPx,
+                      width: widthPx,
+                      top: laneTop,
+                      height: laneHeight,
+                      backgroundColor: color + (isSelected ? '70' : '35'),
+                      borderWidth: isSelected ? 1 : 0,
+                      borderColor: isSelected ? color : 'transparent',
+                    },
                   ]}
                 >
-                  <View style={[styles.eventBlockBorder, { backgroundColor: color + '99' }]} />
-                  <Text style={styles.eventEmoji}>{evt.emoji}</Text>
-                </View>
+                  <View style={[styles.eventBlockBorder, { backgroundColor: color + 'AA' }]} />
+                  {laneHeight >= 16 && <Text style={styles.eventEmoji}>{evt.emoji}</Text>}
+                </TouchableOpacity>
               );
             })}
 
@@ -433,8 +505,6 @@ const styles = StyleSheet.create({
   },
   eventBlock: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
     borderRadius: 2,
     justifyContent: 'flex-start',
     alignItems: 'center',

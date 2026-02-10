@@ -64,6 +64,28 @@ export const EFFECT_TYPES = {
   BLINK: 'blink',     // Rapid on/off alternation
 };
 
+// Retro mirror animation modes
+export const RETRO_MODES = {
+  CLOSE: 'close',       // Fold in (fermer) — 2s, stays closed
+  OPEN: 'open',         // Fold out (ouvrir) — 2s
+  ROUND_TRIP: 'roundtrip', // Fold in then out (aller-retour) — 4s
+};
+
+export const RETRO_DURATIONS = {
+  [RETRO_MODES.CLOSE]: 2000,
+  [RETRO_MODES.OPEN]: 2000,
+  [RETRO_MODES.ROUND_TRIP]: 4000,
+};
+
+// Window animation modes
+export const WINDOW_MODES = {
+  DOWN: 'window_down',   // Descente
+  UP: 'window_up',       // Montée
+};
+
+// Full open/close = 3s. Duration slider controls how long the window stays in motion.
+export const WINDOW_FULL_DURATION = 3000; // 3s for full travel
+
 // Blink speed levels (full cycle period in ms: on + off)
 // Old value was 160ms which was too slow. Slowest new = 80ms (2x faster).
 export const BLINK_SPEEDS = [
@@ -78,7 +100,21 @@ export const DEFAULT_EVENT_OPTIONS = {
   effect: EFFECT_TYPES.SOLID,
   power: 100,          // 1-100, maps to 0-255 at export
   blinkSpeed: 0,       // Index into BLINK_SPEEDS
+  easeIn: false,       // Fade in at start of event
+  easeOut: false,      // Fade out at end of event
+  retroMode: RETRO_MODES.ROUND_TRIP, // Default retro animation mode
+  windowMode: 'window_down',          // Default window animation mode
+  windowDurationMs: 3000,             // Duration of window travel
 };
 
 // Helper: is this part a light?
 export const isLight = (part) => part && part.includes('light');
+
+// Helper: is this part a retro mirror?
+export const isRetro = (part) => part && part.includes('retro');
+
+// Helper: is this part a window?
+export const isWindow = (part) => part && part.includes('window');
+
+// Helper: can this part be placed on the timeline?
+export const isAnimatable = (part) => isLight(part) || isRetro(part) || isWindow(part);

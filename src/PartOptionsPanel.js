@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { PART_EMOJIS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, isLight } from './constants';
+import { PART_EMOJIS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MODES, isLight, isRetro, isWindow } from './constants';
 
-export default function PartOptionsPanel({ selectedPart, eventOptions, onOptionsChange }) {
+export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent }) {
   if (!selectedPart) {
     return (
       <View style={styles.container}>
@@ -15,6 +15,8 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, onOptions
   const emoji = PART_EMOJIS[selectedPart] || '📍';
   const label = PART_LABELS[selectedPart] || selectedPart;
   const lightPart = isLight(selectedPart);
+  const retroPart = isRetro(selectedPart);
+  const windowPart = isWindow(selectedPart);
   const isBlink = eventOptions.effect === EFFECT_TYPES.BLINK;
 
   return (
@@ -23,7 +25,17 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, onOptions
         {/* Part header */}
         <View style={styles.header}>
           <Text style={styles.headerEmoji}>{emoji}</Text>
-          <Text style={styles.headerTitle}>{label}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>{label}</Text>
+            {editingEvent && (
+              <Text style={styles.editingHint}>Modification de l'événement</Text>
+            )}
+          </View>
+          {editingEvent && (
+            <TouchableOpacity style={styles.deselectBtn} onPress={onDeselectEvent}>
+              <Text style={styles.deselectBtnText}>✕</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {lightPart && (
@@ -62,6 +74,28 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, onOptions
               thumbTintColor="#ffaa00"
             />
 
+            {/* Ease in / Ease out */}
+            <View style={styles.easeRow}>
+              <View style={styles.easeItem}>
+                <Text style={styles.optionLabel}>Ease in</Text>
+                <Switch
+                  value={!!eventOptions.easeIn}
+                  onValueChange={(val) => onOptionsChange({ ...eventOptions, easeIn: val })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(68, 170, 255, 0.5)' }}
+                  thumbColor={eventOptions.easeIn ? '#44aaff' : '#555577'}
+                />
+              </View>
+              <View style={styles.easeItem}>
+                <Text style={styles.optionLabel}>Ease out</Text>
+                <Switch
+                  value={!!eventOptions.easeOut}
+                  onValueChange={(val) => onOptionsChange({ ...eventOptions, easeOut: val })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(68, 170, 255, 0.5)' }}
+                  thumbColor={eventOptions.easeOut ? '#44aaff' : '#555577'}
+                />
+              </View>
+            </View>
+
             {/* Blink toggle + speed on same line */}
             <View style={styles.blinkRow}>
               <Text style={styles.optionLabel}>Clignotement</Text>
@@ -96,6 +130,83 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, onOptions
                 />
               </View>
             </View>
+          </View>
+        )}
+
+        {retroPart && (
+          <View style={styles.optionsSection}>
+            <Text style={styles.optionLabel}>Animation</Text>
+            <View style={styles.retroModeRow}>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>Fermer</Text>
+                <Switch
+                  value={eventOptions.retroMode === RETRO_MODES.CLOSE}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, retroMode: RETRO_MODES.CLOSE, durationMs: RETRO_DURATIONS[RETRO_MODES.CLOSE] })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(170, 170, 204, 0.5)' }}
+                  thumbColor={eventOptions.retroMode === RETRO_MODES.CLOSE ? '#aaaacc' : '#555577'}
+                />
+              </View>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>Ouvrir</Text>
+                <Switch
+                  value={eventOptions.retroMode === RETRO_MODES.OPEN}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, retroMode: RETRO_MODES.OPEN, durationMs: RETRO_DURATIONS[RETRO_MODES.OPEN] })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(170, 170, 204, 0.5)' }}
+                  thumbColor={eventOptions.retroMode === RETRO_MODES.OPEN ? '#aaaacc' : '#555577'}
+                />
+              </View>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>Aller-retour</Text>
+                <Switch
+                  value={eventOptions.retroMode === RETRO_MODES.ROUND_TRIP}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, retroMode: RETRO_MODES.ROUND_TRIP, durationMs: RETRO_DURATIONS[RETRO_MODES.ROUND_TRIP] })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(170, 170, 204, 0.5)' }}
+                  thumbColor={eventOptions.retroMode === RETRO_MODES.ROUND_TRIP ? '#aaaacc' : '#555577'}
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {windowPart && (
+          <View style={styles.optionsSection}>
+            <Text style={styles.optionLabel}>Animation</Text>
+            <View style={styles.retroModeRow}>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>Descente</Text>
+                <Switch
+                  value={eventOptions.windowMode === WINDOW_MODES.DOWN}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, windowMode: WINDOW_MODES.DOWN })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(68, 170, 255, 0.5)' }}
+                  thumbColor={eventOptions.windowMode === WINDOW_MODES.DOWN ? '#44aaff' : '#555577'}
+                />
+              </View>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>Montée</Text>
+                <Switch
+                  value={eventOptions.windowMode === WINDOW_MODES.UP}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, windowMode: WINDOW_MODES.UP })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(68, 170, 255, 0.5)' }}
+                  thumbColor={eventOptions.windowMode === WINDOW_MODES.UP ? '#44aaff' : '#555577'}
+                />
+              </View>
+            </View>
+
+            <View style={[styles.optionRow, { marginTop: 10 }]}>
+              <Text style={styles.optionLabel}>Durée</Text>
+              <Text style={styles.optionValue}>{(eventOptions.windowDurationMs / 1000).toFixed(1)}s</Text>
+            </View>
+            <Slider
+              style={styles.slider}
+              minimumValue={500}
+              maximumValue={3000}
+              step={100}
+              value={eventOptions.windowDurationMs}
+              onValueChange={(val) => onOptionsChange({ ...eventOptions, windowDurationMs: val, durationMs: val })}
+              minimumTrackTintColor="#44aaff"
+              maximumTrackTintColor="#2a2a4a"
+              thumbTintColor="#44aaff"
+            />
           </View>
         )}
       </View>
@@ -192,5 +303,46 @@ const styles = StyleSheet.create({
   },
   speedBtnTextActive: {
     color: '#e94560',
+  },
+  easeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  easeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  retroModeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  retroModeItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  retroModeLabel: {
+    color: '#aaaacc',
+    fontSize: 11,
+  },
+  editingHint: {
+    color: '#44aaff',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  deselectBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(100, 100, 130, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deselectBtnText: {
+    color: '#8888aa',
+    fontSize: 14,
   },
 });

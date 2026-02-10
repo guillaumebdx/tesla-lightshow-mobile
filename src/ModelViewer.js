@@ -12,7 +12,7 @@ import {
 } from 'react-native-gesture-handler';
 import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
-import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS } from './constants';
+import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MODES, isRetro, isWindow } from './constants';
 
 export default function ModelViewer() {
   const [loading, setLoading] = useState(true);
@@ -23,6 +23,8 @@ export default function ModelViewer() {
   const playbackDurationRef = useRef(0);
   const [eventOptions, setEventOptions] = useState({ ...DEFAULT_EVENT_OPTIONS });
   const [menuVisible, setMenuVisible] = useState(false);
+  const [cursorOffsetMs, setCursorOffsetMs] = useState(0);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const audioTimelineRef = useRef(null);
 
   // Refs for Three.js objects
@@ -60,6 +62,9 @@ export default function ModelViewer() {
   const selectedMeshRef = useRef(null);
   const litHeadlightMatRef = useRef(null);
   const litTaillightMatRef = useRef(null);
+  const spotLightsRef = useRef({}); // { light_left_front: SpotLight, ... }
+  const retroNodesRef = useRef({}); // { retro_left: { mesh, geoCenter, initMatrix }, ... }
+  const windowNodesRef = useRef({}); // { window_left_front: { mesh, initMatrix, travelY }, ... }
   const [activeColor, setActiveColor] = useState('#222222');
 
   const BODY_COLORS = [
@@ -103,6 +108,16 @@ export default function ModelViewer() {
         child.material = highlightMaterialRef.current;
         selectedMeshRef.current = child;
         setSelectedPart(meshName);
+        // Reset event options for the part type
+        if (isRetro(meshName)) {
+          const mode = RETRO_MODES.ROUND_TRIP;
+          setEventOptions({ ...DEFAULT_EVENT_OPTIONS, retroMode: mode, durationMs: RETRO_DURATIONS[mode] });
+        } else if (isWindow(meshName)) {
+          setEventOptions({ ...DEFAULT_EVENT_OPTIONS, windowMode: WINDOW_MODES.DOWN, durationMs: 3000, windowDurationMs: 3000 });
+        } else {
+          setEventOptions({ ...DEFAULT_EVENT_OPTIONS });
+        }
+        setSelectedEvent(null);
       }
     });
   }, []);
@@ -219,10 +234,10 @@ export default function ModelViewer() {
     highlightMaterialRef.current = highlightMaterial;
 
     const windowMaterial = new THREE.MeshStandardMaterial({
-      color: 0x111111,
-      metalness: 0.9,
-      roughness: 0.05,
-      opacity: 0.3,
+      color: 0x888899,
+      metalness: 0.7,
+      roughness: 0.1,
+      opacity: 0.85,
       transparent: true,
     });
 
@@ -337,6 +352,82 @@ export default function ModelViewer() {
 
       scene.add(model);
       modelRef.current = model;
+
+      // Create SpotLights at each light mesh position
+      const lightDefs = {
+        light_left_front:  { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
+        light_right_front: { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
+        light_left_back:   { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
+        light_right_back:  { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
+      };
+
+      model.traverse((child) => {
+        if (!child.isMesh) return;
+        const partName = child.userData.interactiveName;
+        if (!partName || !lightDefs[partName]) return;
+
+        const def = lightDefs[partName];
+        // Get world position of the light mesh
+        const worldPos = new THREE.Vector3();
+        child.getWorldPosition(worldPos);
+
+        const spot = new THREE.SpotLight(def.color, 0, 12, Math.PI / 5, 0.6, 1.5);
+        spot.position.copy(worldPos);
+        // Target = position + direction
+        const target = new THREE.Object3D();
+        target.position.copy(worldPos).add(def.dir.clone().multiplyScalar(3));
+        scene.add(target);
+        spot.target = target;
+        spot.castShadow = false;
+        scene.add(spot);
+
+        // Store — may have multiple meshes per part, keep first
+        if (!spotLightsRef.current[partName]) {
+          spotLightsRef.current[partName] = spot;
+        }
+      });
+
+      // Find retro mirror meshes and store initial state
+      const retroNames = ['retro_left', 'retro_right'];
+      model.traverse((child) => {
+        if (!child.isMesh) return;
+        const interactiveName = child.userData.interactiveName;
+        if (retroNames.includes(interactiveName) && !retroNodesRef.current[interactiveName]) {
+          // Store the mesh geometry's bounding box center to use as rotation pivot
+          child.geometry.computeBoundingBox();
+          const geoBBox = child.geometry.boundingBox;
+          const geoCenter = new THREE.Vector3();
+          geoBBox.getCenter(geoCenter);
+
+          retroNodesRef.current[interactiveName] = {
+            mesh: child,
+            geoCenter: geoCenter,
+            initMatrix: child.matrix.clone(),
+          };
+          console.log(`RETRO mesh: "${interactiveName}" geoCenter=(${geoCenter.x.toFixed(3)}, ${geoCenter.y.toFixed(3)}, ${geoCenter.z.toFixed(3)}) pos=(${child.position.x.toFixed(3)}, ${child.position.y.toFixed(3)}, ${child.position.z.toFixed(3)})`);
+        }
+      });
+
+      // Find window meshes and store initial state + travel distance
+      const windowNames = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
+      model.traverse((child) => {
+        if (!child.isMesh) return;
+        const interactiveName = child.userData.interactiveName;
+        if (windowNames.includes(interactiveName) && !windowNodesRef.current[interactiveName]) {
+          child.geometry.computeBoundingBox();
+          const geoBBox = child.geometry.boundingBox;
+          // Travel distance = height of the window geometry (Z extent = vertical on screen)
+          const travelZ = geoBBox.max.z - geoBBox.min.z;
+
+          windowNodesRef.current[interactiveName] = {
+            mesh: child,
+            initMatrix: child.matrix.clone(),
+            travelZ: travelZ,
+          };
+          console.log(`WINDOW mesh: "${interactiveName}" travelZ=${travelZ.toFixed(3)}`);
+        }
+      });
+
       setLoading(false);
     } catch (e) {
       console.error('Error loading model:', e);
@@ -359,11 +450,46 @@ export default function ModelViewer() {
         const pos = playbackPositionRef.current;
         const events = eventsRef.current;
 
-        // Build a map: partName -> active event
+        // Build a map: partName -> { event, intensity }
         const activeMap = new Map();
+        const lightParts = ['light_left_front', 'light_right_front', 'light_left_back', 'light_right_back'];
+
         for (const evt of events) {
           if (pos >= evt.startMs && pos < evt.endMs) {
-            activeMap.set(evt.part, evt);
+            let intensity = (evt.power ?? 100) / 100;
+            const evtDuration = evt.endMs - evt.startMs;
+            const elapsed = pos - evt.startMs;
+            const remaining = evt.endMs - pos;
+            const easeDuration = Math.min(evtDuration * 0.3, 300);
+
+            if (evt.easeIn && elapsed < easeDuration && easeDuration > 0) {
+              intensity *= elapsed / easeDuration;
+            }
+            if (evt.easeOut && remaining < easeDuration && easeDuration > 0) {
+              intensity *= remaining / easeDuration;
+            }
+
+            let blinkOff = false;
+            if (evt.effect === 'blink') {
+              const speedIdx = evt.blinkSpeed ?? 0;
+              const periodMs = BLINK_SPEEDS[speedIdx]?.periodMs ?? 80;
+              blinkOff = (Math.floor(elapsed / (periodMs / 2)) % 2) !== 0;
+            }
+
+            activeMap.set(evt.part, { evt, intensity, blinkOff });
+          }
+        }
+
+        // Update SpotLight intensities
+        const MAX_SPOT_INTENSITY = 5;
+        for (const partName of lightParts) {
+          const spot = spotLightsRef.current[partName];
+          if (!spot) continue;
+          const active = activeMap.get(partName);
+          if (active && !active.blinkOff) {
+            spot.intensity = active.intensity * MAX_SPOT_INTENSITY;
+          } else {
+            spot.intensity = 0;
           }
         }
 
@@ -372,43 +498,170 @@ export default function ModelViewer() {
           if (!child.isMesh) return;
           const partName = child.userData.interactiveName;
           if (!partName) return;
-          // Don't override highlight on selected mesh
           if (selectedMeshRef.current && selectedMeshRef.current.userData.interactiveName === partName) return;
 
-          const activeEvt = activeMap.get(partName);
-          if (activeEvt) {
+          const active = activeMap.get(partName);
+          if (active) {
             const isHeadlight = partName.includes('light') && partName.includes('front');
             const isTaillight = partName.includes('light') && partName.includes('back');
-            const litMat = isHeadlight ? litHeadlightMatRef.current
-                         : isTaillight ? litTaillightMatRef.current
-                         : null;
-            if (!litMat) return;
+            if (!isHeadlight && !isTaillight) return;
 
-            // Apply power: scale emissive intensity (power 1-100 → 0.01-1.0)
-            const powerFactor = (activeEvt.power ?? 100) / 100;
-            const poweredMat = litMat.clone();
-            poweredMat.emissiveIntensity = litMat.emissiveIntensity * powerFactor;
-
-            if (activeEvt.effect === 'blink') {
-              // Blink: use time within event + speed level
-              const speedIdx = activeEvt.blinkSpeed ?? 0;
-              const periodMs = BLINK_SPEEDS[speedIdx]?.periodMs ?? 80;
-              const elapsed = pos - activeEvt.startMs;
-              const on = (Math.floor(elapsed / (periodMs / 2)) % 2) === 0;
+            if (active.blinkOff) {
               const originalMat = meshMaterialsRef.current.get(partName);
-              child.material = on ? poweredMat : (originalMat || child.material);
-            } else {
-              // Solid
-              child.material = poweredMat;
+              if (originalMat) child.material = originalMat;
+              return;
             }
+
+            const litMat = isHeadlight ? litHeadlightMatRef.current
+                         : litTaillightMatRef.current;
+            if (!litMat) return;
+            const originalMat = meshMaterialsRef.current.get(partName);
+            if (!originalMat) return;
+
+            const intensity = active.intensity;
+            if (!child.userData._dynamicMat) {
+              child.userData._dynamicMat = litMat.clone();
+            }
+            const mat = child.userData._dynamicMat;
+            const litColor = litMat.color;
+            const offColor = originalMat.color;
+            mat.color.r = offColor.r + (litColor.r - offColor.r) * intensity;
+            mat.color.g = offColor.g + (litColor.g - offColor.g) * intensity;
+            mat.color.b = offColor.b + (litColor.b - offColor.b) * intensity;
+            mat.emissive.r = litMat.emissive.r * intensity;
+            mat.emissive.g = litMat.emissive.g * intensity;
+            mat.emissive.b = litMat.emissive.b * intensity;
+            mat.emissiveIntensity = litMat.emissiveIntensity * intensity;
+            child.material = mat;
           } else {
-            // Not active — restore original material
             const originalMat = meshMaterialsRef.current.get(partName);
             if (originalMat && child.material !== originalMat) {
               child.material = originalMat;
+              if (child.userData._dynamicMat) {
+                child.userData._dynamicMat = null;
+              }
             }
           }
         });
+
+        // Animate retro mirrors based on retroMode: close, open, roundtrip
+        // "close" leaves the retro folded after the event until an "open" event
+        const RETRO_FOLD_ANGLE = Math.PI / 3; // 60° fold
+        const retroParts = ['retro_left', 'retro_right'];
+        const _zAxis = new THREE.Vector3(0, 0, 1);
+        for (const partName of retroParts) {
+          const retroData = retroNodesRef.current[partName];
+          if (!retroData || !retroData.mesh) continue;
+          const mesh = retroData.mesh;
+          const active = activeMap.get(partName);
+
+          // Determine the retro state: find the last retro event that ended before pos
+          // to know if the retro should be closed or open at rest
+          let restClosed = false;
+          for (const evt of events) {
+            if (evt.part !== partName) continue;
+            if (evt.endMs <= pos) {
+              // This event has finished — check its final state
+              if (evt.retroMode === 'close') restClosed = true;
+              else if (evt.retroMode === 'open') restClosed = false;
+              // roundtrip ends open
+            }
+          }
+
+          let progress = restClosed ? 1 : 0;
+
+          if (active) {
+            const elapsed = pos - active.evt.startMs;
+            const evtDuration = active.evt.endMs - active.evt.startMs;
+            const t = evtDuration > 0 ? Math.min(elapsed / evtDuration, 1) : 0;
+            const mode = active.evt.retroMode || 'roundtrip';
+
+            if (mode === 'close') {
+              // 0→1 over duration (fold in)
+              progress = Math.sin(t * Math.PI / 2);
+            } else if (mode === 'open') {
+              // 1→0 over duration (fold out)
+              progress = Math.cos(t * Math.PI / 2);
+            } else {
+              // roundtrip: 0→1→0
+              const pingPong = t <= 0.5 ? t * 2 : (1 - t) * 2;
+              progress = Math.sin(pingPong * Math.PI / 2);
+            }
+          }
+
+          const sign = partName === 'retro_left' ? 1 : -1;
+          const angle = sign * RETRO_FOLD_ANGLE * progress;
+          // Slide retro toward car body as it folds (left: +X, right: -X)
+          const RETRO_SLIDE = 0.15; // units toward body
+          const slideX = -sign * RETRO_SLIDE * progress;
+
+          if (progress === 0) {
+            mesh.matrix.copy(retroData.initMatrix);
+          } else {
+            const c = retroData.geoCenter;
+            const toOrigin = new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z);
+            const rot = new THREE.Matrix4().makeRotationAxis(_zAxis, angle);
+            const fromOrigin = new THREE.Matrix4().makeTranslation(c.x, c.y, c.z);
+            const slide = new THREE.Matrix4().makeTranslation(slideX, 0, 0);
+            const combined = retroData.initMatrix.clone()
+              .multiply(slide)
+              .multiply(fromOrigin)
+              .multiply(rot)
+              .multiply(toOrigin);
+            mesh.matrix.copy(combined);
+          }
+          mesh.matrixAutoUpdate = false;
+        }
+
+        // Animate windows: translate down (descente) or up (montée)
+        // Duration determines how far the window goes: 3s=100%, 1.5s=50%
+        // "descente" leaves window down until a "montée" event
+        const WINDOW_FULL_MS = 3000;
+        const windowParts = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
+        for (const partName of windowParts) {
+          const winData = windowNodesRef.current[partName];
+          if (!winData || !winData.mesh) continue;
+          const mesh = winData.mesh;
+          const active = activeMap.get(partName);
+
+          // Determine rest state: scan past events for this window
+          let restProgress = 0; // 0=fully up, 1=fully down
+          for (const evt of events) {
+            if (evt.part !== partName) continue;
+            if (evt.endMs <= pos) {
+              const maxTravel = Math.min((evt.windowDurationMs || WINDOW_FULL_MS) / WINDOW_FULL_MS, 1);
+              if (evt.windowMode === 'window_down') restProgress = maxTravel;
+              else if (evt.windowMode === 'window_up') restProgress = 0;
+            }
+          }
+
+          let progress = restProgress;
+
+          if (active) {
+            const elapsed = pos - active.evt.startMs;
+            const evtDuration = active.evt.endMs - active.evt.startMs;
+            const t = evtDuration > 0 ? Math.min(elapsed / evtDuration, 1) : 0;
+            const mode = active.evt.windowMode || 'window_down';
+            const maxTravel = Math.min((active.evt.windowDurationMs || WINDOW_FULL_MS) / WINDOW_FULL_MS, 1);
+            const eased = Math.sin(t * Math.PI / 2);
+
+            if (mode === 'window_down') {
+              progress = maxTravel * eased;
+            } else {
+              // Go up from current rest state
+              progress = restProgress * (1 - eased);
+            }
+          }
+
+          if (progress === 0) {
+            mesh.matrix.copy(winData.initMatrix);
+          } else {
+            const slideDown = new THREE.Matrix4().makeTranslation(0, 0, -winData.travelZ * progress);
+            const combined = winData.initMatrix.clone().multiply(slideDown);
+            mesh.matrix.copy(combined);
+          }
+          mesh.matrixAutoUpdate = false;
+        }
       }
 
       renderer.render(scene, camera);
@@ -531,10 +784,31 @@ export default function ModelViewer() {
             ref={audioTimelineRef}
             selectedPart={selectedPart}
             eventOptions={eventOptions}
+            cursorOffsetMs={cursorOffsetMs}
+            selectedEventId={selectedEvent?.id || null}
             onEventsChange={(evts) => { eventsRef.current = evts; }}
             onPositionChange={(pos, dur) => {
               playbackPositionRef.current = pos;
               playbackDurationRef.current = dur;
+            }}
+            onEventSelect={(evt) => {
+              setSelectedEvent(evt);
+              setEventOptions({
+                durationMs: evt.endMs - evt.startMs,
+                effect: evt.effect,
+                power: evt.power ?? 100,
+                blinkSpeed: evt.blinkSpeed ?? 0,
+                easeIn: evt.easeIn ?? false,
+                easeOut: evt.easeOut ?? false,
+                retroMode: evt.retroMode ?? 'roundtrip',
+                windowMode: evt.windowMode ?? 'window_down',
+                windowDurationMs: evt.windowDurationMs ?? 3000,
+              });
+            }}
+            onEventUpdate={(updatedEvt) => {
+              eventsRef.current = eventsRef.current.map((e) =>
+                e.id === updatedEvt.id ? updatedEvt : e
+              );
             }}
           />
         </View>
@@ -542,9 +816,33 @@ export default function ModelViewer() {
         {/* Part options panel */}
         <View style={styles.optionsSection}>
           <PartOptionsPanel
-            selectedPart={selectedPart}
+            selectedPart={selectedEvent?.part || selectedPart}
             eventOptions={eventOptions}
-            onOptionsChange={setEventOptions}
+            editingEvent={selectedEvent}
+            onOptionsChange={(newOpts) => {
+              setEventOptions(newOpts);
+              if (selectedEvent) {
+                // Update the selected event in the timeline
+                const updatedEvt = {
+                  ...selectedEvent,
+                  endMs: selectedEvent.startMs + newOpts.durationMs,
+                  effect: newOpts.effect,
+                  power: newOpts.power,
+                  blinkSpeed: newOpts.blinkSpeed,
+                  easeIn: newOpts.easeIn,
+                  easeOut: newOpts.easeOut,
+                  retroMode: newOpts.retroMode,
+                  windowMode: newOpts.windowMode,
+                  windowDurationMs: newOpts.windowDurationMs,
+                };
+                setSelectedEvent(updatedEvt);
+                eventsRef.current = eventsRef.current.map((e) =>
+                  e.id === updatedEvt.id ? updatedEvt : e
+                );
+                audioTimelineRef.current?.updateEvent(updatedEvt);
+              }
+            }}
+            onDeselectEvent={() => setSelectedEvent(null)}
           />
         </View>
       </ScrollView>
@@ -565,7 +863,7 @@ export default function ModelViewer() {
         onRequestClose={() => setMenuVisible(false)}
       >
         <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
-          <View style={styles.menuContent}>
+          <View style={styles.menuContent} onStartShouldSetResponder={() => true}>
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
@@ -575,6 +873,51 @@ export default function ModelViewer() {
             >
               <Text style={styles.menuItemIcon}>♪</Text>
               <Text style={styles.menuItemText}>Choisir une musique</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <View style={styles.menuItem}>
+              <Text style={styles.menuItemIcon}>⏱</Text>
+              <Text style={styles.menuItemText}>Offset curseur</Text>
+            </View>
+            <View style={styles.offsetRow}>
+              <TouchableOpacity
+                style={styles.offsetBtn}
+                onPress={() => setCursorOffsetMs((v) => v - 50)}
+              >
+                <Text style={styles.offsetBtnText}>−50</Text>
+              </TouchableOpacity>
+              <Text style={styles.offsetValue}>{cursorOffsetMs} ms</Text>
+              <TouchableOpacity
+                style={styles.offsetBtn}
+                onPress={() => setCursorOffsetMs((v) => v + 50)}
+              >
+                <Text style={styles.offsetBtnText}>+50</Text>
+              </TouchableOpacity>
+              {cursorOffsetMs !== 0 && (
+                <TouchableOpacity
+                  style={styles.offsetResetBtn}
+                  onPress={() => setCursorOffsetMs(0)}
+                >
+                  <Text style={styles.offsetResetText}>Reset</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                setSelectedEvent(null);
+                audioTimelineRef.current?.clearAllEvents();
+                eventsRef.current = [];
+              }}
+            >
+              <Text style={styles.menuItemIcon}>🗑</Text>
+              <Text style={styles.menuItemText}>RAZ événements</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -738,5 +1081,49 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '500',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#2a2a4a',
+    marginHorizontal: 12,
+  },
+  offsetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  offsetBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#1a1a3a',
+    borderWidth: 1,
+    borderColor: '#3a3a5a',
+  },
+  offsetBtnText: {
+    color: '#ccccee',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  offsetValue: {
+    color: '#e94560',
+    fontSize: 14,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    minWidth: 55,
+    textAlign: 'center',
+  },
+  offsetResetBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: 'rgba(233, 69, 96, 0.2)',
+  },
+  offsetResetText: {
+    color: '#e94560',
+    fontSize: 11,
+    fontWeight: '600',
   },
 });
