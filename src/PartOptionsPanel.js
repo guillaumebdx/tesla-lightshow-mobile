@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { PART_EMOJIS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MODES, isLight, isRetro, isWindow } from './constants';
 
-export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent }) {
+export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent, onDeleteEvent }) {
   if (!selectedPart) {
     return (
       <View style={styles.container}>
@@ -209,6 +209,12 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
             />
           </View>
         )}
+
+        {editingEvent && (
+          <TouchableOpacity style={styles.deleteButton} onPress={onDeleteEvent}>
+            <Text style={styles.deleteButtonText}>🗑  Supprimer l'événement</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -344,5 +350,19 @@ const styles = StyleSheet.create({
   deselectBtnText: {
     color: '#8888aa',
     fontSize: 14,
+  },
+  deleteButton: {
+    marginTop: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(233, 69, 96, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(233, 69, 96, 0.4)',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#e94560',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

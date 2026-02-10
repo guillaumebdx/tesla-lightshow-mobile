@@ -56,6 +56,13 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
       setEvents([]);
       if (onEventsChange) onEventsChange([]);
     },
+    deleteEvent: (eventId) => {
+      setEvents((prev) => {
+        const updated = prev.filter((e) => e.id !== eventId);
+        if (onEventsChange) onEventsChange(updated);
+        return updated;
+      });
+    },
   }));
 
   // Cursor animation (Animated — no re-render)
@@ -233,6 +240,11 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
         if (onEventsChange) onEventsChange(updated);
         return updated;
       });
+
+      // Auto-select the newly placed event so parameter changes apply to it
+      if (onEventSelect) {
+        onEventSelect(newEvent);
+      }
     }
 
     // Also seek to that position

@@ -13,6 +13,7 @@ import {
 import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
 import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MODES, isRetro, isWindow } from './constants';
+import { exportFseq } from './fseqExport';
 
 export default function ModelViewer() {
   const [loading, setLoading] = useState(true);
@@ -26,6 +27,13 @@ export default function ModelViewer() {
   const [cursorOffsetMs, setCursorOffsetMs] = useState(0);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const audioTimelineRef = useRef(null);
+
+  const handleDeleteEvent = () => {
+    if (!selectedEvent) return;
+    eventsRef.current = eventsRef.current.filter((e) => e.id !== selectedEvent.id);
+    audioTimelineRef.current?.deleteEvent(selectedEvent.id);
+    setSelectedEvent(null);
+  };
 
   // Refs for Three.js objects
   const rendererRef = useRef(null);
@@ -843,6 +851,7 @@ export default function ModelViewer() {
               }
             }}
             onDeselectEvent={() => setSelectedEvent(null)}
+            onDeleteEvent={handleDeleteEvent}
           />
         </View>
       </ScrollView>
@@ -918,6 +927,26 @@ export default function ModelViewer() {
             >
               <Text style={styles.menuItemIcon}>🗑</Text>
               <Text style={styles.menuItemText}>RAZ événements</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={async () => {
+                setMenuVisible(false);
+                try {
+                  const duration = playbackDurationRef.current;
+                  const result = await exportFseq(eventsRef.current, duration);
+                  console.log(`Export OK: ${result.frameCount} frames, ${result.fileSize} bytes`);
+                } catch (e) {
+                  console.error('Export error:', e);
+                  alert('Erreur export: ' + e.message);
+                }
+              }}
+            >
+              <Text style={styles.menuItemIcon}>📤</Text>
+              <Text style={styles.menuItemText}>Exporter .fseq</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
