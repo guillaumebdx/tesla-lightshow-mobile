@@ -132,7 +132,7 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange }, ref) {
+function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart }, ref) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [waveform, setWaveform] = useState([]);
@@ -391,7 +391,12 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
       const overlaps = events.some((e) =>
         e.part === selectedPart && startMs < e.endMs && endMs > e.startMs
       );
-      if (overlaps) return;
+      if (overlaps) {
+        // Can't place here — exit placement mode and seek to click position
+        seekToRatio(ratio);
+        if (onDeselectPart) onDeselectPart();
+        return;
+      }
 
       const newEvent = {
         id: Date.now().toString(),

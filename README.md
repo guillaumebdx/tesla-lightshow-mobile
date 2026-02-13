@@ -151,6 +151,10 @@ Blender (export GLB avec nodes nommés)
 
 ---
 
+## Notes
+https://validator.t2k.dev 
+
+
 ## Licence
 
 Projet privé.

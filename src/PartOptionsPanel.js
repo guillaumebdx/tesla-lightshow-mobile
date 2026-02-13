@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Switch, TouchableOpacity, TextInput, Modal, Pressable } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MODES, isLight, isRetro, isWindow } from './constants';
+import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, isLight, isRetro, isWindow } from './constants';
 
 export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent, onDeleteEvent }) {
   const [durationInput, setDurationInput] = useState(null); // { field, value }
@@ -191,27 +191,8 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
 
         {windowPart && (
           <View style={styles.optionsSection}>
-            <Text style={styles.optionLabel}>Animation</Text>
-            <View style={styles.retroModeRow}>
-              <View style={styles.retroModeItem}>
-                <Text style={styles.retroModeLabel}>Descente</Text>
-                <Switch
-                  value={eventOptions.windowMode === WINDOW_MODES.DOWN}
-                  onValueChange={() => onOptionsChange({ ...eventOptions, windowMode: WINDOW_MODES.DOWN })}
-                  trackColor={{ false: '#2a2a4a', true: 'rgba(68, 170, 255, 0.5)' }}
-                  thumbColor={eventOptions.windowMode === WINDOW_MODES.DOWN ? '#44aaff' : '#555577'}
-                />
-              </View>
-              <View style={styles.retroModeItem}>
-                <Text style={styles.retroModeLabel}>Montée</Text>
-                <Switch
-                  value={eventOptions.windowMode === WINDOW_MODES.UP}
-                  onValueChange={() => onOptionsChange({ ...eventOptions, windowMode: WINDOW_MODES.UP })}
-                  trackColor={{ false: '#2a2a4a', true: 'rgba(68, 170, 255, 0.5)' }}
-                  thumbColor={eventOptions.windowMode === WINDOW_MODES.UP ? '#44aaff' : '#555577'}
-                />
-              </View>
-            </View>
+            <Text style={styles.optionLabel}>🪟  Dance (oscillation)</Text>
+            <Text style={styles.windowHint}>La vitre oscille haut/bas automatiquement</Text>
 
             <View style={[styles.optionRow, { marginTop: 10 }]}>
               <Text style={styles.optionLabel}>Durée</Text>
@@ -221,15 +202,16 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
             </View>
             <Slider
               style={styles.slider}
-              minimumValue={500}
-              maximumValue={3000}
-              step={100}
+              minimumValue={1000}
+              maximumValue={WINDOW_MAX_DANCE_MS}
+              step={1000}
               value={eventOptions.windowDurationMs}
               onValueChange={(val) => onOptionsChange({ ...eventOptions, windowDurationMs: val, durationMs: val })}
               minimumTrackTintColor="#44aaff"
               maximumTrackTintColor="#2a2a4a"
               thumbTintColor="#44aaff"
             />
+            <Text style={styles.windowWarning}>⚠️ Max recommandé : 30s (limite thermique Tesla)</Text>
           </View>
         )}
 
@@ -410,6 +392,17 @@ const styles = StyleSheet.create({
     color: '#e94560',
     fontSize: 13,
     fontWeight: '600',
+  },
+  windowHint: {
+    color: '#8888aa',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  windowWarning: {
+    color: '#aa8844',
+    fontSize: 11,
+    marginTop: 6,
+    fontStyle: 'italic',
   },
   optionValueTappable: {
     color: '#e94560',

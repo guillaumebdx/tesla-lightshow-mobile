@@ -6,12 +6,32 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { shareAsync } from 'expo-sharing';
 import { BLINK_SPEEDS } from './constants';
 
-// Channel mapping (0-indexed) — presumed, based on community resources
+// Channel mapping (0-indexed) — confirmed via retro-engineering on Model 3
+// Each part maps to an array of channels that should all activate together
 const CHANNEL_MAP = {
-  light_left_front: 0,   // channel 1
-  light_right_front: 2,  // channel 3
-  light_left_back: 8,    // channel 9
-  light_right_back: 9,   // channel 10
+  light_left_front:  [0, 2, 4, 6, 8, 10],   // DRL + low beam + 4 segments haut gauche
+  light_right_front: [1, 3, 5, 7, 9, 11],   // DRL + low beam + 4 segments haut droit
+  light_left_back:   [22, 25],               // clignotant AR gauche + signature gauche
+  light_right_back:  [23, 26],               // clignotant AR droit + signature droit
+};
+
+// Closure channel mapping — channels for mechanical parts
+// These use command byte values instead of brightness:
+//   0=Idle, 64=Open, 128=Dance, 192=Close, 255=Stop
+const CLOSURE_MAP = {
+  // TODO: confirm exact channels via retro-engineering test
+  // window_left_front:  3?,
+  // window_right_front: 3?,
+  // window_left_back:   3?,
+  // window_right_back:  3?,
+};
+
+const CLOSURE_CMD = {
+  IDLE: 0,
+  OPEN: 64,
+  DANCE: 128,
+  CLOSE: 192,
+  STOP: 255,
 };
 
 const STEP_TIME_MS = 20;
@@ -65,11 +85,13 @@ function compileFrameData(events, durationMs) {
     for (const evt of lightEvents) {
       const intensity = computeIntensity(evt, posMs);
       if (intensity > 0) {
-        const channelIdx = CHANNEL_MAP[evt.part];
-        const offset = frame * CHANNEL_COUNT + channelIdx;
-        // Take the max if multiple events overlap on the same channel
+        const channels = CHANNEL_MAP[evt.part];
         const value = Math.round(intensity * 255);
-        data[offset] = Math.max(data[offset], value);
+        // Write to all channels mapped to this part
+        for (const ch of channels) {
+          const offset = frame * CHANNEL_COUNT + ch;
+          data[offset] = Math.max(data[offset], value);
+        }
       }
     }
   }

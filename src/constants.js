@@ -79,12 +79,11 @@ export const RETRO_DURATIONS = {
 
 // Window animation modes
 export const WINDOW_MODES = {
-  DOWN: 'window_down',   // Descente
-  UP: 'window_up',       // Montée
+  DANCE: 'window_dance',   // Oscillation haut/bas (native Tesla dance)
 };
 
-// Full open/close = 3s. Duration slider controls how long the window stays in motion.
-export const WINDOW_FULL_DURATION = 3000; // 3s for full travel
+// Max dance duration recommended by Tesla (thermal limits)
+export const WINDOW_MAX_DANCE_MS = 30000; // 30s max recommended
 
 // Blink speed levels (full cycle period in ms: on + off)
 // Old value was 160ms which was too slow. Slowest new = 80ms (2x faster).
@@ -103,8 +102,8 @@ export const DEFAULT_EVENT_OPTIONS = {
   easeIn: false,       // Fade in at start of event
   easeOut: false,      // Fade out at end of event
   retroMode: RETRO_MODES.ROUND_TRIP, // Default retro animation mode
-  windowMode: 'window_down',          // Default window animation mode
-  windowDurationMs: 3000,             // Duration of window travel
+  windowMode: 'window_dance',         // Default window animation mode
+  windowDurationMs: 5000,             // Duration of window dance
 };
 
 // Helper: is this part a light?

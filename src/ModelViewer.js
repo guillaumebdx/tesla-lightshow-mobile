@@ -12,7 +12,7 @@ import {
 } from 'react-native-gesture-handler';
 import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
-import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MODES, isRetro, isWindow } from './constants';
+import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, isRetro, isWindow } from './constants';
 import { exportFseq } from './fseqExport';
 
 export default function ModelViewer() {
@@ -124,7 +124,7 @@ export default function ModelViewer() {
           const mode = RETRO_MODES.ROUND_TRIP;
           setEventOptions({ ...DEFAULT_EVENT_OPTIONS, retroMode: mode, durationMs: RETRO_DURATIONS[mode] });
         } else if (isWindow(meshName)) {
-          setEventOptions({ ...DEFAULT_EVENT_OPTIONS, windowMode: WINDOW_MODES.DOWN, durationMs: 3000, windowDurationMs: 3000 });
+          setEventOptions({ ...DEFAULT_EVENT_OPTIONS, windowMode: 'window_dance', durationMs: 5000, windowDurationMs: 5000 });
         } else {
           setEventOptions({ ...DEFAULT_EVENT_OPTIONS });
         }
@@ -465,8 +465,16 @@ export default function ModelViewer() {
         const localCenter = new THREE.Vector3();
         bbox.getCenter(localCenter);
 
+        // For windows, place dot at top edge instead of center
+        const dotPosition = localCenter.clone();
+        if (partName.startsWith('window_')) {
+          console.log(`DOT ${partName} bbox min=(${bbox.min.x.toFixed(3)},${bbox.min.y.toFixed(3)},${bbox.min.z.toFixed(3)}) max=(${bbox.max.x.toFixed(3)},${bbox.max.y.toFixed(3)},${bbox.max.z.toFixed(3)}) center=(${localCenter.x.toFixed(3)},${localCenter.y.toFixed(3)},${localCenter.z.toFixed(3)})`);
+          // Place near top of window but slightly inside the glass area
+          dotPosition.z = bbox.max.z - (bbox.max.z - bbox.min.z) * 0.15;
+        }
+
         const dot = new THREE.Mesh(dotGeo, dotBaseMat.clone());
-        dot.position.copy(localCenter);
+        dot.position.copy(dotPosition);
         // Fixed visual size — compensate for parent world scale
         const worldScale = new THREE.Vector3();
         child.getWorldScale(worldScale);
@@ -670,10 +678,10 @@ export default function ModelViewer() {
           mesh.matrixAutoUpdate = false;
         }
 
-        // Animate windows: translate down (descente) or up (montée)
-        // Duration determines how far the window goes: 3s=100%, 1.5s=50%
-        // "descente" leaves window down until a "montée" event
-        const WINDOW_FULL_MS = 3000;
+        // Animate windows: dance mode (oscillation haut/bas)
+        // The window oscillates between up and ~60% down with a smooth sine wave
+        const DANCE_CYCLE_MS = 3500; // one full oscillation = 3.5s (1.75s down + 1.75s up)
+        const DANCE_AMPLITUDE = 1.0; // 100% of full travel
         const windowParts = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
         for (const partName of windowParts) {
           const winData = windowNodesRef.current[partName];
@@ -681,33 +689,23 @@ export default function ModelViewer() {
           const mesh = winData.mesh;
           const active = activeMap.get(partName);
 
-          // Determine rest state: scan past events for this window
-          let restProgress = 0; // 0=fully up, 1=fully down
-          for (const evt of events) {
-            if (evt.part !== partName) continue;
-            if (evt.endMs <= pos) {
-              const maxTravel = Math.min((evt.windowDurationMs || WINDOW_FULL_MS) / WINDOW_FULL_MS, 1);
-              if (evt.windowMode === 'window_down') restProgress = maxTravel;
-              else if (evt.windowMode === 'window_up') restProgress = 0;
-            }
-          }
-
-          let progress = restProgress;
+          const REST_OPEN = 0.7; // windows start 20% open at show start
+          let progress = REST_OPEN;
 
           if (active) {
             const elapsed = pos - active.evt.startMs;
             const evtDuration = active.evt.endMs - active.evt.startMs;
-            const t = evtDuration > 0 ? Math.min(elapsed / evtDuration, 1) : 0;
-            const mode = active.evt.windowMode || 'window_down';
-            const maxTravel = Math.min((active.evt.windowDurationMs || WINDOW_FULL_MS) / WINDOW_FULL_MS, 1);
-            const eased = Math.sin(t * Math.PI / 2);
-
-            if (mode === 'window_down') {
-              progress = maxTravel * eased;
-            } else {
-              // Go up from current rest state
-              progress = restProgress * (1 - eased);
-            }
+            // Smooth sine oscillation starting from REST_OPEN, going further down, then back
+            const phase = (elapsed / DANCE_CYCLE_MS) * Math.PI * 2;
+            // Oscillates between REST_OPEN (0.7) and 0.3 (more closed)
+            const danceRange = REST_OPEN - 0.3;
+            const wave = danceRange * (0.5 - 0.5 * Math.cos(phase));
+            progress = REST_OPEN - wave;
+            // Ease in at start, ease out back to REST_OPEN at end
+            const fadeIn = Math.min(elapsed / 400, 1);
+            const fadeOut = Math.min((evtDuration - elapsed) / 400, 1);
+            const fade = fadeIn * Math.max(fadeOut, 0);
+            progress = REST_OPEN + (progress - REST_OPEN) * fade;
           }
 
           if (progress === 0) {
@@ -852,6 +850,10 @@ export default function ModelViewer() {
               eventsRef.current = eventsRef.current.map((e) =>
                 e.id === updatedEvt.id ? updatedEvt : e
               );
+            }}
+            onDeselectPart={() => {
+              setSelectedPart(null);
+              setSelectedEvent(null);
             }}
           />
         </View>
