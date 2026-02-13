@@ -14,8 +14,9 @@ import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
 import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, isRetro, isWindow } from './constants';
 import { exportFseq } from './fseqExport';
+import { loadShow, saveShow } from './storage';
 
-export default function ModelViewer() {
+export default function ModelViewer({ showId, onGoHome }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
@@ -25,15 +26,84 @@ export default function ModelViewer() {
   const [eventOptions, setEventOptions] = useState({ ...DEFAULT_EVENT_OPTIONS });
   const [menuVisible, setMenuVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [cursorOffsetMs, setCursorOffsetMs] = useState(0);
+  const [cursorOffsetMs, _setCursorOffsetMs] = useState(0);
+  const cursorOffsetMsRef = useRef(0);
+  const setCursorOffsetMs = useCallback((valOrFn) => {
+    _setCursorOffsetMs((prev) => {
+      const next = typeof valOrFn === 'function' ? valOrFn(prev) : valOrFn;
+      cursorOffsetMsRef.current = next;
+      return next;
+    });
+  }, []);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const audioTimelineRef = useRef(null);
+  const showDataRef = useRef(null);
+  const saveTimerRef = useRef(null);
+  const showLoadedRef = useRef(false);
+  const [savedTrackId, setSavedTrackId] = useState(null);
+
+  // Debounced auto-save (1.5s after last change)
+  const scheduleSave = useCallback(() => {
+    if (!showDataRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      const trackId = audioTimelineRef.current?.getTrackId() || null;
+      const data = {
+        ...showDataRef.current,
+        events: eventsRef.current,
+        trackId,
+        isBuiltinTrack: true,
+        cursorOffsetMs: cursorOffsetMsRef.current,
+        bodyColor: activeColorRef.current,
+      };
+      await saveShow(data);
+      showDataRef.current = data;
+    }, 1500);
+  }, []);
+
+  // Load saved show on mount
+  useEffect(() => {
+    if (!showId || showLoadedRef.current) return;
+    (async () => {
+      const data = await loadShow(showId);
+      if (!data) return;
+      showDataRef.current = data;
+      if (data.trackId) setSavedTrackId(data.trackId);
+      if (data.bodyColor) {
+        activeColorRef.current = data.bodyColor;
+        if (bodyMaterialRef.current) {
+          bodyMaterialRef.current.color.set(data.bodyColor);
+          bodyMaterialRef.current.needsUpdate = true;
+        }
+      }
+      if (data.cursorOffsetMs) setCursorOffsetMs(data.cursorOffsetMs);
+      // Wait for AudioTimeline to be ready, then load track + events
+      const waitForTimeline = setInterval(() => {
+        if (audioTimelineRef.current) {
+          clearInterval(waitForTimeline);
+          if (data.trackId) {
+            audioTimelineRef.current.selectTrackById(data.trackId);
+          }
+          // Load events after a short delay to let the track load
+          setTimeout(() => {
+            if (data.events && data.events.length > 0) {
+              audioTimelineRef.current.loadEvents(data.events);
+              eventsRef.current = data.events;
+            }
+            showLoadedRef.current = true;
+          }, 500);
+        }
+      }, 100);
+      return () => clearInterval(waitForTimeline);
+    })();
+  }, [showId]);
 
   const handleDeleteEvent = () => {
     if (!selectedEvent) return;
     eventsRef.current = eventsRef.current.filter((e) => e.id !== selectedEvent.id);
     audioTimelineRef.current?.deleteEvent(selectedEvent.id);
     setSelectedEvent(null);
+    scheduleSave();
   };
 
   // Refs for Three.js objects
@@ -77,6 +147,7 @@ export default function ModelViewer() {
   const retroNodesRef = useRef({}); // { retro_left: { mesh, geoCenter, initMatrix }, ... }
   const windowNodesRef = useRef({}); // { window_left_front: { mesh, initMatrix, travelY }, ... }
   const [activeColor, setActiveColor] = useState('#222222');
+  const activeColorRef = useRef('#222222');
 
   const BODY_COLORS = [
     { name: 'Noir', hex: '#111111' },
@@ -89,10 +160,12 @@ export default function ModelViewer() {
 
   const changeBodyColor = (hex) => {
     setActiveColor(hex);
+    activeColorRef.current = hex;
     if (bodyMaterialRef.current) {
       bodyMaterialRef.current.color.set(hex);
       bodyMaterialRef.current.needsUpdate = true;
     }
+    scheduleSave();
   };
 
   const selectPart = useCallback((meshName) => {
@@ -468,7 +541,6 @@ export default function ModelViewer() {
         // For windows, place dot at top edge instead of center
         const dotPosition = localCenter.clone();
         if (partName.startsWith('window_')) {
-          console.log(`DOT ${partName} bbox min=(${bbox.min.x.toFixed(3)},${bbox.min.y.toFixed(3)},${bbox.min.z.toFixed(3)}) max=(${bbox.max.x.toFixed(3)},${bbox.max.y.toFixed(3)},${bbox.max.z.toFixed(3)}) center=(${localCenter.x.toFixed(3)},${localCenter.y.toFixed(3)},${localCenter.z.toFixed(3)})`);
           // Place near top of window but slightly inside the glass area
           dotPosition.z = bbox.max.z - (bbox.max.z - bbox.min.z) * 0.15;
         }
@@ -826,7 +898,8 @@ export default function ModelViewer() {
             eventOptions={eventOptions}
             cursorOffsetMs={cursorOffsetMs}
             selectedEventId={selectedEvent?.id || null}
-            onEventsChange={(evts) => { eventsRef.current = evts; }}
+            skipAutoLoad={!!savedTrackId}
+            onEventsChange={(evts) => { eventsRef.current = evts; scheduleSave(); }}
             onPlayingChange={(playing) => { isPlayingRef.current = playing; }}
             onPositionChange={(pos, dur) => {
               playbackPositionRef.current = pos;
@@ -850,6 +923,7 @@ export default function ModelViewer() {
               eventsRef.current = eventsRef.current.map((e) =>
                 e.id === updatedEvt.id ? updatedEvt : e
               );
+              scheduleSave();
             }}
             onDeselectPart={() => {
               setSelectedPart(null);
@@ -952,6 +1026,7 @@ export default function ModelViewer() {
                         setSelectedEvent(null);
                         audioTimelineRef.current?.clearAllEvents();
                         eventsRef.current = [];
+                        scheduleSave();
                       },
                     },
                   ]
@@ -980,6 +1055,19 @@ export default function ModelViewer() {
             >
               <Text style={styles.menuItemIcon}>📤</Text>
               <Text style={styles.menuItemText}>Exporter .fseq</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                if (onGoHome) onGoHome();
+              }}
+            >
+              <Text style={styles.menuItemIcon}>🏠</Text>
+              <Text style={styles.menuItemText}>Retour accueil</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -1021,21 +1109,21 @@ export default function ModelViewer() {
               <View style={styles.offsetRow}>
                 <TouchableOpacity
                   style={styles.offsetBtn}
-                  onPress={() => setCursorOffsetMs((v) => v - 50)}
+                  onPress={() => { setCursorOffsetMs((v) => v - 50); scheduleSave(); }}
                 >
                   <Text style={styles.offsetBtnText}>−50</Text>
                 </TouchableOpacity>
                 <Text style={styles.offsetValue}>{cursorOffsetMs} ms</Text>
                 <TouchableOpacity
                   style={styles.offsetBtn}
-                  onPress={() => setCursorOffsetMs((v) => v + 50)}
+                  onPress={() => { setCursorOffsetMs((v) => v + 50); scheduleSave(); }}
                 >
                   <Text style={styles.offsetBtnText}>+50</Text>
                 </TouchableOpacity>
                 {cursorOffsetMs !== 0 && (
                   <TouchableOpacity
                     style={styles.offsetResetBtn}
-                    onPress={() => setCursorOffsetMs(0)}
+                    onPress={() => { setCursorOffsetMs(0); scheduleSave(); }}
                   >
                     <Text style={styles.offsetResetText}>Reset</Text>
                   </TouchableOpacity>

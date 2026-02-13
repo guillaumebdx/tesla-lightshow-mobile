@@ -132,7 +132,7 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart }, ref) {
+function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, skipAutoLoad = false }, ref) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [waveform, setWaveform] = useState([]);
@@ -182,14 +182,27 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
       if (onPlayingChange) onPlayingChange(false);
       if (onPositionChange) onPositionChange(0, duration);
     },
+    // Load saved events into the timeline (without clearing the track)
+    loadEvents: (savedEvents) => {
+      const sorted = [...savedEvents].sort((a, b) => a.startMs - b.startMs);
+      setEvents(sorted);
+      if (onEventsChange) onEventsChange(sorted);
+    },
+    // Select a track by its ID (for loading saved shows — keeps events)
+    selectTrackById: (trackId) => {
+      const track = MP3_TRACKS.find((t) => t.id === trackId);
+      if (track) selectTrack(track, { keepEvents: true });
+    },
+    // Get the current track ID
+    getTrackId: () => selectedTrack?.id || null,
   }));
 
   // Cursor animation (Animated — no re-render)
   const cursorAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Load first track (Danse Macabre) by default
-    if (!selectedTrack && MP3_TRACKS.length > 0) {
+    // Load first track by default (unless loading a saved show)
+    if (!skipAutoLoad && !selectedTrack && MP3_TRACKS.length > 0) {
       selectTrack(MP3_TRACKS[0]);
     }
     return () => {
@@ -199,7 +212,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
     };
   }, []);
 
-  const selectTrack = async (track) => {
+  const selectTrack = async (track, { keepEvents = false } = {}) => {
     setModalVisible(false);
 
     if (soundRef.current) {
@@ -211,7 +224,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
     setWaveform(track.waveform?.bars || []);
     setIsPlaying(false);
     setPosition(0);
-    setEvents([]);
+    if (!keepEvents) setEvents([]);
     cursorAnim.setValue(0);
 
     try {
