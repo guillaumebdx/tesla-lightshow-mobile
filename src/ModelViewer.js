@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert } from 'react-native';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import * as THREE from 'three';
@@ -24,6 +24,7 @@ export default function ModelViewer() {
   const playbackDurationRef = useRef(0);
   const [eventOptions, setEventOptions] = useState({ ...DEFAULT_EVENT_OPTIONS });
   const [menuVisible, setMenuVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
   const [cursorOffsetMs, setCursorOffsetMs] = useState(0);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const audioTimelineRef = useRef(null);
@@ -71,6 +72,8 @@ export default function ModelViewer() {
   const litHeadlightMatRef = useRef(null);
   const litTaillightMatRef = useRef(null);
   const spotLightsRef = useRef({}); // { light_left_front: SpotLight, ... }
+  const dotSpritesRef = useRef([]); // white dot sprites on interactive parts
+  const isPlayingRef = useRef(false);
   const retroNodesRef = useRef({}); // { retro_left: { mesh, geoCenter, initMatrix }, ... }
   const windowNodesRef = useRef({}); // { window_left_front: { mesh, initMatrix, travelY }, ... }
   const [activeColor, setActiveColor] = useState('#222222');
@@ -146,7 +149,7 @@ export default function ModelViewer() {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
 
-    // Raycast against all meshes first
+    // Raycast against all meshes (including dot spheres)
     const allMeshes = [];
     model.traverse((child) => {
       if (child.isMesh) {
@@ -196,33 +199,36 @@ export default function ModelViewer() {
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    // Lights - diffuse and well-distributed
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+    // Lighting — soft studio setup, even coverage
+    const ambientLight = new THREE.AmbientLight(0xddddef, 0.6);
     scene.add(ambientLight);
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444466, 0.8);
+    const hemiLight = new THREE.HemisphereLight(0xccccff, 0x222233, 0.5);
     scene.add(hemiLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-    directionalLight.position.set(5, 10, 7);
-    directionalLight.castShadow = true;
-    scene.add(directionalLight);
+    // Key light — top-front-right, moderate
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    keyLight.position.set(4, 8, 5);
+    scene.add(keyLight);
 
-    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.6);
-    directionalLight2.position.set(-5, 8, -3);
-    scene.add(directionalLight2);
+    // Fill light — top-front-left, softer
+    const fillLeft = new THREE.DirectionalLight(0xeeeeff, 0.4);
+    fillLeft.position.set(-4, 6, 4);
+    scene.add(fillLeft);
 
-    const directionalLight3 = new THREE.DirectionalLight(0xffffff, 0.4);
-    directionalLight3.position.set(0, 2, -8);
-    scene.add(directionalLight3);
+    // Back light — rim/contour from behind
+    const backLight = new THREE.DirectionalLight(0xccccff, 0.3);
+    backLight.position.set(0, 5, -6);
+    scene.add(backLight);
 
-    const fillLight = new THREE.PointLight(0xffffff, 0.5, 30);
-    fillLight.position.set(-3, 3, 5);
-    scene.add(fillLight);
+    // Subtle side fills for even coverage
+    const sideLeft = new THREE.PointLight(0xddddef, 0.25, 20);
+    sideLeft.position.set(-6, 2, 0);
+    scene.add(sideLeft);
 
-    const fillLight2 = new THREE.PointLight(0xffffff, 0.5, 30);
-    fillLight2.position.set(3, 3, 5);
-    scene.add(fillLight2);
+    const sideRight = new THREE.PointLight(0xddddef, 0.25, 20);
+    sideRight.position.set(6, 2, 0);
+    scene.add(sideRight);
 
     // Materials
     const bodyMaterial = new THREE.MeshStandardMaterial({
@@ -436,6 +442,43 @@ export default function ModelViewer() {
         }
       });
 
+      // Create round white dot using a small sphere for each interactive part
+      model.updateMatrixWorld(true);
+      const dotGeo = new THREE.SphereGeometry(1, 16, 16);
+      const dotBaseMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.9,
+        depthTest: false,
+        depthWrite: false,
+      });
+      const seenParts = new Set();
+      model.traverse((child) => {
+        if (!child.isMesh) return;
+        const partName = child.userData.interactiveName;
+        if (!partName || seenParts.has(partName)) return;
+        seenParts.add(partName);
+
+        // Compute center of bounding box in local space
+        child.geometry.computeBoundingBox();
+        const bbox = child.geometry.boundingBox;
+        const localCenter = new THREE.Vector3();
+        bbox.getCenter(localCenter);
+
+        const dot = new THREE.Mesh(dotGeo, dotBaseMat.clone());
+        dot.position.copy(localCenter);
+        // Fixed visual size — compensate for parent world scale
+        const worldScale = new THREE.Vector3();
+        child.getWorldScale(worldScale);
+        const avgScale = (worldScale.x + worldScale.y + worldScale.z) / 3;
+        const fixedSize = 0.03 / avgScale;
+        dot.scale.set(fixedSize, fixedSize, fixedSize);
+        dot.raycast = () => {}; // Dots don't intercept raycasts
+        dot.userData.isDot = true;
+        child.add(dot);
+        dotSpritesRef.current.push(dot);
+      });
+
       setLoading(false);
     } catch (e) {
       console.error('Error loading model:', e);
@@ -453,6 +496,12 @@ export default function ModelViewer() {
 
         const s = scaleRef.current;
         modelRef.current.scale.set(s, s, s);
+
+        // Show/hide dot sprites based on playback state
+        const playing = isPlayingRef.current;
+        for (const dot of dotSpritesRef.current) {
+          dot.visible = !playing;
+        }
 
         // Determine which parts are active at current playback position
         const pos = playbackPositionRef.current;
@@ -769,21 +818,6 @@ export default function ModelViewer() {
         </GestureDetector>
       </View>
 
-      {/* Color palette */}
-      <View style={styles.palette}>
-        {BODY_COLORS.map((c) => (
-          <TouchableOpacity
-            key={c.hex}
-            onPress={() => changeBodyColor(c.hex)}
-            style={[
-              styles.colorDot,
-              { backgroundColor: c.hex },
-              activeColor === c.hex && styles.colorDotActive,
-            ]}
-          />
-        ))}
-      </View>
-
       {/* Bottom: scrollable timeline + options */}
       <ScrollView style={styles.bottomSection} contentContainerStyle={styles.bottomContent}>
         {/* Timeline */}
@@ -795,6 +829,7 @@ export default function ModelViewer() {
             cursorOffsetMs={cursorOffsetMs}
             selectedEventId={selectedEvent?.id || null}
             onEventsChange={(evts) => { eventsRef.current = evts; }}
+            onPlayingChange={(playing) => { isPlayingRef.current = playing; }}
             onPositionChange={(pos, dur) => {
               playbackPositionRef.current = pos;
               playbackDurationRef.current = dur;
@@ -886,43 +921,39 @@ export default function ModelViewer() {
 
             <View style={styles.menuDivider} />
 
-            <View style={styles.menuItem}>
-              <Text style={styles.menuItemIcon}>⏱</Text>
-              <Text style={styles.menuItemText}>Offset curseur</Text>
-            </View>
-            <View style={styles.offsetRow}>
-              <TouchableOpacity
-                style={styles.offsetBtn}
-                onPress={() => setCursorOffsetMs((v) => v - 50)}
-              >
-                <Text style={styles.offsetBtnText}>−50</Text>
-              </TouchableOpacity>
-              <Text style={styles.offsetValue}>{cursorOffsetMs} ms</Text>
-              <TouchableOpacity
-                style={styles.offsetBtn}
-                onPress={() => setCursorOffsetMs((v) => v + 50)}
-              >
-                <Text style={styles.offsetBtnText}>+50</Text>
-              </TouchableOpacity>
-              {cursorOffsetMs !== 0 && (
-                <TouchableOpacity
-                  style={styles.offsetResetBtn}
-                  onPress={() => setCursorOffsetMs(0)}
-                >
-                  <Text style={styles.offsetResetText}>Reset</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                setSettingsVisible(true);
+              }}
+            >
+              <Text style={styles.menuItemIcon}>⚙</Text>
+              <Text style={styles.menuItemText}>Paramètres avancés</Text>
+            </TouchableOpacity>
 
             <View style={styles.menuDivider} />
 
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
-                setMenuVisible(false);
-                setSelectedEvent(null);
-                audioTimelineRef.current?.clearAllEvents();
-                eventsRef.current = [];
+                Alert.alert(
+                  'RAZ événements',
+                  'Supprimer tous les événements de la timeline ?',
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    {
+                      text: 'Supprimer',
+                      style: 'destructive',
+                      onPress: () => {
+                        setMenuVisible(false);
+                        setSelectedEvent(null);
+                        audioTimelineRef.current?.clearAllEvents();
+                        eventsRef.current = [];
+                      },
+                    },
+                  ]
+                );
               }}
             >
               <Text style={styles.menuItemIcon}>🗑</Text>
@@ -948,6 +979,67 @@ export default function ModelViewer() {
               <Text style={styles.menuItemIcon}>📤</Text>
               <Text style={styles.menuItemText}>Exporter .fseq</Text>
             </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Settings bottom panel */}
+      <Modal
+        visible={settingsVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSettingsVisible(false)}
+      >
+        <Pressable style={styles.settingsOverlay} onPress={() => setSettingsVisible(false)}>
+          <View style={styles.settingsPanel} onStartShouldSetResponder={() => true}>
+            <View style={styles.settingsHandle} />
+            <Text style={styles.settingsTitle}>Paramètres avancés</Text>
+
+            {/* Couleur carrosserie */}
+            <View style={styles.settingsSection}>
+              <Text style={styles.settingsSectionTitle}>🎨  Couleur carrosserie</Text>
+              <View style={styles.menuColorRow}>
+                {BODY_COLORS.map((c) => (
+                  <TouchableOpacity
+                    key={c.hex}
+                    onPress={() => changeBodyColor(c.hex)}
+                    style={[
+                      styles.menuColorDot,
+                      { backgroundColor: c.hex },
+                      activeColor === c.hex && styles.menuColorDotActive,
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* Offset curseur */}
+            <View style={styles.settingsSection}>
+              <Text style={styles.settingsSectionTitle}>⏱  Offset curseur</Text>
+              <View style={styles.offsetRow}>
+                <TouchableOpacity
+                  style={styles.offsetBtn}
+                  onPress={() => setCursorOffsetMs((v) => v - 50)}
+                >
+                  <Text style={styles.offsetBtnText}>−50</Text>
+                </TouchableOpacity>
+                <Text style={styles.offsetValue}>{cursorOffsetMs} ms</Text>
+                <TouchableOpacity
+                  style={styles.offsetBtn}
+                  onPress={() => setCursorOffsetMs((v) => v + 50)}
+                >
+                  <Text style={styles.offsetBtnText}>+50</Text>
+                </TouchableOpacity>
+                {cursorOffsetMs !== 0 && (
+                  <TouchableOpacity
+                    style={styles.offsetResetBtn}
+                    onPress={() => setCursorOffsetMs(0)}
+                  >
+                    <Text style={styles.offsetResetText}>Reset</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
           </View>
         </Pressable>
       </Modal>
@@ -1021,21 +1113,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 20,
   },
-  palette: {
+  menuColorRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 14,
+    gap: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  colorDot: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  menuColorDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 2,
     borderColor: '#333355',
   },
-  colorDotActive: {
+  menuColorDotActive: {
     borderColor: '#e94560',
     borderWidth: 3,
   },
@@ -1154,5 +1247,44 @@ const styles = StyleSheet.create({
     color: '#e94560',
     fontSize: 11,
     fontWeight: '600',
+  },
+  settingsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  settingsPanel: {
+    backgroundColor: '#1a1a2e',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderTopWidth: 1,
+    borderColor: '#2a2a4a',
+    paddingBottom: 30,
+    paddingTop: 10,
+  },
+  settingsHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#444466',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  settingsTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 18,
+  },
+  settingsSection: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  settingsSectionTitle: {
+    color: '#ccccee',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 10,
   },
 });

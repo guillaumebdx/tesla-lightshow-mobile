@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperat
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   TouchableOpacity,
   Modal,
@@ -10,11 +11,117 @@ import {
   Animated,
 } from 'react-native';
 import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
 import { MP3_TRACKS } from '../assets/mp3/index';
-import { PART_EMOJIS, PART_COLORS, EFFECT_TYPES, isAnimatable } from './constants';
+import { PART_ICONS, PART_COLORS, EFFECT_TYPES, isAnimatable } from './constants';
+
+const LONG_PRESS_MS = 350;
+const SELECT_MS = 300;
+const SHAKE_AMPLITUDE = 2;
+const SHAKE_PERIOD = 30;
+
+function DraggableEvent({ evt, color, isSelected, laneTop, laneHeight, leftPx, widthPx, isPlacementMode, onTap, onQuickTap, onDragEnd, totalWaveWidth, duration, onDragStart, onDragStop, onTouchCapture }) {
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const dragOffsetX = useRef(new Animated.Value(0)).current;
+  const isDragging = useRef(false);
+  const longPressTimer = useRef(null);
+  const startX = useRef(0);
+  const grantTime = useRef(0);
+  const shakeLoop = useRef(null);
+  const startShake = () => {
+    shakeLoop.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shakeAnim, { toValue: SHAKE_AMPLITUDE, duration: SHAKE_PERIOD, useNativeDriver: false }),
+        Animated.timing(shakeAnim, { toValue: -SHAKE_AMPLITUDE, duration: SHAKE_PERIOD, useNativeDriver: false }),
+      ])
+    );
+    shakeLoop.current.start();
+  };
+
+  const stopShake = () => {
+    if (shakeLoop.current) shakeLoop.current.stop();
+    shakeAnim.setValue(0);
+  };
+
+  return (
+    <Animated.View
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => isDragging.current}
+      onResponderGrant={(e) => {
+        startX.current = e.nativeEvent.pageX;
+        grantTime.current = Date.now();
+        isDragging.current = false;
+        dragOffsetX.setValue(0);
+        if (onTouchCapture) onTouchCapture();
+        longPressTimer.current = setTimeout(() => {
+          isDragging.current = true;
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 80);
+          startShake();
+          if (onDragStart) onDragStart();
+        }, LONG_PRESS_MS);
+      }}
+      onResponderMove={(e) => {
+        const dx = e.nativeEvent.pageX - startX.current;
+        if (isDragging.current) {
+          if (shakeLoop.current) stopShake();
+          dragOffsetX.setValue(dx);
+        } else if (Math.abs(dx) > 8) {
+          clearTimeout(longPressTimer.current);
+        }
+      }}
+      onResponderRelease={(e) => {
+        clearTimeout(longPressTimer.current);
+        stopShake();
+        const dx = e.nativeEvent.pageX - startX.current;
+        if (isDragging.current) {
+          isDragging.current = false;
+          dragOffsetX.setValue(0);
+          if (onDragStop) onDragStop();
+          const dxMs = (dx / totalWaveWidth) * duration;
+          if (onDragEnd) onDragEnd(evt, dxMs);
+        } else if (Math.abs(dx) < 8) {
+          const holdMs = Date.now() - grantTime.current;
+          if (isPlacementMode && holdMs < SELECT_MS) {
+            if (onQuickTap) onQuickTap(e.nativeEvent.pageX);
+          } else {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            if (onTap) onTap(evt);
+          }
+        }
+      }}
+      onResponderTerminate={() => {
+        clearTimeout(longPressTimer.current);
+        stopShake();
+        isDragging.current = false;
+        dragOffsetX.setValue(0);
+      }}
+      style={[
+        styles.eventBlock,
+        {
+          left: leftPx,
+          width: widthPx,
+          top: laneTop,
+          height: laneHeight,
+          backgroundColor: color + (isSelected ? '70' : '35'),
+          borderWidth: isSelected ? 1 : 0,
+          borderColor: isSelected ? color : 'transparent',
+          transform: [
+            { translateX: Animated.add(shakeAnim, dragOffsetX) },
+          ],
+        },
+      ]}
+    >
+      <View style={[styles.eventBlockBorder, { backgroundColor: color + 'AA' }]} />
+      {laneHeight >= 16 && PART_ICONS[evt.part] && (
+        <Image source={PART_ICONS[evt.part]} style={styles.eventIcon} />
+      )}
+    </Animated.View>
+  );
+}
 
 const BAR_GAP = 1;
-const ZOOM_LEVELS = [1, 2, 4, 8, 16];
+const ZOOM_LEVELS = [1, 2, 4, 8, 16, 32, 64];
 const BAR_BASE_WIDTH = 1;
 const PLAYBACK_UPDATE_MS = 100;
 
@@ -25,7 +132,7 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate }, ref) {
+function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange }, ref) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [waveform, setWaveform] = useState([]);
@@ -40,6 +147,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
   const scrollOffsetRef = useRef(0);
   const containerRef = useRef(null);
   const [zoomIndex, setZoomIndex] = useState(0);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
   const touchStartRef = useRef({ x: 0, time: 0 });
   const eventTappedRef = useRef(false);
 
@@ -62,6 +170,17 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
         if (onEventsChange) onEventsChange(updated);
         return updated;
       });
+    },
+    stop: async () => {
+      if (soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.setPositionAsync(0);
+      }
+      setIsPlaying(false);
+      setPosition(0);
+      cursorAnim.setValue(0);
+      if (onPlayingChange) onPlayingChange(false);
+      if (onPositionChange) onPositionChange(0, duration);
     },
   }));
 
@@ -138,6 +257,16 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
           duration: PLAYBACK_UPDATE_MS,
           useNativeDriver: false,
         }).start();
+
+        // Auto-scroll to keep cursor visible
+        const cursorPx = (offsetPos / dur) * totalWaveWidthRef.current;
+        const scrollX = scrollOffsetRef.current;
+        const viewW = containerWidthRef.current;
+        if (cursorPx > scrollX + viewW - 30) {
+          scrollRef.current?.scrollTo({ x: cursorPx - viewW * 0.3, animated: true });
+        } else if (cursorPx < scrollX + 30) {
+          scrollRef.current?.scrollTo({ x: Math.max(0, cursorPx - viewW * 0.3), animated: true });
+        }
       } else {
         cursorAnim.setValue(offsetPos / dur);
       }
@@ -146,24 +275,40 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
         setIsPlaying(false);
         setPosition(0);
         cursorAnim.setValue(0);
+        if (onPlayingChange) onPlayingChange(false);
       }
     }
   }, [cursorAnim, onPositionChange]);
 
   const togglePlay = async () => {
     if (!soundRef.current) return;
-
     if (isPlaying) {
       await soundRef.current.pauseAsync();
       setIsPlaying(false);
+      if (onPlayingChange) onPlayingChange(false);
     } else {
       await soundRef.current.playAsync();
       setIsPlaying(true);
+      if (onPlayingChange) onPlayingChange(true);
     }
+  };
+
+  const handleStop = async () => {
+    if (soundRef.current) {
+      await soundRef.current.stopAsync();
+      await soundRef.current.setPositionAsync(0);
+    }
+    setIsPlaying(false);
+    setPosition(0);
+    cursorAnim.setValue(0);
+    if (onPlayingChange) onPlayingChange(false);
+    if (onPositionChange) onPositionChange(0, duration);
   };
 
   const zoom = ZOOM_LEVELS[zoomIndex];
   const totalWaveWidth = waveform.length * (BAR_BASE_WIDTH * zoom + BAR_GAP);
+  const totalWaveWidthRef = useRef(totalWaveWidth);
+  totalWaveWidthRef.current = totalWaveWidth;
 
   const seekToRatio = async (ratio) => {
     if (!soundRef.current || duration === 0) return;
@@ -203,6 +348,12 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
 
   const eventLanes = computeLanes(events);
 
+  // Compute max overlapping lanes for dynamic height
+  let maxLanes = 1;
+  eventLanes.forEach((info) => { if (info.totalLanes > maxLanes) maxLanes = info.totalLanes; });
+  const BASE_HEIGHT = 80;
+  const timelineHeight = Math.min(BASE_HEIGHT * 1.5, BASE_HEIGHT * (maxLanes > 1 ? 1 + (maxLanes - 1) * 0.25 : 1));
+
   const isPlacementMode = selectedPart && isAnimatable(selectedPart);
 
   const handleEventTap = (evt) => {
@@ -210,6 +361,21 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
     if (onEventSelect) {
       onEventSelect(evt);
     }
+  };
+
+  const handleEventDragEnd = (evt, dxMs) => {
+    const evtDuration = evt.endMs - evt.startMs;
+    let newStart = Math.round(evt.startMs + dxMs);
+    newStart = Math.max(0, Math.min(newStart, duration - evtDuration));
+    const newEnd = newStart + evtDuration;
+    const updated = { ...evt, startMs: newStart, endMs: newEnd };
+    setEvents((prev) => {
+      const newList = prev.map((e) => e.id === evt.id ? updated : e).sort((a, b) => a.startMs - b.startMs);
+      if (onEventsChange) onEventsChange(newList);
+      return newList;
+    });
+    if (onEventSelect) onEventSelect(updated);
+    eventTappedRef.current = true;
   };
 
   const handleWaveTap = (localX) => {
@@ -220,10 +386,16 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
     if (selectedPart && duration > 0) {
       const durationMs = eventOptions?.durationMs || 500;
       const endMs = Math.min(startMs + durationMs, duration);
+
+      // Prevent overlap with same-part events
+      const overlaps = events.some((e) =>
+        e.part === selectedPart && startMs < e.endMs && endMs > e.startMs
+      );
+      if (overlaps) return;
+
       const newEvent = {
         id: Date.now().toString(),
         part: selectedPart,
-        emoji: PART_EMOJIS[selectedPart] || '📍',
         startMs,
         endMs,
         effect: eventOptions?.effect || EFFECT_TYPES.SOLID,
@@ -277,7 +449,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
       {/* Waveform timeline */}
       <View
         ref={containerRef}
-        style={styles.timelineContainer}
+        style={[styles.timelineContainer, { height: timelineHeight }, isPlacementMode && styles.timelinePlacement]}
         onLayout={(e) => {
           containerWidthRef.current = e.nativeEvent.layout.width;
           setTimeout(() => {
@@ -292,6 +464,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
         <ScrollView
           ref={scrollRef}
           horizontal
+          scrollEnabled={scrollEnabled}
           showsHorizontalScrollIndicator={zoom > 1}
           scrollEventThrottle={16}
           onScroll={(e) => {
@@ -321,7 +494,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
             }
           }}
         >
-          <View style={[styles.waveformContainer, { width: totalWaveWidth }]}>
+          <View style={[styles.waveformContainer, { width: totalWaveWidth, height: timelineHeight }]}>
             {waveform.map((val, i) => {
               const barProgress = (i + 1) / waveform.length;
               const isPast = barProgress <= progress;
@@ -349,30 +522,32 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
               const color = PART_COLORS[evt.part] || '#44aaff';
               const isSelected = evt.id === selectedEventId;
               const laneInfo = eventLanes.get(evt.id) || { lane: 0, totalLanes: 1 };
-              const laneHeight = 80 / laneInfo.totalLanes;
+              const laneHeight = timelineHeight / laneInfo.totalLanes;
               const laneTop = laneInfo.lane * laneHeight;
               return (
-                <TouchableOpacity
+                <DraggableEvent
                   key={evt.id}
-                  activeOpacity={isPlacementMode ? 1 : 0.7}
-                  onPress={isPlacementMode ? undefined : () => handleEventTap(evt)}
-                  pointerEvents={isPlacementMode ? 'none' : 'auto'}
-                  style={[
-                    styles.eventBlock,
-                    {
-                      left: leftPx,
-                      width: widthPx,
-                      top: laneTop,
-                      height: laneHeight,
-                      backgroundColor: color + (isSelected ? '70' : '35'),
-                      borderWidth: isSelected ? 1 : 0,
-                      borderColor: isSelected ? color : 'transparent',
-                    },
-                  ]}
-                >
-                  <View style={[styles.eventBlockBorder, { backgroundColor: color + 'AA' }]} />
-                  {laneHeight >= 16 && <Text style={styles.eventEmoji}>{evt.emoji}</Text>}
-                </TouchableOpacity>
+                  evt={evt}
+                  color={color}
+                  isSelected={isSelected}
+                  laneTop={laneTop}
+                  laneHeight={laneHeight}
+                  leftPx={leftPx}
+                  widthPx={widthPx}
+                  isPlacementMode={isPlacementMode}
+                  onTap={handleEventTap}
+                  onQuickTap={(pageX) => {
+                    const localX = pageX - containerLeftRef.current + scrollOffsetRef.current;
+                    handleWaveTap(localX);
+                    eventTappedRef.current = true;
+                  }}
+                  onDragEnd={handleEventDragEnd}
+                  onDragStart={() => setScrollEnabled(false)}
+                  onDragStop={() => setScrollEnabled(true)}
+                  onTouchCapture={() => { eventTappedRef.current = true; }}
+                  totalWaveWidth={totalWaveWidth}
+                  duration={duration}
+                />
               );
             })}
 
@@ -409,10 +584,12 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
       <View style={styles.controls}>
         <Text style={styles.timeText}>{formatTime(position)}</Text>
 
+        <TouchableOpacity style={styles.stopButton} onPress={handleStop}>
+          <Text style={styles.stopButtonText}>■</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
-          <Text style={styles.playButtonText}>
-            {isPlaying ? '❚❚' : '▶'}
-          </Text>
+          <Text style={styles.playButtonText}>{isPlaying ? '❚❚' : '▶'}</Text>
         </TouchableOpacity>
 
         <Text style={styles.timeText}>{formatTime(duration)}</Text>
@@ -493,6 +670,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
   },
+  timelinePlacement: {
+    backgroundColor: 'rgba(68, 170, 255, 0.06)',
+    borderColor: 'rgba(68, 170, 255, 0.3)',
+  },
   waveformContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -529,10 +710,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 2,
   },
-  eventEmoji: {
-    fontSize: 10,
+  eventIcon: {
+    width: 14,
+    height: 14,
     marginTop: 2,
-    marginLeft: 4,
+    marginLeft: 3,
+    borderRadius: 2,
   },
   markerCount: {
     color: '#6666aa',
@@ -574,6 +757,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 8,
     gap: 20,
+  },
+  stopButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2a2a4a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stopButtonText: {
+    color: '#ccccee',
+    fontSize: 14,
   },
   playButton: {
     width: 48,

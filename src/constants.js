@@ -26,20 +26,20 @@ export const PART_LABELS = {
   light_right_back: 'Feu AR droit',
 };
 
-// Emoji per part type
-export const PART_EMOJIS = {
-  window_left_front: '🪟',
-  window_right_front: '🪟',
-  window_left_back: '🪟',
-  window_right_back: '🪟',
-  retro_left: '🪞',
-  retro_right: '🪞',
-  flap: '⚡',
-  trunk: '📦',
-  light_left_front: '💡',
-  light_right_front: '💡',
-  light_left_back: '🔴',
-  light_right_back: '🔴',
+// Icon images per part type
+export const PART_ICONS = {
+  light_left_front: require('../assets/icons/front_light.png'),
+  light_right_front: require('../assets/icons/front_light.png'),
+  light_left_back: require('../assets/icons/back_light.png'),
+  light_right_back: require('../assets/icons/back_light.png'),
+  window_left_front: require('../assets/icons/window.png'),
+  window_right_front: require('../assets/icons/window.png'),
+  window_left_back: require('../assets/icons/window.png'),
+  window_right_back: require('../assets/icons/window.png'),
+  retro_left: require('../assets/icons/retro.png'),
+  retro_right: require('../assets/icons/retro.png'),
+  flap: require('../assets/icons/charge.png'),
+  trunk: require('../assets/icons/trunk.png'),
 };
 
 // Color per part type (for event rectangles on waveform)

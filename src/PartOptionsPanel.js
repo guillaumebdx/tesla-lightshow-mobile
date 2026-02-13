@@ -1,9 +1,28 @@
-import React from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Image, StyleSheet, Switch, TouchableOpacity, TextInput, Modal, Pressable } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { PART_EMOJIS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MODES, isLight, isRetro, isWindow } from './constants';
+import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MODES, isLight, isRetro, isWindow } from './constants';
 
 export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent, onDeleteEvent }) {
+  const [durationInput, setDurationInput] = useState(null); // { field, value }
+
+  const openDurationInput = (field, currentMs) => {
+    setDurationInput({ field, value: (currentMs / 1000).toString() });
+  };
+
+  const confirmDuration = () => {
+    if (!durationInput) return;
+    const seconds = parseFloat(durationInput.value);
+    if (isNaN(seconds) || seconds <= 0) { setDurationInput(null); return; }
+    const ms = Math.round(seconds * 1000);
+    if (durationInput.field === 'durationMs') {
+      onOptionsChange({ ...eventOptions, durationMs: ms });
+    } else if (durationInput.field === 'windowDurationMs') {
+      onOptionsChange({ ...eventOptions, windowDurationMs: ms, durationMs: ms });
+    }
+    setDurationInput(null);
+  };
+
   if (!selectedPart) {
     return (
       <View style={styles.container}>
@@ -12,7 +31,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
     );
   }
 
-  const emoji = PART_EMOJIS[selectedPart] || '📍';
+  const icon = PART_ICONS[selectedPart];
   const label = PART_LABELS[selectedPart] || selectedPart;
   const lightPart = isLight(selectedPart);
   const retroPart = isRetro(selectedPart);
@@ -24,7 +43,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
       <View style={styles.content}>
         {/* Part header */}
         <View style={styles.header}>
-          <Text style={styles.headerEmoji}>{emoji}</Text>
+          {icon && <Image source={icon} style={styles.headerIcon} />}
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>{label}</Text>
             {editingEvent && (
@@ -43,7 +62,9 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
             {/* Duration slider */}
             <View style={styles.optionRow}>
               <Text style={styles.optionLabel}>Durée</Text>
-              <Text style={styles.optionValue}>{eventOptions.durationMs} ms</Text>
+              <TouchableOpacity onPress={() => openDurationInput('durationMs', eventOptions.durationMs)}>
+                <Text style={styles.optionValueTappable}>{(eventOptions.durationMs / 1000).toFixed(1)}s</Text>
+              </TouchableOpacity>
             </View>
             <Slider
               style={styles.slider}
@@ -194,7 +215,9 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
 
             <View style={[styles.optionRow, { marginTop: 10 }]}>
               <Text style={styles.optionLabel}>Durée</Text>
-              <Text style={styles.optionValue}>{(eventOptions.windowDurationMs / 1000).toFixed(1)}s</Text>
+              <TouchableOpacity onPress={() => openDurationInput('windowDurationMs', eventOptions.windowDurationMs)}>
+                <Text style={styles.optionValueTappable}>{(eventOptions.windowDurationMs / 1000).toFixed(1)}s</Text>
+              </TouchableOpacity>
             </View>
             <Slider
               style={styles.slider}
@@ -215,6 +238,27 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
             <Text style={styles.deleteButtonText}>🗑  Supprimer l'événement</Text>
           </TouchableOpacity>
         )}
+
+        {/* Duration input modal */}
+        <Modal visible={!!durationInput} transparent animationType="fade">
+          <Pressable style={styles.durationOverlay} onPress={() => setDurationInput(null)}>
+            <View style={styles.durationModal}>
+              <Text style={styles.durationModalTitle}>Durée (secondes)</Text>
+              <TextInput
+                style={styles.durationTextInput}
+                value={durationInput?.value || ''}
+                onChangeText={(t) => setDurationInput((prev) => prev ? { ...prev, value: t } : null)}
+                keyboardType="decimal-pad"
+                autoFocus
+                selectTextOnFocus
+                onSubmitEditing={confirmDuration}
+              />
+              <TouchableOpacity style={styles.durationConfirmBtn} onPress={confirmDuration}>
+                <Text style={styles.durationConfirmText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
       </View>
     </View>
   );
@@ -239,8 +283,10 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 10,
   },
-  headerEmoji: {
-    fontSize: 22,
+  headerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
   },
   headerTitle: {
     color: '#ffffff',
@@ -363,6 +409,63 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     color: '#e94560',
     fontSize: 13,
+    fontWeight: '600',
+  },
+  optionValueTappable: {
+    color: '#e94560',
+    fontSize: 13,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    backgroundColor: 'rgba(233, 69, 96, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  durationOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  durationModal: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2a2a4a',
+    padding: 20,
+    width: 220,
+    alignItems: 'center',
+  },
+  durationModalTitle: {
+    color: '#ccccee',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  durationTextInput: {
+    backgroundColor: '#0f0f23',
+    borderWidth: 1,
+    borderColor: '#3a3a5a',
+    borderRadius: 8,
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    width: '100%',
+    marginBottom: 12,
+  },
+  durationConfirmBtn: {
+    backgroundColor: '#e94560',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 30,
+  },
+  durationConfirmText: {
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '600',
   },
 });
