@@ -248,7 +248,33 @@ export default function ModelViewer({ showId, onGoHome }) {
       if (interactiveName) {
         selectPart(interactiveName);
       } else {
-        selectPart(null);
+        // Hit the car body — find the nearest interactive part using bbox center
+        const hitPoint = intersects[0].point;
+        let nearest = null;
+        let nearestDist = Infinity;
+        const seenNames = new Set();
+        model.traverse((child) => {
+          if (!child.isMesh || !child.userData.interactiveName) return;
+          const name = child.userData.interactiveName;
+          if (seenNames.has(name)) return;
+          seenNames.add(name);
+          // Use bounding box center in world space (more accurate than mesh origin)
+          child.geometry.computeBoundingBox();
+          const localCenter = new THREE.Vector3();
+          child.geometry.boundingBox.getCenter(localCenter);
+          const worldCenter = localCenter.clone();
+          child.localToWorld(worldCenter);
+          const dist = hitPoint.distanceTo(worldCenter);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearest = name;
+          }
+        });
+        if (nearest && nearestDist < 1.5) {
+          selectPart(nearest);
+        } else {
+          selectPart(null);
+        }
       }
     } else {
       console.log('Tap miss - no intersection');
