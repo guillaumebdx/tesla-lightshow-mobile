@@ -14,6 +14,7 @@ import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { MP3_TRACKS } from '../assets/mp3/index';
 import { PART_ICONS, PART_COLORS, EFFECT_TYPES, isAnimatable } from './constants';
+import { pickAndImportAudio, loadCachedWaveform } from './audioPicker';
 
 const LONG_PRESS_MS = 350;
 const SELECT_MS = 300;
@@ -121,7 +122,7 @@ function DraggableEvent({ evt, color, isSelected, laneTop, laneHeight, leftPx, w
 }
 
 const BAR_GAP = 1;
-const ZOOM_LEVELS = [1, 2, 4, 8, 16, 32, 64];
+const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 2, 4, 8, 16, 32, 64];
 const BAR_BASE_WIDTH = 1;
 const PLAYBACK_UPDATE_MS = 100;
 
@@ -132,7 +133,7 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, skipAutoLoad = false }, ref) {
+function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart }, ref) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [waveform, setWaveform] = useState([]);
@@ -146,7 +147,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
   const containerLeftRef = useRef(0);
   const scrollOffsetRef = useRef(0);
   const containerRef = useRef(null);
-  const [zoomIndex, setZoomIndex] = useState(0);
+  const [zoomIndex, setZoomIndex] = useState(3);
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const touchStartRef = useRef({ x: 0, time: 0 });
   const eventTappedRef = useRef(false);
@@ -193,18 +194,32 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
       const track = MP3_TRACKS.find((t) => t.id === trackId);
       if (track) selectTrack(track, { keepEvents: true });
     },
-    // Get the current track ID
+    // Load an imported track by URI + cached waveform (for saved shows)
+    loadImportedTrack: async (trackUri, trackTitle) => {
+      const waveform = await loadCachedWaveform(trackUri);
+      const track = {
+        id: trackUri,
+        title: trackTitle || 'Import',
+        artist: 'Fichier importé',
+        uri: trackUri,
+        waveform: waveform || { bars: [] },
+      };
+      selectTrack(track, { keepEvents: true });
+    },
+    // Get the current track info for saving
     getTrackId: () => selectedTrack?.id || null,
+    getTrackInfo: () => selectedTrack ? {
+      id: selectedTrack.id,
+      title: selectedTrack.title,
+      uri: selectedTrack.uri || null,
+      isBuiltin: !!selectedTrack.file,
+    } : null,
   }));
 
   // Cursor animation (Animated — no re-render)
   const cursorAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Load first track by default (unless loading a saved show)
-    if (!skipAutoLoad && !selectedTrack && MP3_TRACKS.length > 0) {
-      selectTrack(MP3_TRACKS[0]);
-    }
     return () => {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
@@ -221,15 +236,19 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
     }
 
     setSelectedTrack(track);
-    setWaveform(track.waveform?.bars || []);
+    // Waveform: builtin tracks have .waveform.bars, imported tracks have .waveform.bars directly
+    const bars = track.waveform?.bars || [];
+    setWaveform(bars);
     setIsPlaying(false);
     setPosition(0);
     if (!keepEvents) setEvents([]);
     cursorAnim.setValue(0);
 
     try {
+      // Builtin tracks use require() asset, imported tracks use { uri }
+      const source = track.file ? track.file : { uri: track.uri };
       const { sound, status } = await Audio.Sound.createAsync(
-        track.file,
+        source,
         { shouldPlay: false, progressUpdateIntervalMillis: PLAYBACK_UPDATE_MS },
         onPlaybackStatusUpdate
       );
@@ -451,7 +470,13 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
   if (!selectedTrack) {
     return (
       <View style={styles.container}>
-        <Text style={styles.noTrackHint}>Aucune musique sélectionnée</Text>
+        <TouchableOpacity
+          style={styles.chooseTrackButton}
+          onPress={() => setModalVisible(true)}
+        >
+          <Text style={styles.chooseTrackIcon}>🎵</Text>
+          <Text style={styles.chooseTrackText}>Choisir une musique</Text>
+        </TouchableOpacity>
         <TrackModal
           visible={modalVisible}
           onClose={() => setModalVisible(false)}
@@ -629,38 +654,246 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
   );
 }
 
+function WaveformLoader({ status }) {
+  const NUM_LOADER_BARS = 40;
+  // Generate musical pattern once
+  const heights = useRef(
+    Array.from({ length: NUM_LOADER_BARS }, (_, i) => {
+      const base = Math.sin((i / NUM_LOADER_BARS) * Math.PI) * 0.6;
+      const beat = (i % 4 === 0) ? 0.3 : (i % 2 === 0) ? 0.15 : 0;
+      const noise = Math.random() * 0.25;
+      return Math.min(1, base + beat + noise);
+    })
+  ).current;
+
+  // Each bar springs in one by one (native driver for smooth animation even during JS block)
+  const barsAnim = useRef(
+    Array.from({ length: NUM_LOADER_BARS }, () => new Animated.Value(0))
+  ).current;
+
+  useEffect(() => {
+    // Stagger bars appearing — all animations use native driver
+    barsAnim.forEach((anim, i) => {
+      Animated.sequence([
+        Animated.delay(i * 12),
+        Animated.spring(anim, {
+          toValue: 1,
+          friction: 5,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+
+    return () => barsAnim.forEach(a => a.stopAnimation());
+  }, []);
+
+  return (
+    <View style={loaderStyles.container}>
+      <View style={loaderStyles.barsRow}>
+        {barsAnim.map((anim, i) => {
+          const h = Math.max(4, Math.round(heights[i] * 50));
+          const color = heights[i] > 0.7 ? '#66ccff' : heights[i] > 0.4 ? '#44aaff' : '#2244aa';
+          return (
+            <Animated.View
+              key={i}
+              style={[
+                loaderStyles.bar,
+                {
+                  height: h,
+                  backgroundColor: color,
+                  opacity: anim,
+                  transform: [{
+                    scaleY: anim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.1, 1],
+                    }),
+                  }],
+                },
+              ]}
+            />
+          );
+        })}
+      </View>
+      <Text style={loaderStyles.statusText}>{status || 'Analyse audio...'}</Text>
+      <Text style={loaderStyles.statusHint}>Cela peut prendre quelques secondes</Text>
+    </View>
+  );
+}
+
+const loaderStyles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  barsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 56,
+    gap: 2,
+    marginBottom: 16,
+  },
+  bar: {
+    width: 4,
+    borderRadius: 2,
+  },
+  statusText: {
+    color: '#44aaff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  statusHint: {
+    color: '#555577',
+    fontSize: 12,
+    marginTop: 6,
+  },
+});
+
 function TrackModal({ visible, onClose, onSelect }) {
+  const [importing, setImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState('');
+  const [previewId, setPreviewId] = useState(null);
+  const previewSoundRef = useRef(null);
+
+  const stopPreview = useCallback(async () => {
+    if (previewSoundRef.current) {
+      try {
+        await previewSoundRef.current.stopAsync();
+        await previewSoundRef.current.unloadAsync();
+      } catch (_) {}
+      previewSoundRef.current = null;
+    }
+    setPreviewId(null);
+  }, []);
+
+  const togglePreview = useCallback(async (track) => {
+    if (previewId === track.id) {
+      await stopPreview();
+      return;
+    }
+    await stopPreview();
+    try {
+      const source = track.uri ? { uri: track.uri } : track.file;
+      const { sound } = await Audio.Sound.createAsync(source, { shouldPlay: true });
+      previewSoundRef.current = sound;
+      setPreviewId(track.id);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) {
+          stopPreview();
+        }
+      });
+    } catch (e) {
+      console.error('Preview error:', e);
+    }
+  }, [previewId, stopPreview]);
+
+  // Stop preview when modal closes or track is selected
+  const handleSelect = useCallback(async (track) => {
+    await stopPreview();
+    onSelect(track);
+  }, [onSelect, stopPreview]);
+
+  const handleClose = useCallback(async () => {
+    await stopPreview();
+    onClose();
+  }, [onClose, stopPreview]);
+
+  const handleImport = async () => {
+    try {
+      await stopPreview();
+      setImporting(true);
+      const result = await pickAndImportAudio((status) => setImportStatus(status));
+      if (result) {
+        const track = {
+          id: result.uri,
+          title: result.name,
+          artist: 'Fichier importé',
+          uri: result.uri,
+          waveform: result.waveform,
+        };
+        onSelect(track);
+      }
+    } catch (e) {
+      console.error('Import error:', e);
+      alert('Erreur import: ' + e.message);
+    } finally {
+      setImporting(false);
+      setImportStatus('');
+    }
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Choisir une musique</Text>
 
-          <FlatList
-            data={MP3_TRACKS}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.trackItem}
-                onPress={() => onSelect(item)}
-              >
-                <Text style={styles.trackItemIcon}>♪</Text>
-                <View style={styles.trackItemInfo}>
-                  <Text style={styles.trackItemTitle}>{item.title}</Text>
-                  <Text style={styles.trackItemArtist}>{item.artist}</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          />
+          {/* Import button on top */}
+          {importing ? (
+            <WaveformLoader status={importStatus} />
+          ) : (
+            <TouchableOpacity
+              style={styles.importButton}
+              onPress={handleImport}
+            >
+              <Text style={styles.importButtonText}>📂  Importer un MP3</Text>
+            </TouchableOpacity>
+          )}
 
-          <TouchableOpacity style={styles.modalClose} onPress={onClose}>
-            <Text style={styles.modalCloseText}>Annuler</Text>
-          </TouchableOpacity>
+          {/* Separator */}
+          <View style={styles.modalSeparator}>
+            <View style={styles.modalSeparatorLine} />
+            <Text style={styles.modalSeparatorText}>ou choisir parmi</Text>
+            <View style={styles.modalSeparatorLine} />
+          </View>
+
+          {/* Scrollable track list */}
+          <View style={styles.trackListContainer}>
+            <ScrollView
+              showsVerticalScrollIndicator={true}
+              persistentScrollbar={true}
+              style={styles.trackListScroll}
+              contentContainerStyle={styles.trackListContent}
+            >
+              {MP3_TRACKS.map((item) => {
+                const isPreviewing = previewId === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.trackItem}
+                    onPress={() => handleSelect(item)}
+                  >
+                    <TouchableOpacity
+                      style={styles.trackPreviewBtn}
+                      onPress={(e) => { e.stopPropagation(); togglePreview(item); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={styles.trackPreviewIcon}>
+                        {isPreviewing ? '⏹' : '▶'}
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={styles.trackItemInfo}>
+                      <Text style={styles.trackItemTitle}>{item.title}</Text>
+                      <Text style={styles.trackItemArtist}>{item.artist}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            {/* Fade at bottom to hint scrollability */}
+            <View style={styles.trackListFadeBottom} pointerEvents="none" />
+          </View>
+
+          {!importing && (
+            <TouchableOpacity style={styles.modalClose} onPress={handleClose}>
+              <Text style={styles.modalCloseText}>Annuler</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </Modal>
@@ -671,11 +904,25 @@ const styles = StyleSheet.create({
   container: {
     padding: 8,
   },
-  noTrackHint: {
-    color: '#555577',
-    fontSize: 13,
-    textAlign: 'center',
-    paddingVertical: 12,
+  chooseTrackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(20, 20, 40, 0.6)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#44aaff',
+    borderStyle: 'dashed',
+    paddingVertical: 18,
+    gap: 10,
+  },
+  chooseTrackIcon: {
+    fontSize: 20,
+  },
+  chooseTrackText: {
+    color: '#44aaff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 
   // Timeline / Waveform
@@ -821,7 +1068,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 30,
     paddingHorizontal: 20,
-    maxHeight: '60%',
+    maxHeight: '70%',
   },
   modalTitle: {
     color: '#ffffff',
@@ -840,9 +1087,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     gap: 12,
   },
-  trackItemIcon: {
+  trackPreviewBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(233, 69, 96, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trackPreviewIcon: {
     color: '#e94560',
-    fontSize: 22,
+    fontSize: 14,
   },
   trackItemInfo: {
     flex: 1,
@@ -856,6 +1111,59 @@ const styles = StyleSheet.create({
     color: '#6666aa',
     fontSize: 12,
     marginTop: 2,
+  },
+  modalSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 14,
+    gap: 10,
+  },
+  modalSeparatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#2a2a4a',
+  },
+  modalSeparatorText: {
+    color: '#555577',
+    fontSize: 12,
+  },
+  trackListContainer: {
+    height: 220,
+    borderRadius: 10,
+    position: 'relative',
+  },
+  trackListScroll: {
+  },
+  trackListContent: {
+    paddingBottom: 20,
+  },
+  trackListFadeBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 30,
+    backgroundColor: 'transparent',
+    borderBottomWidth: 2,
+    borderBottomColor: '#2a2a4a',
+  },
+  importButton: {
+    marginTop: 4,
+    backgroundColor: '#1a1a3a',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#44aaff',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  importButtonDisabled: {
+    borderColor: '#2a2a4a',
+    opacity: 0.6,
+  },
+  importButtonText: {
+    color: '#44aaff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   modalClose: {
     marginTop: 12,

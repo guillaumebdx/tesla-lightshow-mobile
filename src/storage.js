@@ -105,6 +105,7 @@ export async function saveShow(show) {
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
       trackId: updated.trackId,
+      trackTitle: updated.trackTitle || null,
       isBuiltinTrack: updated.isBuiltinTrack,
       eventCount: (updated.events || []).length,
     };

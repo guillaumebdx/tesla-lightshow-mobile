@@ -17,9 +17,13 @@ function formatDate(ts) {
   return `${day}/${month}/${year} ${hours}:${mins}`;
 }
 
-function getTrackName(trackId) {
-  const track = MP3_TRACKS.find((t) => t.id === trackId);
-  return track ? track.title : 'Aucune musique';
+function getTrackName(item) {
+  if (item.trackId) {
+    const track = MP3_TRACKS.find((t) => t.id === item.trackId);
+    if (track) return track.title;
+  }
+  if (item.trackTitle) return item.trackTitle;
+  return 'Aucune musique';
 }
 
 const CAR_MODEL_LABELS = {
@@ -92,7 +96,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
         <Text style={styles.cardModel}>{CAR_MODEL_LABELS[item.carModel] || item.carModel}</Text>
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.cardTrack}>🎵  {getTrackName(item.trackId)}</Text>
+        <Text style={styles.cardTrack}>🎵  {getTrackName(item)}</Text>
         <Text style={styles.cardEvents}>{item.eventCount || 0} événement{(item.eventCount || 0) > 1 ? 's' : ''}</Text>
       </View>
       <Text style={styles.cardDate}>{formatDate(item.updatedAt)}</Text>

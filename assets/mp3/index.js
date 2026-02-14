@@ -22,4 +22,18 @@ export const MP3_TRACKS = [
     file: require('./lvbratija-moonlight-mambo-365881.mp3'),
     waveform: require('./lvbratija-moonlight-mambo-365881.waveform.json'),
   },
+  {
+    id: 'star_wars_battle',
+    title: 'Star Wars Style Battle Music',
+    artist: 'Luis Humanoide',
+    file: require('./luis_humanoide-star-wars-style-battle-music-148641.mp3'),
+    waveform: require('./luis_humanoide-star-wars-style-battle-music-148641.waveform.json'),
+  },
+  {
+    id: 'happy_birthday',
+    title: 'Happy Birthday',
+    artist: 'Starostin',
+    file: require('./starostin-happy-birthday-357371.mp3'),
+    waveform: require('./starostin-happy-birthday-357371.waveform.json'),
+  },
 ];

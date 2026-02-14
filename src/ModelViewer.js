@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TextInput, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert } from 'react-native';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import * as THREE from 'three';
@@ -36,23 +36,24 @@ export default function ModelViewer({ showId, onGoHome }) {
     });
   }, []);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showName, setShowName] = useState('');
   const audioTimelineRef = useRef(null);
   const showDataRef = useRef(null);
   const saveTimerRef = useRef(null);
   const showLoadedRef = useRef(false);
-  const [savedTrackId, setSavedTrackId] = useState(null);
-
   // Debounced auto-save (1.5s after last change)
   const scheduleSave = useCallback(() => {
     if (!showDataRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
-      const trackId = audioTimelineRef.current?.getTrackId() || null;
+      const trackInfo = audioTimelineRef.current?.getTrackInfo() || null;
       const data = {
         ...showDataRef.current,
         events: eventsRef.current,
-        trackId,
-        isBuiltinTrack: true,
+        trackId: trackInfo?.isBuiltin ? trackInfo.id : null,
+        trackUri: trackInfo?.uri || null,
+        trackTitle: trackInfo?.title || null,
+        isBuiltinTrack: trackInfo?.isBuiltin ?? true,
         cursorOffsetMs: cursorOffsetMsRef.current,
         bodyColor: activeColorRef.current,
       };
@@ -68,7 +69,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       const data = await loadShow(showId);
       if (!data) return;
       showDataRef.current = data;
-      if (data.trackId) setSavedTrackId(data.trackId);
+      if (data.name) setShowName(data.name);
       if (data.bodyColor) {
         activeColorRef.current = data.bodyColor;
         if (bodyMaterialRef.current) {
@@ -81,8 +82,10 @@ export default function ModelViewer({ showId, onGoHome }) {
       const waitForTimeline = setInterval(() => {
         if (audioTimelineRef.current) {
           clearInterval(waitForTimeline);
-          if (data.trackId) {
+          if (data.trackId && data.isBuiltinTrack !== false) {
             audioTimelineRef.current.selectTrackById(data.trackId);
+          } else if (data.trackUri) {
+            audioTimelineRef.current.loadImportedTrack(data.trackUri, data.trackTitle);
           }
           // Load events after a short delay to let the track load
           setTimeout(() => {
@@ -898,7 +901,6 @@ export default function ModelViewer({ showId, onGoHome }) {
             eventOptions={eventOptions}
             cursorOffsetMs={cursorOffsetMs}
             selectedEventId={selectedEvent?.id || null}
-            skipAutoLoad={!!savedTrackId}
             onEventsChange={(evts) => { eventsRef.current = evts; scheduleSave(); }}
             onPlayingChange={(playing) => { isPlayingRef.current = playing; }}
             onPositionChange={(pos, dur) => {
@@ -988,11 +990,11 @@ export default function ModelViewer({ showId, onGoHome }) {
               style={styles.menuItem}
               onPress={() => {
                 setMenuVisible(false);
-                audioTimelineRef.current?.openTrackPicker();
+                if (onGoHome) onGoHome();
               }}
             >
-              <Text style={styles.menuItemIcon}>♪</Text>
-              <Text style={styles.menuItemText}>Choisir une musique</Text>
+              <Text style={styles.menuItemIcon}>🏠</Text>
+              <Text style={styles.menuItemText}>Home</Text>
             </TouchableOpacity>
 
             <View style={styles.menuDivider} />
@@ -1056,19 +1058,6 @@ export default function ModelViewer({ showId, onGoHome }) {
               <Text style={styles.menuItemIcon}>📤</Text>
               <Text style={styles.menuItemText}>Exporter .fseq</Text>
             </TouchableOpacity>
-
-            <View style={styles.menuDivider} />
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                if (onGoHome) onGoHome();
-              }}
-            >
-              <Text style={styles.menuItemIcon}>🏠</Text>
-              <Text style={styles.menuItemText}>Retour accueil</Text>
-            </TouchableOpacity>
           </View>
         </Pressable>
       </Modal>
@@ -1084,6 +1073,25 @@ export default function ModelViewer({ showId, onGoHome }) {
           <View style={styles.settingsPanel} onStartShouldSetResponder={() => true}>
             <View style={styles.settingsHandle} />
             <Text style={styles.settingsTitle}>Paramètres avancés</Text>
+
+            {/* Renommer le projet */}
+            <View style={styles.settingsSection}>
+              <Text style={styles.settingsSectionTitle}>✏️  Nom du projet</Text>
+              <TextInput
+                style={styles.renameInput}
+                value={showName}
+                onChangeText={(text) => {
+                  setShowName(text);
+                  if (showDataRef.current) {
+                    showDataRef.current.name = text;
+                    scheduleSave();
+                  }
+                }}
+                placeholder="Nom du projet"
+                placeholderTextColor="#555577"
+                maxLength={40}
+              />
+            </View>
 
             {/* Couleur carrosserie */}
             <View style={styles.settingsSection}>
@@ -1376,5 +1384,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 10,
+  },
+  renameInput: {
+    backgroundColor: 'rgba(40, 40, 70, 0.6)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3a3a5a',
+    color: '#ffffff',
+    fontSize: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
 });

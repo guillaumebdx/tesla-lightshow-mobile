@@ -85,7 +85,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(-3, 2, 4);
+    camera.position.set(-2.2, 1.5, 3);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
@@ -123,9 +123,45 @@ export default function NewShowScreen({ onBack, onCreated }) {
         roughness: 0.15,
         envMapIntensity: 1.0,
       });
+      const windowMat = new THREE.MeshStandardMaterial({
+        color: 0x888899,
+        metalness: 0.7,
+        roughness: 0.1,
+        opacity: 0.85,
+        transparent: true,
+      });
+      const litHeadMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        metalness: 0.2,
+        roughness: 0.05,
+        emissive: 0xffffff,
+        emissiveIntensity: 1.5,
+      });
+      const litTailMat = new THREE.MeshStandardMaterial({
+        color: 0xff0000,
+        metalness: 0.3,
+        roughness: 0.1,
+        emissive: 0xff2200,
+        emissiveIntensity: 1.2,
+      });
+      const partMats = {
+        window_left_front: windowMat, window_right_front: windowMat,
+        window_left_back: windowMat, window_right_back: windowMat,
+        light_left_front: litHeadMat, light_right_front: litHeadMat,
+        light_left_back: litTailMat, light_right_back: litTailMat,
+      };
+      const getPartName = (mesh) => {
+        let node = mesh;
+        while (node) {
+          if (partMats[node.name]) return node.name;
+          node = node.parent;
+        }
+        return null;
+      };
       model.traverse((child) => {
         if (child.isMesh) {
-          child.material = bodyMat;
+          const pn = getPartName(child);
+          child.material = (pn && partMats[pn]) || bodyMat;
         }
       });
 
@@ -324,6 +360,7 @@ const styles = StyleSheet.create({
   createButton: {
     marginHorizontal: 20,
     marginTop: 30,
+    marginBottom: 50,
     backgroundColor: '#44aaff',
     borderRadius: 14,
     paddingVertical: 16,
