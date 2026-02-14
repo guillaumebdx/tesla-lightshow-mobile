@@ -9,6 +9,7 @@ import {
   FlatList,
   ScrollView,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
@@ -83,9 +84,11 @@ function DraggableEvent({ evt, color, isSelected, laneTop, laneHeight, leftPx, w
           if (onDragEnd) onDragEnd(evt, dxMs);
         } else if (Math.abs(dx) < 8) {
           const holdMs = Date.now() - grantTime.current;
-          if (isPlacementMode && holdMs < SELECT_MS) {
+          if (holdMs < SELECT_MS) {
+            // Quick tap → pass through to waveform (seek cursor / place event)
             if (onQuickTap) onQuickTap(e.nativeEvent.pageX);
           } else {
+            // Longer tap → select this event
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             if (onTap) onTap(evt);
           }
@@ -133,7 +136,7 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart }, ref) {
+function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, isLoadingShow = false }, ref) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [waveform, setWaveform] = useState([]);
@@ -466,8 +469,19 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
     outputRange: [0, totalWaveWidth],
   });
 
-  // No track selected: show hint
+  // No track selected
   if (!selectedTrack) {
+    // Loading a saved show — show loader instead of "choose" button
+    if (isLoadingShow) {
+      return (
+        <View style={styles.container}>
+          <View style={styles.loadingTrackContainer}>
+            <ActivityIndicator size="small" color="#44aaff" />
+            <Text style={styles.loadingTrackText}>Chargement de la musique...</Text>
+          </View>
+        </View>
+      );
+    }
     return (
       <View style={styles.container}>
         <TouchableOpacity
@@ -716,7 +730,7 @@ function WaveformLoader({ status }) {
         })}
       </View>
       <Text style={loaderStyles.statusText}>{status || 'Analyse audio...'}</Text>
-      <Text style={loaderStyles.statusHint}>Cela peut prendre quelques secondes</Text>
+      <Text style={loaderStyles.statusHint}>Cela peut prendre 2 minutes{'\n'}Ne quittez pas l'application</Text>
     </View>
   );
 }
@@ -903,6 +917,21 @@ function TrackModal({ visible, onClose, onSelect }) {
 const styles = StyleSheet.create({
   container: {
     padding: 8,
+  },
+  loadingTrackContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(20, 20, 40, 0.6)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2a2a4a',
+    paddingVertical: 18,
+    gap: 10,
+  },
+  loadingTrackText: {
+    color: '#44aaff',
+    fontSize: 14,
   },
   chooseTrackButton: {
     flexDirection: 'row',

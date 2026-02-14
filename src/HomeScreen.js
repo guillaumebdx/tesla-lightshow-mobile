@@ -1,9 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, Dimensions,
+  Modal, Pressable, Linking, ScrollView,
 } from 'react-native';
 import { listShows, deleteShow, duplicateShow } from './storage';
 import { MP3_TRACKS } from '../assets/mp3/index';
+
+const LANGUAGES = [
+  { code: 'fr', flag: '🇫🇷', label: 'Français' },
+  { code: 'en', flag: '🇬🇧', label: 'English' },
+  { code: 'es', flag: '🇪🇸', label: 'Español' },
+  { code: 'de', flag: '🇩🇪', label: 'Deutsch' },
+];
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -35,6 +43,9 @@ const CAR_MODEL_LABELS = {
 export default function HomeScreen({ onNewShow, onOpenShow }) {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [aboutVisible, setAboutVisible] = useState(false);
+  const [selectedLang, setSelectedLang] = useState('fr');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -106,9 +117,18 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Light Studio</Text>
-        <Text style={styles.subtitle}>for Tesla</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>Light Studio</Text>
+          <Text style={styles.subtitle}>for Tesla</Text>
+        </View>
+        <TouchableOpacity style={styles.settingsBtn} onPress={() => setSettingsVisible(true)}>
+          <Text style={styles.settingsBtnIcon}>⚙️</Text>
+        </TouchableOpacity>
       </View>
+
+      <TouchableOpacity style={styles.newButton} onPress={onNewShow}>
+        <Text style={styles.newButtonText}>+  Nouveau Light Show</Text>
+      </TouchableOpacity>
 
       {shows.length === 0 && !loading ? (
         <View style={styles.emptyContainer}>
@@ -125,9 +145,71 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
         />
       )}
 
-      <TouchableOpacity style={styles.newButton} onPress={onNewShow}>
-        <Text style={styles.newButtonText}>+  Nouveau Light Show</Text>
-      </TouchableOpacity>
+      {/* Settings modal */}
+      <Modal visible={settingsVisible} transparent animationType="fade" onRequestClose={() => setSettingsVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setSettingsVisible(false)}>
+          <Pressable style={styles.settingsModal} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.settingsHeader}>
+              <Text style={styles.settingsTitle}>Paramètres</Text>
+              <TouchableOpacity style={styles.closeBtn} onPress={() => setSettingsVisible(false)}>
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* About */}
+              <TouchableOpacity style={styles.settingsItem} onPress={() => setAboutVisible(true)}>
+                <Text style={styles.settingsItemIcon}>ℹ️</Text>
+                <Text style={styles.settingsItemText}>À propos de Light Studio</Text>
+                <Text style={styles.settingsItemArrow}>›</Text>
+              </TouchableOpacity>
+
+              {/* Languages */}
+              <View style={styles.settingsSection}>
+                <Text style={styles.settingsSectionTitle}>Langue</Text>
+                <View style={styles.langRow}>
+                  {LANGUAGES.map((lang) => (
+                    <TouchableOpacity
+                      key={lang.code}
+                      style={[styles.langBtn, selectedLang === lang.code && styles.langBtnActive]}
+                      onPress={() => setSelectedLang(lang.code)}
+                    >
+                      <Text style={styles.langFlag}>{lang.flag}</Text>
+                      <Text style={[styles.langLabel, selectedLang === lang.code && styles.langLabelActive]}>{lang.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* About modal */}
+      <Modal visible={aboutVisible} transparent animationType="fade" onRequestClose={() => setAboutVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setAboutVisible(false)}>
+          <Pressable style={styles.aboutModal} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.aboutTitle}>À propos de Light Studio</Text>
+            <Text style={styles.aboutText}>
+              Cette app a été entièrement conçue et construite par{' '}
+              <Text style={styles.aboutBold}>Guillaume HARARI</Text>.
+            </Text>
+            <Text style={styles.aboutText}>
+              Elle est en constante amélioration. N'hésitez pas à faire part de vos demandes d'améliorations !
+            </Text>
+            <TouchableOpacity
+              style={styles.aboutMailBtn}
+              onPress={() => Linking.openURL('mailto:guillaumeharari@hotmail.com?subject=Light%20Studio%20-%20Suggestion')}
+            >
+              <Text style={styles.aboutMailIcon}>✉️</Text>
+              <Text style={styles.aboutMailText}>guillaumeharari@hotmail.com</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.aboutCloseBtn} onPress={() => setAboutVisible(false)}>
+              <Text style={styles.aboutCloseBtnText}>Fermer</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -139,8 +221,25 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  settingsBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  settingsBtnIcon: {
+    fontSize: 20,
   },
   title: {
     color: '#ffffff',
@@ -155,7 +254,7 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: 16,
-    paddingBottom: 100,
+    paddingBottom: 30,
   },
   card: {
     backgroundColor: '#12122a',
@@ -222,18 +321,184 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   newButton: {
-    position: 'absolute',
-    bottom: 30,
-    left: 20,
-    right: 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
     backgroundColor: '#44aaff',
     borderRadius: 14,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   newButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  // Modal overlay
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  // Settings modal
+  settingsModal: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#2a2a4a',
+    width: '100%',
+    maxHeight: '70%',
+    overflow: 'hidden',
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 18,
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a4a',
+  },
+  settingsTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'center',
+  },
+  closeBtn: {
+    position: 'absolute',
+    right: 14,
+    top: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeBtnText: {
+    color: '#8888aa',
+    fontSize: 14,
+  },
+  settingsItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e1e3a',
+  },
+  settingsItemIcon: {
+    fontSize: 18,
+    marginRight: 14,
+  },
+  settingsItemText: {
+    color: '#ccccee',
+    fontSize: 15,
+    flex: 1,
+  },
+  settingsItemArrow: {
+    color: '#6666aa',
+    fontSize: 22,
+    fontWeight: '300',
+  },
+  settingsSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  settingsSectionTitle: {
+    color: '#8888aa',
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  langRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  langBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  langBtnActive: {
+    borderColor: '#44aaff',
+    backgroundColor: 'rgba(68, 170, 255, 0.1)',
+  },
+  langFlag: {
+    fontSize: 22,
+    marginBottom: 4,
+  },
+  langLabel: {
+    color: '#6666aa',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  langLabelActive: {
+    color: '#44aaff',
+  },
+  // About modal
+  aboutModal: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#2a2a4a',
+    width: '100%',
+    padding: 24,
+  },
+  aboutTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 18,
+  },
+  aboutText: {
+    color: '#ccccee',
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  aboutBold: {
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  aboutMailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(68, 170, 255, 0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(68, 170, 255, 0.25)',
+    paddingVertical: 14,
+    marginTop: 6,
+    marginBottom: 18,
+    gap: 10,
+  },
+  aboutMailIcon: {
+    fontSize: 16,
+  },
+  aboutMailText: {
+    color: '#44aaff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  aboutCloseBtn: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  aboutCloseBtnText: {
+    color: '#8888aa',
+    fontSize: 14,
   },
 });

@@ -17,10 +17,11 @@ const CAR_MODELS = [
   { id: 'model_s', label: 'Model S', available: false },
   { id: 'model_3', label: 'Model 3', available: true },
   { id: 'model_x', label: 'Model X', available: false },
+  { id: 'model_y', label: 'Model Y', available: false },
 ];
 
 export default function NewShowScreen({ onBack, onCreated }) {
-  const [selectedIndex, setSelectedIndex] = useState(1); // Model 3 = center
+  const [selectedIndex, setSelectedIndex] = useState(1); // Model 3
   const [showName, setShowName] = useState('');
   const scrollRef = useRef(null);
   const glRef = useRef(null);
@@ -47,6 +48,8 @@ export default function NewShowScreen({ onBack, onCreated }) {
       });
     }, 100);
   }, []);
+
+  const MODEL_3_INDEX = 1;
 
   const handleScroll = (e) => {
     const x = e.nativeEvent.contentOffset.x;
@@ -237,7 +240,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
             <Text style={styles.carLabel}>{car.label}</Text>
             {car.available ? (
               <View style={styles.previewContainer}>
-                {idx === 1 && (
+                {idx === MODEL_3_INDEX && (
                   <GLView
                     style={styles.glView}
                     onContextCreate={onContextCreate}
@@ -247,6 +250,16 @@ export default function NewShowScreen({ onBack, onCreated }) {
             ) : (
               <View style={styles.previewContainer}>
                 <Text style={styles.comingSoon}>Bientôt disponible</Text>
+              </View>
+            )}
+            {idx === MODEL_3_INDEX && (
+              <View style={styles.modelInfoBox}>
+                <Text style={styles.modelInfoText}>
+                  Compatible avec toutes les générations de Model 3.
+                </Text>
+                <Text style={styles.modelInfoHint}>
+                  En attendant le support du Model Y, vous pouvez utiliser ce modèle : les éléments et lumières sont sensiblement identiques.
+                </Text>
               </View>
             )}
           </View>
@@ -355,6 +368,24 @@ const styles = StyleSheet.create({
   comingSoon: {
     color: '#444466',
     fontSize: 15,
+    fontStyle: 'italic',
+  },
+  modelInfoBox: {
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
+  modelInfoText: {
+    color: '#8888aa',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  modelInfoHint: {
+    color: '#6666aa',
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 17,
+    marginTop: 6,
     fontStyle: 'italic',
   },
   createButton: {
