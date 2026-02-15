@@ -71,7 +71,7 @@ export default function ModelViewer({ showId, onGoHome }) {
         ...showDataRef.current,
         events: eventsRef.current,
         trackId: trackInfo?.isBuiltin ? trackInfo.id : null,
-        trackUri: trackInfo?.uri || null,
+        trackUri: trackInfo?.isBuiltin ? null : (trackInfo?.id || null),
         trackTitle: trackInfo?.title || null,
         isBuiltinTrack: trackInfo?.isBuiltin ?? true,
         cursorOffsetMs: cursorOffsetMsRef.current,
@@ -1193,8 +1193,13 @@ export default function ModelViewer({ showId, onGoHome }) {
               onStartShouldSetResponder={() => true}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.settingsHandle} />
-              <Text style={styles.settingsTitle}>{t('editor.advancedSettings')}</Text>
+              <View style={styles.settingsHeader}>
+                <View style={styles.settingsHandle} />
+                <Text style={styles.settingsTitle}>{t('editor.advancedSettings')}</Text>
+                <TouchableOpacity style={styles.settingsCloseBtn} onPress={() => setSettingsVisible(false)}>
+                  <Text style={styles.settingsCloseBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Renommer le projet */}
               <View style={styles.settingsSection}>
@@ -1487,9 +1492,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 46,
     right: 14,
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     backgroundColor: 'rgba(30, 30, 60, 0.85)',
     borderWidth: 1,
     borderColor: '#3a3a5a',
@@ -1499,7 +1504,7 @@ const styles = StyleSheet.create({
   },
   burgerIcon: {
     color: '#ccccee',
-    fontSize: 18,
+    fontSize: 24,
   },
   menuOverlay: {
     flex: 1,
@@ -1658,6 +1663,11 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
     paddingTop: 10,
   },
+  settingsHeader: {
+    position: 'relative',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
   settingsHandle: {
     width: 36,
     height: 4,
@@ -1671,7 +1681,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 18,
+  },
+  settingsCloseBtn: {
+    position: 'absolute',
+    right: 16,
+    top: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(60, 60, 90, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  settingsCloseBtnText: {
+    color: '#aaaacc',
+    fontSize: 16,
+    fontWeight: '600',
   },
   settingsSection: {
     paddingHorizontal: 20,

@@ -16,7 +16,7 @@ import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { MP3_TRACKS } from '../assets/mp3/index';
 import { PART_ICONS, PART_COLORS, EFFECT_TYPES, isAnimatable } from './constants';
-import { pickAndImportAudio, loadCachedWaveform } from './audioPicker';
+import { pickAndImportAudio, loadCachedWaveform, resolveAudioUri } from './audioPicker';
 import { useTranslation } from 'react-i18next';
 
 const LONG_PRESS_MS = 350;
@@ -202,12 +202,13 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
     },
     // Load an imported track by URI + cached waveform (for saved shows)
     loadImportedTrack: async (trackUri, trackTitle) => {
+      const resolvedUri = resolveAudioUri(trackUri);
       const waveform = await loadCachedWaveform(trackUri);
       const imported = {
         id: trackUri,
         title: trackTitle || 'Import',
         artist: t('timeline.importedFile'),
-        uri: trackUri,
+        uri: resolvedUri,
         waveform: waveform || { bars: [] },
       };
       selectTrack(imported, { keepEvents: true });
@@ -836,7 +837,7 @@ function TrackModal({ visible, onClose, onSelect }) {
           id: result.uri,
           title: result.name,
           artist: t('timeline.importedFile'),
-          uri: result.uri,
+          uri: resolveAudioUri(result.uri),
           waveform: result.waveform,
         };
         onSelect(track);
@@ -1032,7 +1033,7 @@ const styles = StyleSheet.create({
   },
   markerCount: {
     color: '#6666aa',
-    fontSize: 11,
+    fontSize: 14,
     textAlign: 'center',
     marginTop: 6,
   },
@@ -1044,9 +1045,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   waveZoomBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     backgroundColor: 'rgba(30, 30, 60, 0.9)',
     borderWidth: 1,
     borderColor: '#3a3a5a',
@@ -1058,9 +1059,9 @@ const styles = StyleSheet.create({
   },
   waveZoomBtnText: {
     color: '#ccccee',
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '300',
-    lineHeight: 16,
+    lineHeight: 20,
   },
 
   // Controls

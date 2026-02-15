@@ -10,6 +10,7 @@ import { generateWaveform } from './waveformGenerator';
 const MAX_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 const AUDIO_DIR = FileSystem.documentDirectory + 'audio/';
+const RELATIVE_PREFIX = 'audio/';
 
 /**
  * Ensure the audio directory exists.
@@ -19,6 +20,37 @@ async function ensureAudioDir() {
   if (!info.exists) {
     await FileSystem.makeDirectoryAsync(AUDIO_DIR, { intermediates: true });
   }
+}
+
+/**
+ * Resolve an audio URI (relative or legacy absolute) to a current absolute URI.
+ * Handles the iOS container UUID change on app updates.
+ */
+export function resolveAudioUri(uri) {
+  if (!uri) return uri;
+  // Already a relative path (new format)
+  if (uri.startsWith(RELATIVE_PREFIX)) {
+    return FileSystem.documentDirectory + uri;
+  }
+  // Legacy absolute URI — extract the filename after /audio/
+  const audioIdx = uri.indexOf('/audio/');
+  if (audioIdx !== -1) {
+    const relativePart = uri.substring(audioIdx + 1); // 'audio/filename.mp3'
+    return FileSystem.documentDirectory + relativePart;
+  }
+  // Fallback: return as-is
+  return uri;
+}
+
+/**
+ * Convert an absolute URI to a relative path for storage.
+ */
+function toRelativePath(absoluteUri) {
+  const audioIdx = absoluteUri.indexOf('/audio/');
+  if (audioIdx !== -1) {
+    return absoluteUri.substring(audioIdx + 1); // 'audio/filename.mp3'
+  }
+  return absoluteUri;
 }
 
 /**
@@ -82,7 +114,7 @@ export async function pickAndImportAudio(onProgress) {
   await FileSystem.writeAsStringAsync(waveformUri, JSON.stringify(waveform));
 
   return {
-    uri: destUri,
+    uri: toRelativePath(destUri),
     name: fileName.replace('.mp3', ''),
     waveform,
     duration: waveform.duration,
@@ -95,7 +127,8 @@ export async function pickAndImportAudio(onProgress) {
  */
 export async function loadCachedWaveform(audioUri) {
   try {
-    const waveformUri = audioUri.replace('.mp3', '.waveform.json');
+    const resolved = resolveAudioUri(audioUri);
+    const waveformUri = resolved.replace('.mp3', '.waveform.json');
     const info = await FileSystem.getInfoAsync(waveformUri);
     if (!info.exists) return null;
     const raw = await FileSystem.readAsStringAsync(waveformUri);
@@ -111,8 +144,9 @@ export async function loadCachedWaveform(audioUri) {
  */
 export async function deleteImportedAudio(audioUri) {
   try {
-    await FileSystem.deleteAsync(audioUri, { idempotent: true });
-    const waveformUri = audioUri.replace('.mp3', '.waveform.json');
+    const resolved = resolveAudioUri(audioUri);
+    await FileSystem.deleteAsync(resolved, { idempotent: true });
+    const waveformUri = resolved.replace('.mp3', '.waveform.json');
     await FileSystem.deleteAsync(waveformUri, { idempotent: true });
   } catch (e) {
     console.error('deleteImportedAudio error:', e);

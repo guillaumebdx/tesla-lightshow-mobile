@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { setAppLanguage } from './i18n';
 import { listShows, deleteShow, duplicateShow } from './storage';
 import { MP3_TRACKS } from '../assets/mp3/index';
+import DemoViewer from './DemoViewer';
 
 const LANGUAGES = [
   { code: 'fr', flag: '🇫🇷', label: 'Français' },
@@ -135,6 +136,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
 
       {shows.length === 0 && !loading ? (
         <View style={styles.emptyContainer}>
+          <DemoViewer style={styles.demoViewer} />
           <Text style={styles.emptyText}>{t('home.noShows')}</Text>
           <Text style={styles.emptyHint}>{t('home.noShowsHint')}</Text>
         </View>
@@ -312,6 +314,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  demoViewer: {
+    width: SCREEN_WIDTH - 40,
+    height: 220,
+    marginBottom: 24,
   },
   emptyText: {
     color: '#6666aa',

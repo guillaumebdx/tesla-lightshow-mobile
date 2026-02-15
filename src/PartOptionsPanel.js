@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     color: '#555577',
-    fontSize: 13,
+    fontSize: 15,
     textAlign: 'center',
     marginTop: 16,
   },
