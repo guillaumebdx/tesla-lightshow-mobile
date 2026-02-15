@@ -99,6 +99,51 @@ export const WINDOW_MODES = {
 // Max dance duration recommended by Tesla (thermal limits)
 export const WINDOW_MAX_DANCE_MS = 30000; // 30s max recommended
 
+// Trunk (coffre) animation modes
+export const TRUNK_MODES = {
+  OPEN: 'trunk_open',
+  CLOSE: 'trunk_close',
+  DANCE: 'trunk_dance',    // Must be preceded by an Open event
+};
+
+export const TRUNK_DURATIONS = {
+  [TRUNK_MODES.OPEN]: 5000,
+  [TRUNK_MODES.CLOSE]: 5000,
+  [TRUNK_MODES.DANCE]: 5000,
+};
+
+// Charge port (trappe de charge) animation modes
+export const FLAP_MODES = {
+  OPEN: 'flap_open',
+  CLOSE: 'flap_close',
+  RAINBOW: 'flap_rainbow',  // Dance = LED arc-en-ciel
+};
+
+export const FLAP_DURATIONS = {
+  [FLAP_MODES.OPEN]: 1000,
+  [FLAP_MODES.CLOSE]: 1000,
+  [FLAP_MODES.RAINBOW]: 5000,
+};
+
+// Closure command limits per show (Tesla-imposed)
+// Each event placed counts as 1 command, except roundtrip = 2 (open+close)
+export const CLOSURE_LIMITS = {
+  retro_left: 20,
+  retro_right: 20,
+  window_left_front: 6,
+  window_right_front: 6,
+  window_left_back: 6,
+  window_right_back: 6,
+  trunk: 6,
+  flap: 3,
+};
+
+// How many commands does each mode cost?
+export function closureCommandCost(part, event) {
+  if (isRetro(part) && event.retroMode === RETRO_MODES.ROUND_TRIP) return 2;
+  return 1;
+}
+
 // Blink speed levels (full cycle period in ms: on + off)
 // Old value was 160ms which was too slow. Slowest new = 80ms (2x faster).
 export const BLINK_SPEEDS = [
@@ -118,6 +163,8 @@ export const DEFAULT_EVENT_OPTIONS = {
   retroMode: RETRO_MODES.ROUND_TRIP, // Default retro animation mode
   windowMode: 'window_dance',         // Default window animation mode
   windowDurationMs: 5000,             // Duration of window dance
+  trunkMode: 'trunk_open',            // Default trunk mode
+  flapMode: 'flap_open',              // Default flap mode
 };
 
 // Helper: is this part a light?
@@ -132,5 +179,14 @@ export const isRetro = (part) => part && part.includes('retro');
 // Helper: is this part a window?
 export const isWindow = (part) => part && part.includes('window');
 
+// Helper: is this part a trunk?
+export const isTrunk = (part) => part === 'trunk';
+
+// Helper: is this part a charge port flap?
+export const isFlap = (part) => part === 'flap';
+
+// Helper: is this part a closure (mechanical)?
+export const isClosure = (part) => isRetro(part) || isWindow(part) || isTrunk(part) || isFlap(part);
+
 // Helper: can this part be placed on the timeline?
-export const isAnimatable = (part) => isLight(part) || isBlinker(part) || isRetro(part) || isWindow(part);
+export const isAnimatable = (part) => isLight(part) || isBlinker(part) || isClosure(part);

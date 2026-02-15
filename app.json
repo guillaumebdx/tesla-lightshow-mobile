@@ -2,7 +2,7 @@
   "expo": {
     "name": "Light Studio for Tesla",
     "slug": "tesla-3d-viewer",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/logo-ls.png",
     "userInterfaceStyle": "light",

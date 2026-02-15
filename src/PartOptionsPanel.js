@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Switch, TouchableOpacity, TextInput, Modal, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Slider from '@react-native-community/slider';
-import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, isLight, isBlinker, isRetro, isWindow } from './constants';
+import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isLight, isBlinker, isRetro, isWindow, isTrunk, isFlap, isClosure } from './constants';
 
-export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent, onDeleteEvent }) {
+export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent, onDeleteEvent, events = [] }) {
   const { t } = useTranslation();
   const [durationInput, setDurationInput] = useState(null); // { field, value }
 
@@ -38,7 +38,22 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
   const lightPart = isLight(selectedPart) || isBlinker(selectedPart);
   const retroPart = isRetro(selectedPart);
   const windowPart = isWindow(selectedPart);
+  const trunkPart = isTrunk(selectedPart);
+  const flapPart = isFlap(selectedPart);
+  const closurePart = isClosure(selectedPart);
   const isBlink = eventOptions.effect === EFFECT_TYPES.BLINK;
+
+  // Closure usage counting
+  const closureLimit = CLOSURE_LIMITS[selectedPart] || 0;
+  let closureUsed = 0;
+  if (closurePart && closureLimit > 0) {
+    for (const evt of events) {
+      if (evt.part === selectedPart) {
+        closureUsed += closureCommandCost(selectedPart, evt);
+      }
+    }
+  }
+  const closureMaxReached = closurePart && closureLimit > 0 && closureUsed >= closureLimit;
 
   return (
     <View style={styles.container}>
@@ -214,6 +229,89 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
               thumbTintColor="#44aaff"
             />
             <Text style={styles.windowWarning}>{t('parts.windowWarning')}</Text>
+          </View>
+        )}
+
+        {trunkPart && (
+          <View style={styles.optionsSection}>
+            <Text style={styles.optionLabel}>{t('parts.animation')}</Text>
+            <View style={styles.retroModeRow}>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>{t('parts.trunkOpen')}</Text>
+                <Switch
+                  value={eventOptions.trunkMode === TRUNK_MODES.OPEN}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, trunkMode: TRUNK_MODES.OPEN, durationMs: TRUNK_DURATIONS[TRUNK_MODES.OPEN] })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(136, 204, 68, 0.5)' }}
+                  thumbColor={eventOptions.trunkMode === TRUNK_MODES.OPEN ? '#88cc44' : '#555577'}
+                />
+              </View>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>{t('parts.trunkClose')}</Text>
+                <Switch
+                  value={eventOptions.trunkMode === TRUNK_MODES.CLOSE}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, trunkMode: TRUNK_MODES.CLOSE, durationMs: TRUNK_DURATIONS[TRUNK_MODES.CLOSE] })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(136, 204, 68, 0.5)' }}
+                  thumbColor={eventOptions.trunkMode === TRUNK_MODES.CLOSE ? '#88cc44' : '#555577'}
+                />
+              </View>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>{t('parts.trunkDance')}</Text>
+                <Switch
+                  value={eventOptions.trunkMode === TRUNK_MODES.DANCE}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, trunkMode: TRUNK_MODES.DANCE, durationMs: TRUNK_DURATIONS[TRUNK_MODES.DANCE] })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(136, 204, 68, 0.5)' }}
+                  thumbColor={eventOptions.trunkMode === TRUNK_MODES.DANCE ? '#88cc44' : '#555577'}
+                />
+              </View>
+            </View>
+            {eventOptions.trunkMode === TRUNK_MODES.DANCE && (
+              <Text style={styles.windowHint}>{t('parts.trunkDanceHint')}</Text>
+            )}
+          </View>
+        )}
+
+        {flapPart && (
+          <View style={styles.optionsSection}>
+            <Text style={styles.optionLabel}>{t('parts.animation')}</Text>
+            <View style={styles.retroModeRow}>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>{t('parts.flapOpen')}</Text>
+                <Switch
+                  value={eventOptions.flapMode === FLAP_MODES.OPEN}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, flapMode: FLAP_MODES.OPEN, durationMs: FLAP_DURATIONS[FLAP_MODES.OPEN] })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(255, 170, 0, 0.5)' }}
+                  thumbColor={eventOptions.flapMode === FLAP_MODES.OPEN ? '#ffaa00' : '#555577'}
+                />
+              </View>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>{t('parts.flapClose')}</Text>
+                <Switch
+                  value={eventOptions.flapMode === FLAP_MODES.CLOSE}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, flapMode: FLAP_MODES.CLOSE, durationMs: FLAP_DURATIONS[FLAP_MODES.CLOSE] })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(255, 170, 0, 0.5)' }}
+                  thumbColor={eventOptions.flapMode === FLAP_MODES.CLOSE ? '#ffaa00' : '#555577'}
+                />
+              </View>
+              <View style={styles.retroModeItem}>
+                <Text style={styles.retroModeLabel}>{t('parts.flapRainbow')}</Text>
+                <Switch
+                  value={eventOptions.flapMode === FLAP_MODES.RAINBOW}
+                  onValueChange={() => onOptionsChange({ ...eventOptions, flapMode: FLAP_MODES.RAINBOW, durationMs: FLAP_DURATIONS[FLAP_MODES.RAINBOW] })}
+                  trackColor={{ false: '#2a2a4a', true: 'rgba(255, 170, 0, 0.5)' }}
+                  thumbColor={eventOptions.flapMode === FLAP_MODES.RAINBOW ? '#ffaa00' : '#555577'}
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {closurePart && closureLimit > 0 && (
+          <View style={[styles.closureUsageRow, closureMaxReached && styles.closureUsageRowMax]}>
+            <Text style={[styles.closureUsageText, closureMaxReached && styles.closureUsageTextMax]}>
+              {closureMaxReached
+                ? t('parts.closureMaxReached')
+                : t('parts.closureUsage', { used: closureUsed, max: closureLimit })}
+            </Text>
           </View>
         )}
 
@@ -405,6 +503,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 6,
     fontStyle: 'italic',
+  },
+  closureUsageRow: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(68, 170, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(68, 170, 255, 0.2)',
+    alignItems: 'center',
+  },
+  closureUsageRowMax: {
+    backgroundColor: 'rgba(233, 69, 96, 0.12)',
+    borderColor: 'rgba(233, 69, 96, 0.4)',
+  },
+  closureUsageText: {
+    color: '#44aaff',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  closureUsageTextMax: {
+    color: '#e94560',
+    fontWeight: '600',
   },
   optionValueTappable: {
     color: '#e94560',

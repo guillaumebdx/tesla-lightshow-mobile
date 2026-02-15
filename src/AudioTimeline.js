@@ -15,7 +15,7 @@ import {
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { MP3_TRACKS } from '../assets/mp3/index';
-import { PART_ICONS, PART_COLORS, EFFECT_TYPES, isAnimatable } from './constants';
+import { PART_ICONS, PART_COLORS, EFFECT_TYPES, CLOSURE_LIMITS, closureCommandCost, isClosure, isAnimatable } from './constants';
 import { pickAndImportAudio, loadCachedWaveform, resolveAudioUri } from './audioPicker';
 import { useTranslation } from 'react-i18next';
 
@@ -456,6 +456,19 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
         return;
       }
 
+      // Block placement if closure max is reached
+      const limit = CLOSURE_LIMITS[selectedPart] || 0;
+      if (isClosure(selectedPart) && limit > 0) {
+        let used = 0;
+        for (const evt of events) {
+          if (evt.part === selectedPart) used += closureCommandCost(selectedPart, evt);
+        }
+        if (used >= limit) {
+          seekToRatio(ratio);
+          return;
+        }
+      }
+
       const newEvent = {
         id: Date.now().toString(),
         part: selectedPart,
@@ -469,6 +482,8 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
         retroMode: eventOptions?.retroMode ?? 'roundtrip',
         windowMode: eventOptions?.windowMode ?? 'window_down',
         windowDurationMs: eventOptions?.windowDurationMs ?? 3000,
+        trunkMode: eventOptions?.trunkMode ?? 'trunk_open',
+        flapMode: eventOptions?.flapMode ?? 'flap_open',
       };
       setEvents((prev) => {
         const updated = [...prev, newEvent].sort((a, b) => a.startMs - b.startMs);

@@ -4,7 +4,7 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { shareAsync } from 'expo-sharing';
-import { BLINK_SPEEDS } from './constants';
+import { BLINK_SPEEDS, RETRO_MODES, TRUNK_MODES, FLAP_MODES, WINDOW_MODES, isRetro, isWindow, isTrunk, isFlap, isClosure } from './constants';
 
 // Channel mapping (0-indexed) — confirmed via retro-engineering on Model 3
 // Each part maps to an array of channels that should all activate together
@@ -19,15 +19,18 @@ const CHANNEL_MAP = {
   blink_back_right:  [23],                   // clignotant AR droit
 };
 
-// Closure channel mapping — channels for mechanical parts
+// Closure channel mapping — confirmed via retro-engineering on Model 3 (tests v1-v3)
 // These use command byte values instead of brightness:
 //   0=Idle, 64=Open, 128=Dance, 192=Close, 255=Stop
 const CLOSURE_MAP = {
-  // TODO: confirm exact channels via retro-engineering test
-  // window_left_front:  3?,
-  // window_right_front: 3?,
-  // window_left_back:   3?,
-  // window_right_back:  3?,
+  retro_left:         33,
+  retro_right:        34,
+  window_left_front:  35,
+  window_left_back:   36,
+  window_right_front: 37,
+  flap:               39,
+  trunk:              40,
+  window_right_back:  45,
 };
 
 const CLOSURE_CMD = {
@@ -73,6 +76,52 @@ function computeIntensity(evt, posMs) {
 }
 
 /**
+ * Determine the closure command byte(s) for a closure event based on its mode.
+ * Returns { type: 'single', value } or { type: 'roundtrip' } or null.
+ */
+function getClosureCommand(evt) {
+  const part = evt.part;
+
+  if (isRetro(part)) {
+    const mode = evt.retroMode ?? RETRO_MODES.ROUND_TRIP;
+    if (mode === RETRO_MODES.OPEN) return { type: 'single', value: CLOSURE_CMD.OPEN };
+    if (mode === RETRO_MODES.CLOSE) return { type: 'single', value: CLOSURE_CMD.CLOSE };
+    if (mode === RETRO_MODES.ROUND_TRIP) return { type: 'roundtrip' };
+  }
+
+  if (isWindow(part)) {
+    return { type: 'single', value: CLOSURE_CMD.DANCE };
+  }
+
+  if (isTrunk(part)) {
+    const mode = evt.trunkMode ?? TRUNK_MODES.OPEN;
+    if (mode === TRUNK_MODES.OPEN) return { type: 'single', value: CLOSURE_CMD.OPEN };
+    if (mode === TRUNK_MODES.CLOSE) return { type: 'single', value: CLOSURE_CMD.CLOSE };
+    if (mode === TRUNK_MODES.DANCE) return { type: 'single', value: CLOSURE_CMD.DANCE };
+  }
+
+  if (isFlap(part)) {
+    const mode = evt.flapMode ?? FLAP_MODES.OPEN;
+    if (mode === FLAP_MODES.OPEN) return { type: 'single', value: CLOSURE_CMD.OPEN };
+    if (mode === FLAP_MODES.CLOSE) return { type: 'single', value: CLOSURE_CMD.CLOSE };
+    if (mode === FLAP_MODES.RAINBOW) return { type: 'single', value: CLOSURE_CMD.DANCE };
+  }
+
+  return null;
+}
+
+/**
+ * Write a closure command byte to a channel for a time range.
+ */
+function writeClosure(data, ch, startMs, endMs, cmdValue, frameCount) {
+  const sf = Math.floor(startMs / STEP_TIME_MS);
+  const ef = Math.min(Math.floor(endMs / STEP_TIME_MS), frameCount);
+  for (let f = sf; f < ef; f++) {
+    data[f * CHANNEL_COUNT + ch] = cmdValue;
+  }
+}
+
+/**
  * Compile events into a frame×channel matrix.
  * Returns a Uint8Array of size frameCount × channelCount.
  */
@@ -80,9 +129,11 @@ function compileFrameData(events, durationMs) {
   const frameCount = Math.ceil(durationMs / STEP_TIME_MS);
   const data = new Uint8Array(frameCount * CHANNEL_COUNT); // initialized to 0
 
-  // Only process light events that have a channel mapping
+  // Separate light and closure events
   const lightEvents = events.filter((evt) => CHANNEL_MAP[evt.part] !== undefined);
+  const closureEvents = events.filter((evt) => CLOSURE_MAP[evt.part] !== undefined);
 
+  // Process light events (brightness 0-255)
   for (let frame = 0; frame < frameCount; frame++) {
     const posMs = frame * STEP_TIME_MS;
 
@@ -91,12 +142,28 @@ function compileFrameData(events, durationMs) {
       if (intensity > 0) {
         const channels = CHANNEL_MAP[evt.part];
         const value = Math.round(intensity * 255);
-        // Write to all channels mapped to this part
         for (const ch of channels) {
           const offset = frame * CHANNEL_COUNT + ch;
           data[offset] = Math.max(data[offset], value);
         }
       }
+    }
+  }
+
+  // Process closure events (command bytes)
+  for (const evt of closureEvents) {
+    const ch = CLOSURE_MAP[evt.part];
+    const cmd = getClosureCommand(evt);
+    if (!cmd) continue;
+
+    if (cmd.type === 'single') {
+      // Write a single command for the event duration
+      writeClosure(data, ch, evt.startMs, evt.endMs, cmd.value, frameCount);
+    } else if (cmd.type === 'roundtrip') {
+      // First half: open, second half: close
+      const midMs = evt.startMs + Math.floor((evt.endMs - evt.startMs) / 2);
+      writeClosure(data, ch, evt.startMs, midMs, CLOSURE_CMD.OPEN, frameCount);
+      writeClosure(data, ch, midMs, evt.endMs, CLOSURE_CMD.CLOSE, frameCount);
     }
   }
 

@@ -13,7 +13,7 @@ import {
 } from 'react-native-gesture-handler';
 import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
-import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, isRetro, isWindow, isLight, isBlinker } from './constants';
+import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isRetro, isWindow, isLight, isBlinker, isTrunk, isFlap, isClosure } from './constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -245,6 +245,12 @@ export default function ModelViewer({ showId, onGoHome }) {
           setEventOptions({ ...DEFAULT_EVENT_OPTIONS, retroMode: mode, durationMs: RETRO_DURATIONS[mode] });
         } else if (isWindow(meshName)) {
           setEventOptions({ ...DEFAULT_EVENT_OPTIONS, windowMode: 'window_dance', durationMs: 5000, windowDurationMs: 5000 });
+        } else if (isTrunk(meshName)) {
+          const mode = TRUNK_MODES.OPEN;
+          setEventOptions({ ...DEFAULT_EVENT_OPTIONS, trunkMode: mode, durationMs: TRUNK_DURATIONS[mode] });
+        } else if (isFlap(meshName)) {
+          const mode = FLAP_MODES.OPEN;
+          setEventOptions({ ...DEFAULT_EVENT_OPTIONS, flapMode: mode, durationMs: FLAP_DURATIONS[mode] });
         } else {
           setEventOptions({ ...DEFAULT_EVENT_OPTIONS });
         }
@@ -1077,6 +1083,8 @@ export default function ModelViewer({ showId, onGoHome }) {
                 retroMode: evt.retroMode ?? 'roundtrip',
                 windowMode: evt.windowMode ?? 'window_down',
                 windowDurationMs: evt.windowDurationMs ?? 3000,
+                trunkMode: evt.trunkMode ?? 'trunk_open',
+                flapMode: evt.flapMode ?? 'flap_open',
               });
             }}
             onEventUpdate={(updatedEvt) => {
@@ -1098,6 +1106,7 @@ export default function ModelViewer({ showId, onGoHome }) {
             selectedPart={selectedEvent?.part || selectedPart}
             eventOptions={eventOptions}
             editingEvent={selectedEvent}
+            events={eventsRef.current}
             onOptionsChange={(newOpts) => {
               setEventOptions(newOpts);
               if (selectedEvent) {
@@ -1113,6 +1122,8 @@ export default function ModelViewer({ showId, onGoHome }) {
                   retroMode: newOpts.retroMode,
                   windowMode: newOpts.windowMode,
                   windowDurationMs: newOpts.windowDurationMs,
+                  trunkMode: newOpts.trunkMode,
+                  flapMode: newOpts.flapMode,
                 };
                 setSelectedEvent(updatedEvt);
                 eventsRef.current = eventsRef.current.map((e) =>

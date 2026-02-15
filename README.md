@@ -18,10 +18,14 @@ Propriétaires de Tesla souhaitant créer facilement des animations lumière ori
 
 ### V1
 
-- **Vue 3D interactive** — Rotation, zoom, sélection par éléments (phares, feux, fenêtres, rétros, coffre, trappe)
+- **Vue 3D interactive** — Rotation, zoom, sélection par éléments (phares, feux, clignotants, fenêtres, rétros, coffre, trappe de charge)
 - **Gestion du son** — Import audio (mp3), bibliothèque de sons intégrée
-- **Timeline** — Ajout d'événements lumineux (on/off, clignotement, mouvements), synchronisation avec le rythme, navigation tactile fluide
-- **Export** — Génération du fichier compatible Tesla Light Show, téléchargement local (clé USB) ou via serveur
+- **Timeline** — Ajout d'événements lumineux et mécaniques, synchronisation avec le rythme, navigation tactile fluide
+- **Lumières** — Allumage continu, clignotement (3 vitesses), ease in/out, puissance réglable
+- **Closures mécaniques** — Rétros (plier/déplier/aller-retour), fenêtres (dance), coffre (ouvrir/fermer/dance), trappe de charge (ouvrir/fermer/LED rainbow)
+- **Limites Tesla** — Compteur d'utilisations par closure, blocage automatique quand le max est atteint
+- **Export FSEQ** — Génération du fichier `.fseq` V2 compatible Tesla Light Show (lumières + closures)
+- **Sauvegarde** — Projets sauvegardés localement, multi-shows
 
 ### V2+
 
@@ -102,13 +106,22 @@ npx expo run:android
 tesla-3d-viewer/
 ├── App.js                    # Point d'entrée
 ├── src/
-│   └── ModelViewer.js        # Composant 3D principal (Three.js + gestes)
+│   ├── ModelViewer.js        # Composant 3D principal (Three.js + gestes)
+│   ├── AudioTimeline.js      # Timeline audio + événements drag & drop
+│   ├── PartOptionsPanel.js   # Panneau d'options par pièce (lumières + closures)
+│   ├── fseqExport.js         # Export FSEQ V2 (lumières + closures)
+│   ├── constants.js          # Constantes partagées (parts, modes, limites)
+│   ├── storage.js            # Sauvegarde/chargement des shows
+│   ├── audioPicker.js        # Import audio + waveform
+│   ├── ExportModal.js        # Modal d'export
+│   └── i18n/                 # Traductions (fr, en, es, de)
 ├── assets/
-│   └── models/
-│       ├── tesla_mesh_model_1.glb      # Source Blender (avec textures)
-│       └── tesla_mesh_model_1_geo.glb  # Version strippée (géométrie seule, utilisée par l'app)
-├── inspect_model.mjs         # Script d'inspection et strip des GLB
-├── GLB_PIPELINE.md           # Workflow détaillé pour intégrer un nouveau GLB
+│   ├── models/               # Modèles 3D GLB
+│   ├── icons/                # Icônes par pièce
+│   └── mp3/                  # Bibliothèque de sons intégrée
+├── CLOSURES.md               # Doc closures : channels, commandes, limites
+├── FSEQ_SPEC.md              # Spécifications format FSEQ V2
+├── GLB_PIPELINE.md           # Workflow intégration modèle 3D
 ├── metro.config.js           # Support des fichiers .glb dans Metro
 ├── app.json                  # Config Expo
 └── package.json
@@ -151,9 +164,18 @@ Blender (export GLB avec nodes nommés)
 
 ---
 
-## Notes
-https://validator.t2k.dev 
+## Documentation
 
+| Document | Description |
+|----------|-------------|
+| [`CLOSURES.md`](./CLOSURES.md) | Channels FSEQ des closures (rétros, fenêtres, coffre, trappe), commandes, limites, résultats de rétro-ingénierie |
+| [`FSEQ_SPEC.md`](./FSEQ_SPEC.md) | Spécifications du format FSEQ V2 pour l'export Tesla Light Show |
+| [`GLB_PIPELINE.md`](./GLB_PIPELINE.md) | Workflow pour intégrer un nouveau modèle 3D GLB |
+
+## Liens utiles
+
+- [Tesla Light Show Validator](https://validator.t2k.dev)
+- [Tesla Light Show (repo officiel)](https://github.com/teslamotors/light-show)
 
 ## Licence
 
