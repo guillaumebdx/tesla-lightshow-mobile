@@ -54,7 +54,8 @@
     "mp3ExportError": "Error de exportación MP3: ",
     "trackNotFound": "Pista no encontrada",
     "playbackSpeed": "🎵  Velocidad de reproducción",
-    "timelineHeight": "📏  Altura de la línea de tiempo"
+    "timelineHeight": "📏  Altura de la línea de tiempo",
+    "brightMode": "💡  Aumentar iluminación"
   },
   "timeline": {
     "loadingMusic": "Cargando música...",

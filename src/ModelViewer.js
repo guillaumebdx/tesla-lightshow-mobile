@@ -78,6 +78,7 @@ export default function ModelViewer({ showId, onGoHome }) {
         bodyColor: activeColorRef.current,
         playbackSpeed: playbackSpeedRef.current,
         timelineScale: timelineScaleRef.current,
+        brightMode: brightModeRef.current,
       };
       await saveShow(data);
       showDataRef.current = data;
@@ -102,6 +103,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       if (data.cursorOffsetMs) setCursorOffsetMs(data.cursorOffsetMs);
       if (data.playbackSpeed) setPlaybackSpeed(data.playbackSpeed);
       if (data.timelineScale) setTimelineScale(data.timelineScale);
+      if (data.brightMode) setBrightMode(data.brightMode);
       // Wait for AudioTimeline to be ready, then load track + events
       const waitForTimeline = setInterval(() => {
         if (audioTimelineRef.current) {
@@ -171,6 +173,10 @@ export default function ModelViewer({ showId, onGoHome }) {
   const litTaillightMatRef = useRef(null);
   const spotLightsRef = useRef({}); // { light_left_front: SpotLight, ... }
   const dotSpritesRef = useRef([]); // white dot sprites on interactive parts
+  const sceneLightsRef = useRef([]); // all scene lights for brightness toggle
+  const [brightMode, _setBrightMode] = useState(false);
+  const brightModeRef = useRef(false);
+  const setBrightMode = useCallback((v) => { _setBrightMode(v); brightModeRef.current = v; }, []);
   const isPlayingRef = useRef(false);
   const retroNodesRef = useRef({}); // { retro_left: { mesh, geoCenter, initMatrix }, ... }
   const windowNodesRef = useRef({}); // { window_left_front: { mesh, initMatrix, travelY }, ... }
@@ -181,10 +187,19 @@ export default function ModelViewer({ showId, onGoHome }) {
     { name: 'Noir', hex: '#111111' },
     { name: 'Gris clair', hex: '#999999' },
     { name: 'Anthracite', hex: '#3a3a3a' },
-    { name: 'Bleu', hex: '#1a3a6b' },
+    { name: 'Bleu', hex: '#2a4e8f' },
     { name: 'Blanc', hex: '#e8e8e8' },
-    { name: 'Rouge', hex: '#8b1a1a' },
+    { name: 'Rouge', hex: '#b52020' },
   ];
+
+  const toggleBrightMode = useCallback(() => {
+    const next = !brightModeRef.current;
+    setBrightMode(next);
+    sceneLightsRef.current.forEach((l) => {
+      l.intensity = next ? l.userData.defaultIntensity * 4 : l.userData.defaultIntensity;
+    });
+    scheduleSave();
+  }, []);
 
   const changeBodyColor = (hex) => {
     setActiveColor(hex);
@@ -326,42 +341,70 @@ export default function ModelViewer({ showId, onGoHome }) {
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    // Lighting — soft studio setup, even coverage
-    const ambientLight = new THREE.AmbientLight(0xddddef, 0.6);
+    // Lighting — studio setup
+    // Each light stores its default intensity for toggling bright mode
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    ambientLight.userData.defaultIntensity = 0.9;
     scene.add(ambientLight);
 
-    const hemiLight = new THREE.HemisphereLight(0xccccff, 0x222233, 0.5);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444466, 0.7);
+    hemiLight.userData.defaultIntensity = 0.7;
     scene.add(hemiLight);
 
-    // Key light — top-front-right, moderate
-    const keyLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
     keyLight.position.set(4, 8, 5);
+    keyLight.userData.defaultIntensity = 1.0;
     scene.add(keyLight);
 
-    // Fill light — top-front-left, softer
-    const fillLeft = new THREE.DirectionalLight(0xeeeeff, 0.4);
+    const fillLeft = new THREE.DirectionalLight(0xeeeeff, 0.7);
     fillLeft.position.set(-4, 6, 4);
+    fillLeft.userData.defaultIntensity = 0.7;
     scene.add(fillLeft);
 
-    // Back light — rim/contour from behind
-    const backLight = new THREE.DirectionalLight(0xccccff, 0.3);
+    const backLight = new THREE.DirectionalLight(0xccccff, 0.6);
     backLight.position.set(0, 5, -6);
+    backLight.userData.defaultIntensity = 0.6;
     scene.add(backLight);
 
-    // Subtle side fills for even coverage
-    const sideLeft = new THREE.PointLight(0xddddef, 0.25, 20);
+    const sideLeft = new THREE.PointLight(0xffffff, 0.5, 20);
     sideLeft.position.set(-6, 2, 0);
+    sideLeft.userData.defaultIntensity = 0.5;
     scene.add(sideLeft);
 
-    const sideRight = new THREE.PointLight(0xddddef, 0.25, 20);
+    const sideRight = new THREE.PointLight(0xffffff, 0.5, 20);
     sideRight.position.set(6, 2, 0);
+    sideRight.userData.defaultIntensity = 0.5;
     scene.add(sideRight);
+
+    const bottomLight = new THREE.PointLight(0xddddef, 0.4, 15);
+    bottomLight.position.set(0, -3, 0);
+    bottomLight.userData.defaultIntensity = 0.4;
+    scene.add(bottomLight);
+
+    const frontLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    frontLight.position.set(0, 3, 8);
+    frontLight.userData.defaultIntensity = 0.5;
+    scene.add(frontLight);
+
+    const backLowLight = new THREE.DirectionalLight(0xddddff, 0.4);
+    backLowLight.position.set(0, 2, -8);
+    backLowLight.userData.defaultIntensity = 0.4;
+    scene.add(backLowLight);
+
+    // Store all scene lights for brightness toggle
+    const allLights = [ambientLight, hemiLight, keyLight, fillLeft, backLight, sideLeft, sideRight, bottomLight, frontLight, backLowLight];
+    sceneLightsRef.current = allLights;
+
+    // Apply bright mode if saved
+    if (brightModeRef.current) {
+      allLights.forEach((l) => { l.intensity = l.userData.defaultIntensity * 4; });
+    }
 
     // Materials
     const bodyMaterial = new THREE.MeshStandardMaterial({
       color: activeColorRef.current || 0x222222,
-      metalness: 0.9,
-      roughness: 0.15,
+      metalness: 0.7,
+      roughness: 0.2,
     });
     bodyMaterialRef.current = bodyMaterial;
 
@@ -423,6 +466,8 @@ export default function ModelViewer({ showId, onGoHome }) {
       window_right_front: windowMaterial,
       window_left_back: windowMaterial,
       window_right_back: windowMaterial,
+      windshield_front: windowMaterial,
+      windshield_back: windowMaterial,
       light_left_front: headlightMaterial,
       light_right_front: headlightMaterial,
       light_left_back: taillightMaterial,
@@ -431,7 +476,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
     // Load GLB model
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_mesh_model_1_geo.glb'));
+      const asset = Asset.fromModule(require('../assets/models/tesla_windshield_geo.glb'));
       await asset.downloadAsync();
 
       const fileUri = asset.localUri || asset.uri;
@@ -452,11 +497,11 @@ export default function ModelViewer({ showId, onGoHome }) {
         }
       });
 
-      // Apply materials per mesh - find the interactive name by walking up the hierarchy
-      const getInteractiveName = (mesh) => {
+      // Apply materials per mesh - find the part name by walking up the hierarchy
+      const getPartName = (mesh) => {
         let node = mesh;
         while (node) {
-          if (INTERACTIVE_PARTS.includes(node.name)) return node.name;
+          if (INTERACTIVE_PARTS.includes(node.name) || fixedPartMaterials[node.name]) return node.name;
           node = node.parent;
         }
         return null;
@@ -464,14 +509,14 @@ export default function ModelViewer({ showId, onGoHome }) {
 
       model.traverse((child) => {
         if (child.isMesh) {
-          const interactiveName = getInteractiveName(child);
-          const mat = (interactiveName && fixedPartMaterials[interactiveName]) || bodyMaterial;
+          const partName = getPartName(child);
+          const mat = (partName && fixedPartMaterials[partName]) || bodyMaterial;
           child.material = mat;
           // Store with a key we can look up later
-          const key = interactiveName || child.name;
+          const key = partName || child.name;
           meshMaterialsRef.current.set(key, mat);
-          // Also tag the mesh with its interactive name for quick lookup
-          child.userData.interactiveName = interactiveName;
+          // Only tag interactive parts (not cosmetic like windshields)
+          child.userData.interactiveName = INTERACTIVE_PARTS.includes(partName) ? partName : null;
         }
       });
 
@@ -1170,6 +1215,8 @@ export default function ModelViewer({ showId, onGoHome }) {
                 />
               </View>
 
+              <View style={styles.menuDivider} />
+
               {/* Couleur carrosserie */}
               <View style={styles.settingsSection}>
                 <Text style={styles.settingsSectionTitle}>{t('editor.bodyColor')}</Text>
@@ -1187,6 +1234,8 @@ export default function ModelViewer({ showId, onGoHome }) {
                   ))}
                 </View>
               </View>
+
+              <View style={styles.menuDivider} />
 
               {/* Offset curseur */}
               <View style={styles.settingsSection}>
@@ -1216,6 +1265,18 @@ export default function ModelViewer({ showId, onGoHome }) {
                 </View>
               </View>
 
+              <View style={styles.menuDivider} />
+
+              {/* Allumer la lumière */}
+              <View style={styles.settingsSection}>
+                <TouchableOpacity style={styles.brightToggle} onPress={toggleBrightMode}>
+                  <Text style={styles.settingsSectionTitle}>{t('editor.brightMode')}</Text>
+                  <Text style={styles.brightToggleIcon}>{brightMode ? '☀️' : '🌙'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.menuDivider} />
+
               {/* Vitesse de lecture */}
               <View style={styles.settingsSection}>
                 <Text style={styles.settingsSectionTitle}>{t('editor.playbackSpeed')}</Text>
@@ -1233,6 +1294,8 @@ export default function ModelViewer({ showId, onGoHome }) {
                   ))}
                 </View>
               </View>
+
+              <View style={styles.menuDivider} />
 
               {/* Taille timeline */}
               <View style={styles.settingsSection}>
@@ -1530,6 +1593,16 @@ const styles = StyleSheet.create({
   },
   speedBtnTextActive: {
     color: '#ffffff',
+  },
+  brightToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  brightToggleIcon: {
+    fontSize: 22,
   },
   speedBadge: {
     position: 'absolute',

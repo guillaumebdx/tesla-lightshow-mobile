@@ -106,7 +106,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
     scene.add(fillLight);
 
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_mesh_model_1_geo.glb'));
+      const asset = Asset.fromModule(require('../assets/models/tesla_windshield_geo.glb'));
       await asset.downloadAsync();
       const loader = new GLTFLoader();
       const gltf = await new Promise((resolve, reject) => {
@@ -152,6 +152,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
       const partMats = {
         window_left_front: windowMat, window_right_front: windowMat,
         window_left_back: windowMat, window_right_back: windowMat,
+        windshield_front: windowMat, windshield_back: windowMat,
         light_left_front: litHeadMat, light_right_front: litHeadMat,
         light_left_back: litTailMat, light_right_back: litTailMat,
       };

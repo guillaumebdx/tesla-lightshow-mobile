@@ -54,7 +54,8 @@
     "mp3ExportError": "MP3-Exportfehler: ",
     "trackNotFound": "Titel nicht gefunden",
     "playbackSpeed": "🎵  Wiedergabegeschwindigkeit",
-    "timelineHeight": "📏  Timeline-Höhe"
+    "timelineHeight": "📏  Timeline-Höhe",
+    "brightMode": "💡  Beleuchtung erhöhen"
   },
   "timeline": {
     "loadingMusic": "Musik wird geladen...",

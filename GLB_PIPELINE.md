@@ -51,6 +51,8 @@ Cela affiche :
 | Phare avant droit      | `light_right_front`    |
 | Phare arrière gauche   | `light_left_back`      |
 | Phare arrière droit    | `light_right_back`     |
+| Pare-brise avant       | `windshield_front`     |
+| Pare-brise arrière     | `windshield_back`      |
 
 ---
 

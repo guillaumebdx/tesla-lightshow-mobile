@@ -5,7 +5,7 @@ import fs from 'fs';
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 
 // Inspect
-const doc = await io.read('assets/models/tesla_mesh_model_1.glb');
+const doc = await io.read('assets/models/tesla_windshield.glb');
 
 console.log('=== NODES ===');
 function printNode(node, depth = 0) {
@@ -29,6 +29,6 @@ doc.getRoot().listMaterials().forEach(mat => {
   mat.setMetallicRoughnessTexture(null);
 });
 
-await io.write('assets/models/tesla_mesh_model_1_geo.glb', doc);
-const s = fs.statSync('assets/models/tesla_mesh_model_1_geo.glb');
+await io.write('assets/models/tesla_windshield_geo.glb', doc);
+const s = fs.statSync('assets/models/tesla_windshield_geo.glb');
 console.log('\nStripped -> Size:', (s.size / 1024).toFixed(1), 'KB');
