@@ -21,6 +21,8 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
       onOptionsChange({ ...eventOptions, durationMs: ms });
     } else if (durationInput.field === 'windowDurationMs') {
       onOptionsChange({ ...eventOptions, windowDurationMs: ms, durationMs: ms });
+    } else if (durationInput.field === 'trunkDanceDurationMs') {
+      onOptionsChange({ ...eventOptions, durationMs: ms });
     }
     setDurationInput(null);
   };
@@ -265,7 +267,26 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
               </View>
             </View>
             {eventOptions.trunkMode === TRUNK_MODES.DANCE && (
-              <Text style={styles.windowHint}>{t('parts.trunkDanceHint')}</Text>
+              <>
+                <View style={[styles.optionRow, { marginTop: 10 }]}>
+                  <Text style={styles.optionLabel}>{t('parts.duration')}</Text>
+                  <TouchableOpacity onPress={() => openDurationInput('trunkDanceDurationMs', eventOptions.durationMs)}>
+                    <Text style={styles.optionValueTappable}>{(eventOptions.durationMs / 1000).toFixed(1)}s</Text>
+                  </TouchableOpacity>
+                </View>
+                <Slider
+                  style={{ width: '100%', height: 30 }}
+                  minimumValue={3000}
+                  maximumValue={30000}
+                  step={1000}
+                  value={eventOptions.durationMs}
+                  onValueChange={(val) => onOptionsChange({ ...eventOptions, durationMs: val })}
+                  minimumTrackTintColor="#44aaff"
+                  maximumTrackTintColor="#2a2a4a"
+                  thumbTintColor="#44aaff"
+                />
+                <Text style={styles.windowHint}>{t('parts.trunkDanceHint')}</Text>
+              </>
             )}
           </View>
         )}

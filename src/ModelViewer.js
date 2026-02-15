@@ -184,6 +184,7 @@ export default function ModelViewer({ showId, onGoHome }) {
   const isPlayingRef = useRef(false);
   const retroNodesRef = useRef({}); // { retro_left: { mesh, geoCenter, initMatrix }, ... }
   const windowNodesRef = useRef({}); // { window_left_front: { mesh, initMatrix, travelY }, ... }
+  const trunkNodeRef = useRef(null); // { mesh, initMatrix, pivotLocal }
   const [activeColor, setActiveColor] = useState('#222222');
   const activeColorRef = useRef('#222222');
 
@@ -654,6 +655,34 @@ export default function ModelViewer({ showId, onGoHome }) {
         }
       });
 
+      // Find trunk mesh → use matrix-based pivot rotation
+      // From logs: geo bbox X=1479..2211 (front-back), Y=-688..671 (left-right), Z=918..1230 (up-down)
+      // Matrix has 0.001 scale (Blender mm → meters)
+      // Hinge = min X (front/roof side), center Y, max Z (top) — rotation around Y axis
+      model.traverse((child) => {
+        if (!child.isMesh) return;
+        const interactiveName = child.userData.interactiveName;
+        if (interactiveName === 'trunk' && !trunkNodeRef.current) {
+          child.geometry.computeBoundingBox();
+          const geoBBox = child.geometry.boundingBox;
+
+          // Pivot in geometry space (before the 0.001 scale)
+          // Hinge at min X (roof edge), center Y (symmetric), max Z (top)
+          const pivotLocal = new THREE.Vector3(
+            geoBBox.min.x,                          // front edge (roof side)
+            (geoBBox.min.y + geoBBox.max.y) / 2,   // center Y (symmetric left-right)
+            geoBBox.max.z                           // top edge
+          );
+
+          trunkNodeRef.current = {
+            mesh: child,
+            initMatrix: child.matrix.clone(),
+            pivotLocal: pivotLocal,
+          };
+          console.log(`TRUNK pivot=(${pivotLocal.x.toFixed(1)}, ${pivotLocal.y.toFixed(1)}, ${pivotLocal.z.toFixed(1)})`);
+        }
+      });
+
       // Create round white dot using a small sphere for each interactive part
       // depthTest is OFF so dots are always rendered; visibility is controlled
       // dynamically in the animation loop based on camera orientation.
@@ -947,7 +976,71 @@ export default function ModelViewer({ showId, onGoHome }) {
           }
           mesh.matrixAutoUpdate = false;
         }
-      }
+
+        // Animate trunk (liftgate) — matrix pivot rotation around Y axis
+        // Geo space: X=front-back (min=roof), Y=left-right, Z=up-down (max=top)
+        // Rotation around Y axis at pivot (minX, centerY, maxZ) lifts the trunk upward
+        const TRUNK_OPEN_ANGLE = -Math.PI / 4; // -45° : rear edge (maxX) lifts up
+        const _yAxis = new THREE.Vector3(0, 1, 0);
+        const trunkData = trunkNodeRef.current;
+        if (trunkData && trunkData.mesh) {
+          const mesh = trunkData.mesh;
+          const active = activeMap.get('trunk');
+
+          // Determine rest state from past events
+          let restOpen = false;
+          for (const evt of events) {
+            if (evt.part !== 'trunk') continue;
+            if (evt.endMs <= pos) {
+              if (evt.trunkMode === 'trunk_open' || evt.trunkMode === 'trunk_dance') restOpen = true;
+              else if (evt.trunkMode === 'trunk_close') restOpen = false;
+            }
+          }
+
+          let progress = restOpen ? 1 : 0; // 0=closed, 1=fully open
+
+          if (active) {
+            const elapsed = pos - active.evt.startMs;
+            const evtDuration = active.evt.endMs - active.evt.startMs;
+            const t = evtDuration > 0 ? Math.min(elapsed / evtDuration, 1) : 0;
+            const mode = active.evt.trunkMode || 'trunk_open';
+
+            if (mode === 'trunk_open') {
+              progress = Math.sin(t * Math.PI / 2);
+            } else if (mode === 'trunk_close') {
+              progress = Math.cos(t * Math.PI / 2);
+            } else if (mode === 'trunk_dance') {
+              // Dance: if already open, oscillate immediately; if closed, open first then oscillate
+              const OPEN_PHASE_MS = restOpen ? 0 : 1000;
+              const DANCE_CYCLE_MS = 2000; // 1s down + 1s up
+              if (elapsed < OPEN_PHASE_MS) {
+                // Opening phase (only if trunk was closed)
+                progress = Math.sin((elapsed / OPEN_PHASE_MS) * Math.PI / 2);
+              } else {
+                // Oscillation phase: between 1.0 (fully open) and 0.5 (half open)
+                const danceElapsed = elapsed - OPEN_PHASE_MS;
+                const phase = (danceElapsed / DANCE_CYCLE_MS) * Math.PI * 2;
+                progress = 0.75 + 0.25 * Math.cos(phase);
+              }
+            }
+          }
+
+          if (progress === 0) {
+            mesh.matrix.copy(trunkData.initMatrix);
+          } else {
+            const p = trunkData.pivotLocal;
+            const toOrigin = new THREE.Matrix4().makeTranslation(-p.x, -p.y, -p.z);
+            const rot = new THREE.Matrix4().makeRotationAxis(_yAxis, TRUNK_OPEN_ANGLE * progress);
+            const fromOrigin = new THREE.Matrix4().makeTranslation(p.x, p.y, p.z);
+            const combined = trunkData.initMatrix.clone()
+              .multiply(fromOrigin)
+              .multiply(rot)
+              .multiply(toOrigin);
+            mesh.matrix.copy(combined);
+          }
+          mesh.matrixAutoUpdate = false;
+        }
+      } // end if (modelRef.current)
 
       renderer.render(scene, camera);
       gl.endFrameEXP();
