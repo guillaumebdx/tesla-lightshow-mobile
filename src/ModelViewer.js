@@ -554,12 +554,12 @@ export default function ModelViewer({ showId, onGoHome }) {
       });
 
       // Create round white dot using a small sphere for each interactive part
+      // depthTest is OFF so dots are always rendered; visibility is controlled
+      // dynamically in the animation loop based on camera orientation.
       model.updateMatrixWorld(true);
       const dotGeo = new THREE.SphereGeometry(1, 16, 16);
       const dotBaseMat = new THREE.MeshBasicMaterial({
         color: 0xffffff,
-        transparent: true,
-        opacity: 0.9,
         depthTest: false,
         depthWrite: false,
       });
@@ -579,7 +579,6 @@ export default function ModelViewer({ showId, onGoHome }) {
         // For windows, place dot at top edge instead of center
         const dotPosition = localCenter.clone();
         if (partName.startsWith('window_')) {
-          // Place near top of window but slightly inside the glass area
           dotPosition.z = bbox.max.z - (bbox.max.z - bbox.min.z) * 0.15;
         }
 
@@ -615,10 +614,27 @@ export default function ModelViewer({ showId, onGoHome }) {
         const s = scaleRef.current;
         modelRef.current.scale.set(s, s, s);
 
-        // Show/hide dot sprites based on playback state
+        // Show/hide dot sprites based on playback state + camera facing
         const playing = isPlayingRef.current;
-        for (const dot of dotSpritesRef.current) {
-          dot.visible = !playing;
+        if (playing) {
+          for (const dot of dotSpritesRef.current) {
+            dot.visible = false;
+          }
+        } else {
+          const camPos = cameraRef.current.position;
+          const modelPos = modelRef.current.position;
+          const dotWorldPos = new THREE.Vector3();
+          const toCam = new THREE.Vector3();
+          const toCenter = new THREE.Vector3();
+          for (const dot of dotSpritesRef.current) {
+            dot.getWorldPosition(dotWorldPos);
+            // Vector from model center to dot
+            toCenter.subVectors(dotWorldPos, modelPos);
+            // Vector from dot to camera
+            toCam.subVectors(camPos, dotWorldPos);
+            // If dot faces camera (same hemisphere), show it
+            dot.visible = toCenter.dot(toCam) > 0;
+          }
         }
 
         // Determine which parts are active at current playback position
