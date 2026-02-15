@@ -94,16 +94,34 @@ export default function NewShowScreen({ onBack, onCreated }) {
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    const ambient = new THREE.AmbientLight(0xddddef, 0.6);
-    scene.add(ambient);
-    const hemi = new THREE.HemisphereLight(0xccccff, 0x222233, 0.5);
-    scene.add(hemi);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-    dirLight.position.set(5, 8, 5);
-    scene.add(dirLight);
-    const fillLight = new THREE.DirectionalLight(0x8888cc, 0.4);
-    fillLight.position.set(-5, 3, -3);
-    scene.add(fillLight);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    scene.add(ambientLight);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444466, 0.7);
+    scene.add(hemiLight);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    keyLight.position.set(4, 8, 5);
+    scene.add(keyLight);
+    const fillLeft = new THREE.DirectionalLight(0xeeeeff, 0.7);
+    fillLeft.position.set(-4, 6, 4);
+    scene.add(fillLeft);
+    const backLight = new THREE.DirectionalLight(0xccccff, 0.6);
+    backLight.position.set(0, 5, -6);
+    scene.add(backLight);
+    const sideLeft = new THREE.PointLight(0xffffff, 0.5, 20);
+    sideLeft.position.set(-6, 2, 0);
+    scene.add(sideLeft);
+    const sideRight = new THREE.PointLight(0xffffff, 0.5, 20);
+    sideRight.position.set(6, 2, 0);
+    scene.add(sideRight);
+    const bottomLight = new THREE.PointLight(0xddddef, 0.4, 15);
+    bottomLight.position.set(0, -3, 0);
+    scene.add(bottomLight);
+    const frontLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    frontLight.position.set(0, 3, 8);
+    scene.add(frontLight);
+    const backLowLight = new THREE.DirectionalLight(0xddddff, 0.4);
+    backLowLight.position.set(0, 2, -8);
+    scene.add(backLowLight);
 
     try {
       const asset = Asset.fromModule(require('../assets/models/tesla_windshield_geo.glb'));
@@ -124,15 +142,14 @@ export default function NewShowScreen({ onBack, onCreated }) {
 
       const bodyMat = new THREE.MeshStandardMaterial({
         color: 0x222222,
-        metalness: 0.85,
-        roughness: 0.15,
-        envMapIntensity: 1.0,
+        metalness: 0.7,
+        roughness: 0.2,
       });
       const windowMat = new THREE.MeshStandardMaterial({
-        color: 0x888899,
+        color: 0x445566,
         metalness: 0.7,
         roughness: 0.1,
-        opacity: 0.85,
+        opacity: 0.75,
         transparent: true,
       });
       const litHeadMat = new THREE.MeshStandardMaterial({

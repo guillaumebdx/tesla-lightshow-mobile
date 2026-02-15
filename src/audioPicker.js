@@ -4,7 +4,10 @@
  */
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Audio } from 'expo-av';
 import { generateWaveform } from './waveformGenerator';
+
+const MAX_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 const AUDIO_DIR = FileSystem.documentDirectory + 'audio/';
 
@@ -46,6 +49,23 @@ export async function pickAndImportAudio(onProgress) {
   const existing = await FileSystem.getInfoAsync(destUri);
   if (!existing.exists) {
     await FileSystem.copyAsync({ from: asset.uri, to: destUri });
+  }
+
+  // Check duration before heavy waveform analysis
+  if (onProgress) onProgress('Checking duration...');
+  const { sound: probe, status: probeStatus } = await Audio.Sound.createAsync(
+    { uri: destUri },
+    { shouldPlay: false }
+  );
+  const durationMs = probeStatus.durationMillis || 0;
+  await probe.unloadAsync();
+
+  if (durationMs > MAX_DURATION_MS) {
+    // Clean up the copied file
+    await FileSystem.deleteAsync(destUri, { idempotent: true });
+    const mins = Math.floor(durationMs / 60000);
+    const secs = Math.floor((durationMs % 60000) / 1000);
+    throw new Error(`DURATION_TOO_LONG:${mins}:${secs.toString().padStart(2, '0')}`);
   }
 
   if (onProgress) onProgress('Audio analysis...');

@@ -55,7 +55,9 @@
     "trackNotFound": "Track introuvable",
     "playbackSpeed": "🎵  Vitesse de lecture",
     "timelineHeight": "📏  Hauteur timeline",
-    "brightMode": "💡  Augmenter l'éclairage de l'aperçu"
+    "brightMode": "💡  Augmenter l'éclairage de l'aperçu",
+    "contactDev": "Vous avez besoin de plus de choses ?",
+    "contactDevSub": "Demandez au développeur !"
   },
   "timeline": {
     "loadingMusic": "Chargement de la musique...",
@@ -67,6 +69,7 @@
     "importedFile": "Fichier importé",
     "orChooseFrom": "ou choisir parmi",
     "importError": "Erreur import: ",
+    "durationTooLong": "Ce fichier dure {{duration}}. La durée maximale imposée par Tesla est de {{max}}.",
     "cancel": "Annuler",
     "eventPlaced": "{{count}} événement placé",
     "eventsPlaced": "{{count}} événements placés"

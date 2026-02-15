@@ -55,7 +55,9 @@
     "trackNotFound": "Track not found",
     "playbackSpeed": "🎵  Playback speed",
     "timelineHeight": "📏  Timeline height",
-    "brightMode": "💡  Boost lighting"
+    "brightMode": "💡  Boost lighting",
+    "contactDev": "Need more features?",
+    "contactDevSub": "Ask the developer!"
   },
   "timeline": {
     "loadingMusic": "Loading music...",
@@ -67,6 +69,7 @@
     "importedFile": "Imported file",
     "orChooseFrom": "or choose from",
     "importError": "Import error: ",
+    "durationTooLong": "This file is {{duration}} long. The maximum duration allowed by Tesla is {{max}}.",
     "cancel": "Cancel",
     "eventPlaced": "{{count}} event placed",
     "eventsPlaced": "{{count}} events placed"

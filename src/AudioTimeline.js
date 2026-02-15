@@ -10,6 +10,7 @@ import {
   ScrollView,
   Animated,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
@@ -841,8 +842,13 @@ function TrackModal({ visible, onClose, onSelect }) {
         onSelect(track);
       }
     } catch (e) {
-      console.error('Import error:', e);
-      alert(t('timeline.importError') + e.message);
+      if (e.message && e.message.startsWith('DURATION_TOO_LONG:')) {
+        const duration = e.message.replace('DURATION_TOO_LONG:', '');
+        Alert.alert(t('timeline.durationTooLong', { duration, max: '5:00' }));
+      } else {
+        console.error('Import error:', e);
+        Alert.alert(t('timeline.importError'), e.message);
+      }
     } finally {
       setImporting(false);
       setImportStatus('');

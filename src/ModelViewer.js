@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TextInput, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TextInput, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
@@ -418,10 +418,10 @@ export default function ModelViewer({ showId, onGoHome }) {
     highlightMaterialRef.current = highlightMaterial;
 
     const windowMaterial = new THREE.MeshStandardMaterial({
-      color: 0x888899,
+      color: 0x445566,
       metalness: 0.7,
       roughness: 0.1,
-      opacity: 0.85,
+      opacity: 0.75,
       transparent: true,
     });
 
@@ -1324,6 +1324,17 @@ export default function ModelViewer({ showId, onGoHome }) {
                   )}
                 </View>
               </View>
+
+              <View style={styles.menuDivider} />
+
+              {/* Contact développeur */}
+              <TouchableOpacity
+                style={styles.contactDevSection}
+                onPress={() => Linking.openURL('mailto:guillaumeharari@hotmail.com?subject=Light Studio for Tesla')}
+              >
+                <Text style={styles.contactDevText}>{t('editor.contactDev')}</Text>
+                <Text style={styles.contactDevSub}>{t('editor.contactDevSub')} ✉️</Text>
+              </TouchableOpacity>
             </ScrollView>
           </Pressable>
         </KeyboardAvoidingView>
@@ -1617,6 +1628,21 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
+  },
+  contactDevSection: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  contactDevText: {
+    color: '#8888aa',
+    fontSize: 13,
+  },
+  contactDevSub: {
+    color: '#44aaff',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
   },
   settingsOverlay: {
     flex: 1,
