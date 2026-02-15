@@ -18,13 +18,16 @@ function makeMats() {
   const headOn = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.2, roughness: 0.05, emissive: 0xffffff, emissiveIntensity: 1.5 });
   const tailOff = new THREE.MeshStandardMaterial({ color: 0x331111, metalness: 0.5, roughness: 0.15, emissive: 0x000000, emissiveIntensity: 0 });
   const tailOn = new THREE.MeshStandardMaterial({ color: 0xff0000, metalness: 0.2, roughness: 0.05, emissive: 0xff0000, emissiveIntensity: 1.5 });
-  return { body, window: window_, headOff, headOn, tailOff, tailOn };
+  const blinkOff = new THREE.MeshStandardMaterial({ color: 0x332200, metalness: 0.5, roughness: 0.15, emissive: 0x000000, emissiveIntensity: 0 });
+  const blinkOn = new THREE.MeshStandardMaterial({ color: 0xffaa00, metalness: 0.2, roughness: 0.05, emissive: 0xffaa00, emissiveIntensity: 1.5 });
+  return { body, window: window_, headOff, headOn, tailOff, tailOn, blinkOff, blinkOn };
 }
 
 const WINDOW_PARTS = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
 const HEAD_PARTS = ['light_left_front', 'light_right_front'];
 const TAIL_PARTS = ['light_left_back', 'light_right_back'];
-const ALL_ANIM_PARTS = [...WINDOW_PARTS, ...HEAD_PARTS, ...TAIL_PARTS];
+const BLINK_PARTS = ['blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right'];
+const ALL_ANIM_PARTS = [...WINDOW_PARTS, ...HEAD_PARTS, ...TAIL_PARTS, ...BLINK_PARTS];
 
 export default function DemoViewer({ style }) {
   const frameIdRef = useRef(null);
@@ -65,7 +68,7 @@ export default function DemoViewer({ style }) {
     const partMeshes = {}; // partName -> mesh
 
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_windshield_geo.glb'));
+      const asset = Asset.fromModule(require('../assets/models/tesla_model_3_v3_geo.glb'));
       await asset.downloadAsync();
       const loader = new GLTFLoader();
       const gltf = await new Promise((resolve, reject) => {
@@ -93,11 +96,18 @@ export default function DemoViewer({ style }) {
         windshield_front: mats.window, windshield_back: mats.window,
         light_left_front: mats.headOff, light_right_front: mats.headOff,
         light_left_back: mats.tailOff, light_right_back: mats.tailOff,
+        blink_front_left: mats.blinkOff, blink_front_right: mats.blinkOff,
+        blink_back_left: mats.blinkOff, blink_back_right: mats.blinkOff,
+      };
+      const nodeNameMap = {
+        'blink_front_left002': 'blink_front_left',
+        'blin_back_right': 'blink_back_right',
       };
       const getPartName = (mesh) => {
         let node = mesh;
         while (node) {
-          if (fixedMats[node.name]) return node.name;
+          const mapped = nodeNameMap[node.name] || node.name;
+          if (fixedMats[mapped]) return mapped;
           node = node.parent;
         }
         return null;
@@ -135,6 +145,8 @@ export default function DemoViewer({ style }) {
       const headSpeed = HEAD_PARTS.map(() => 12 + Math.random() * 10);
       const tailPhase = TAIL_PARTS.map(() => Math.random() * Math.PI * 2);
       const tailSpeed = TAIL_PARTS.map(() => 10 + Math.random() * 12);
+      const blinkPhase = BLINK_PARTS.map(() => Math.random() * Math.PI * 2);
+      const blinkSpeed = BLINK_PARTS.map(() => 8 + Math.random() * 8);
       const winPhase = WINDOW_PARTS.map(() => Math.random() * Math.PI * 2);
       const winSpeed = WINDOW_PARTS.map(() => 3 + Math.random() * 2);
       const DANCE_CYCLE_MS = 3500;
@@ -162,6 +174,13 @@ export default function DemoViewer({ style }) {
           if (!partMeshes[p]) return;
           const on = Math.sin(time * tailSpeed[i] + tailPhase[i]) > 0;
           partMeshes[p].material = on ? mats.tailOn : mats.tailOff;
+        });
+
+        // Blinkers — amber chaotic blink
+        BLINK_PARTS.forEach((p, i) => {
+          if (!partMeshes[p]) return;
+          const on = Math.sin(time * blinkSpeed[i] + blinkPhase[i]) > 0;
+          partMeshes[p].material = on ? mats.blinkOn : mats.blinkOff;
         });
 
         // Windows dance — Z-axis slide (same as editor)

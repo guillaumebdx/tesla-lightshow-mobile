@@ -86,11 +86,11 @@ function DraggableEvent({ evt, color, isSelected, laneTop, laneHeight, leftPx, w
           if (onDragEnd) onDragEnd(evt, dxMs);
         } else if (Math.abs(dx) < 8) {
           const holdMs = Date.now() - grantTime.current;
-          if (holdMs < SELECT_MS) {
-            // Quick tap → pass through to waveform (seek cursor / place event)
+          if (isPlacementMode || holdMs < SELECT_MS) {
+            // Quick tap or any tap in placement mode → pass through to waveform
             if (onQuickTap) onQuickTap(e.nativeEvent.pageX);
           } else {
-            // Longer tap → select this event
+            // Longer tap outside placement mode → select this event
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             if (onTap) onTap(evt);
           }
@@ -415,6 +415,17 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
     let newStart = Math.round(evt.startMs + dxMs);
     newStart = Math.max(0, Math.min(newStart, duration - evtDuration));
     const newEnd = newStart + evtDuration;
+
+    // Prevent overlap with same-part events
+    const overlaps = events.some((e) =>
+      e.id !== evt.id && e.part === evt.part && newStart < e.endMs && newEnd > e.startMs
+    );
+    if (overlaps) {
+      // Cancel drag — keep event at original position
+      eventTappedRef.current = true;
+      return;
+    }
+
     const updated = { ...evt, startMs: newStart, endMs: newEnd };
     setEvents((prev) => {
       const newList = prev.map((e) => e.id === evt.id ? updated : e).sort((a, b) => a.startMs - b.startMs);

@@ -57,7 +57,10 @@
     "timelineHeight": "📏  Timeline-Höhe",
     "brightMode": "💡  Beleuchtung erhöhen",
     "contactDev": "Brauchst du mehr Funktionen?",
-    "contactDevSub": "Frag den Entwickler!"
+    "contactDevSub": "Frag den Entwickler!",
+    "community": "🌐  Community",
+    "share": "📤  Light Show teilen",
+    "load": "📥  Light Show laden"
   },
   "timeline": {
     "loadingMusic": "Musik wird geladen...",
@@ -102,7 +105,11 @@
     "light_left_front": "Scheinwerfer vorne links",
     "light_right_front": "Scheinwerfer vorne rechts",
     "light_left_back": "Rücklicht hinten links",
-    "light_right_back": "Rücklicht hinten rechts"
+    "light_right_back": "Rücklicht hinten rechts",
+    "blink_front_left": "Blinker vorne links",
+    "blink_front_right": "Blinker vorne rechts",
+    "blink_back_left": "Blinker hinten links",
+    "blink_back_right": "Blinker hinten rechts"
   },
   "export": {
     "page1Title": "In deinen Tesla importieren",
@@ -139,8 +146,26 @@
     "page4OutroBold": "LightShow",
     "page4OutroEnd": ": du siehst direkt \"lightshow\" als Show ausgewählt. Das bedeutet, alles ist bereit!",
     "exportFseq": ".fseq exportieren",
+    "shareError": "Freigabefehler: ",
+    "loadError": "Ladefehler: ",
+    "loadSuccess": "{{count}} Ereignisse erfolgreich geladen!",
+    "loadNoEvents": "Diese Datei enthält keine Ereignisse.",
+    "loadInvalidFile": "Ungültige Datei. Bitte wähle eine .json-Datei, die aus Light Studio exportiert wurde.",
     "exportMp3": "MP3 exportieren",
     "previous": "← Zurück",
     "next": "Weiter →"
+  },
+  "share": {
+    "title": "Light Show teilen",
+    "description": "Du kannst deine Ereignisse in eine Datei exportieren, damit ein Freund, der Light Studio hat, auch deine Light Show laden kann.",
+    "noEvents": "Du hast noch keine Ereignisse auf der Timeline. Platziere mindestens ein Ereignis, um teilen zu können.",
+    "shareBtn": "Datei teilen"
+  },
+  "load": {
+    "title": "Light Show laden",
+    "description": "Du kannst eine Light Show laden, die ein Freund mit Light Studio erstellt hat. Die Ereignisse werden zu deiner Timeline hinzugefügt.",
+    "noTrack": "Du musst zuerst einen Musiktitel in dieser Light Show laden, bevor du Ereignisse importieren kannst.",
+    "warning": "Achtung: Die aktuellen Ereignisse werden durch die aus der importierten Datei ersetzt.",
+    "loadBtn": "Datei auswählen"
   }
 }

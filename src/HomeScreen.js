@@ -138,7 +138,9 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
         <View style={styles.emptyContainer}>
           <DemoViewer style={styles.demoViewer} />
           <Text style={styles.emptyText}>{t('home.noShows')}</Text>
-          <Text style={styles.emptyHint}>{t('home.noShowsHint')}</Text>
+          <TouchableOpacity onPress={onNewShow}>
+            <Text style={styles.emptyHint}>{t('home.noShowsHint')}</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -163,7 +165,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* About */}
-              <TouchableOpacity style={styles.settingsItem} onPress={() => setAboutVisible(true)}>
+              <TouchableOpacity style={styles.settingsItem} onPress={() => { setSettingsVisible(false); setTimeout(() => setAboutVisible(true), 300); }}>
                 <Text style={styles.settingsItemIcon}>ℹ️</Text>
                 <Text style={styles.settingsItemText}>{t('settings.about')}</Text>
                 <Text style={styles.settingsItemArrow}>›</Text>
@@ -191,8 +193,8 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
       </Modal>
 
       {/* About modal */}
-      <Modal visible={aboutVisible} transparent animationType="fade" onRequestClose={() => setAboutVisible(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setAboutVisible(false)}>
+      <Modal visible={aboutVisible} transparent animationType="fade" onRequestClose={() => { setAboutVisible(false); setTimeout(() => setSettingsVisible(true), 300); }}>
+        <Pressable style={styles.modalOverlay} onPress={() => { setAboutVisible(false); setTimeout(() => setSettingsVisible(true), 300); }}>
           <Pressable style={styles.aboutModal} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.aboutTitle}>{t('settings.about')}</Text>
             <Text style={styles.aboutText}>
@@ -209,7 +211,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
               <Text style={styles.aboutMailIcon}>✉️</Text>
               <Text style={styles.aboutMailText}>guillaumeharari@hotmail.com</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.aboutCloseBtn} onPress={() => setAboutVisible(false)}>
+            <TouchableOpacity style={styles.aboutCloseBtn} onPress={() => { setAboutVisible(false); setTimeout(() => setSettingsVisible(true), 300); }}>
               <Text style={styles.aboutCloseBtnText}>{t('settings.close')}</Text>
             </TouchableOpacity>
           </Pressable>

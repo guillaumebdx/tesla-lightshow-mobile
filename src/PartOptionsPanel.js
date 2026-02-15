@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Switch, TouchableOpacity, TextInput, Modal, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Slider from '@react-native-community/slider';
-import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, isLight, isRetro, isWindow } from './constants';
+import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, isLight, isBlinker, isRetro, isWindow } from './constants';
 
 export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent, onDeleteEvent }) {
   const { t } = useTranslation();
@@ -35,7 +35,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
 
   const icon = PART_ICONS[selectedPart];
   const label = t(`parts.${selectedPart}`, { defaultValue: PART_LABELS[selectedPart] || selectedPart });
-  const lightPart = isLight(selectedPart);
+  const lightPart = isLight(selectedPart) || isBlinker(selectedPart);
   const retroPart = isRetro(selectedPart);
   const windowPart = isWindow(selectedPart);
   const isBlink = eventOptions.effect === EFFECT_TYPES.BLINK;
@@ -87,7 +87,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
             </View>
             <Slider
               style={styles.slider}
-              minimumValue={1}
+              minimumValue={80}
               maximumValue={100}
               step={1}
               value={eventOptions.power}

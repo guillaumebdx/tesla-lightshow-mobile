@@ -57,7 +57,10 @@
     "timelineHeight": "📏  Timeline height",
     "brightMode": "💡  Boost lighting",
     "contactDev": "Need more features?",
-    "contactDevSub": "Ask the developer!"
+    "contactDevSub": "Ask the developer!",
+    "community": "🌐  Community",
+    "share": "📤  Share Light Show",
+    "load": "📥  Load a Light Show"
   },
   "timeline": {
     "loadingMusic": "Loading music...",
@@ -102,7 +105,11 @@
     "light_left_front": "Front left headlight",
     "light_right_front": "Front right headlight",
     "light_left_back": "Rear left taillight",
-    "light_right_back": "Rear right taillight"
+    "light_right_back": "Rear right taillight",
+    "blink_front_left": "Front left turn signal",
+    "blink_front_right": "Front right turn signal",
+    "blink_back_left": "Rear left turn signal",
+    "blink_back_right": "Rear right turn signal"
   },
   "export": {
     "page1Title": "Import into your Tesla",
@@ -139,8 +146,26 @@
     "page4OutroBold": "LightShow",
     "page4OutroEnd": ": you will see \"lightshow\" directly selected as the show to launch. That means everything is good!",
     "exportFseq": "Export .fseq",
+    "shareError": "Share error: ",
+    "loadError": "Load error: ",
+    "loadSuccess": "{{count}} events loaded successfully!",
+    "loadNoEvents": "This file contains no events.",
+    "loadInvalidFile": "Invalid file. Please select a .json file exported from Light Studio.",
     "exportMp3": "Export MP3",
     "previous": "← Previous",
     "next": "Next →"
+  },
+  "share": {
+    "title": "Share Light Show",
+    "description": "You can export your events to a file so that a friend who has Light Studio can also load your Light Show.",
+    "noEvents": "You don't have any events on the timeline yet. Place at least one event to be able to share.",
+    "shareBtn": "Share file"
+  },
+  "load": {
+    "title": "Load a Light Show",
+    "description": "You can load a Light Show created by a friend who has Light Studio. The events will be added to your timeline.",
+    "noTrack": "You must first load a music track on this Light Show before you can import events.",
+    "warning": "Warning: current events will be replaced by those from the imported file.",
+    "loadBtn": "Choose a file"
   }
 }

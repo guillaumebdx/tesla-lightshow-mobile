@@ -11,8 +11,12 @@ import { BLINK_SPEEDS } from './constants';
 const CHANNEL_MAP = {
   light_left_front:  [0, 2, 4, 6, 8, 10],   // DRL + low beam + 4 segments haut gauche
   light_right_front: [1, 3, 5, 7, 9, 11],   // DRL + low beam + 4 segments haut droit
-  light_left_back:   [22, 25],               // clignotant AR gauche + signature gauche
-  light_right_back:  [23, 26],               // clignotant AR droit + signature droit
+  light_left_back:   [25],                   // feu AR gauche (signature gauche uniquement)
+  light_right_back:  [26],                   // feu AR droit (signature droit uniquement)
+  blink_front_left:  [12],                   // clignotant AV gauche
+  blink_front_right: [13],                   // clignotant AV droit
+  blink_back_left:   [22],                   // clignotant AR gauche
+  blink_back_right:  [23],                   // clignotant AR droit
 };
 
 // Closure channel mapping — channels for mechanical parts

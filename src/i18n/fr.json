@@ -57,7 +57,10 @@
     "timelineHeight": "📏  Hauteur timeline",
     "brightMode": "💡  Augmenter l'éclairage de l'aperçu",
     "contactDev": "Vous avez besoin de plus de choses ?",
-    "contactDevSub": "Demandez au développeur !"
+    "contactDevSub": "Demandez au développeur !",
+    "community": "🌐  Communauté",
+    "share": "📤  Partager le Light Show",
+    "load": "📥  Charger un Light Show"
   },
   "timeline": {
     "loadingMusic": "Chargement de la musique...",
@@ -102,7 +105,11 @@
     "light_left_front": "Phare AV gauche",
     "light_right_front": "Phare AV droit",
     "light_left_back": "Feu AR gauche",
-    "light_right_back": "Feu AR droit"
+    "light_right_back": "Feu AR droit",
+    "blink_front_left": "Clignotant AV gauche",
+    "blink_front_right": "Clignotant AV droit",
+    "blink_back_left": "Clignotant AR gauche",
+    "blink_back_right": "Clignotant AR droit"
   },
   "export": {
     "page1Title": "Importer dans ta Tesla",
@@ -139,8 +146,26 @@
     "page4OutroBold": "LightShow",
     "page4OutroEnd": " : tu verras directement sélectionné \"lightshow\" comme show à lancer. C'est que tout est bon !",
     "exportFseq": "Exporter le .fseq",
+    "shareError": "Erreur de partage : ",
+    "loadError": "Erreur de chargement : ",
+    "loadSuccess": "{{count}} événements chargés avec succès !",
+    "loadNoEvents": "Ce fichier ne contient aucun événement.",
+    "loadInvalidFile": "Fichier invalide. Sélectionne un fichier .json exporté depuis Light Studio.",
     "exportMp3": "Exporter le MP3",
     "previous": "← Précédent",
     "next": "Suivant →"
+  },
+  "share": {
+    "title": "Partager le Light Show",
+    "description": "Tu peux exporter tes événements dans un fichier pour qu'un ami qui a Light Studio puisse aussi charger ton Light Show.",
+    "noEvents": "Tu n'as encore aucun événement sur la timeline. Place au moins un événement pour pouvoir partager.",
+    "shareBtn": "Partager le fichier"
+  },
+  "load": {
+    "title": "Charger un Light Show",
+    "description": "Tu peux charger un Light Show créé par un ami qui a Light Studio. Les événements seront ajoutés à ta timeline.",
+    "noTrack": "Tu dois d'abord charger une musique sur ce Light Show avant de pouvoir importer des événements.",
+    "warning": "Attention : les événements actuels seront remplacés par ceux du fichier importé.",
+    "loadBtn": "Choisir un fichier"
   }
 }

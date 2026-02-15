@@ -53,6 +53,10 @@ Cela affiche :
 | Phare arrière droit    | `light_right_back`     |
 | Pare-brise avant       | `windshield_front`     |
 | Pare-brise arrière     | `windshield_back`      |
+| Clignotant avant gauche| `blink_front_left`     |
+| Clignotant avant droit | `blink_front_right`    |
+| Clignotant arrière gauche | `blink_back_left`   |
+| Clignotant arrière droit  | `blink_back_right`  |
 
 ---
 

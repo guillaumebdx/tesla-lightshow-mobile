@@ -13,9 +13,10 @@ import {
 } from 'react-native-gesture-handler';
 import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
-import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, isRetro, isWindow } from './constants';
+import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, isRetro, isWindow, isLight, isBlinker } from './constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import { MP3_TRACKS } from '../assets/mp3/index';
 import { exportFseq } from './fseqExport';
 import { loadShow, saveShow } from './storage';
@@ -33,6 +34,8 @@ export default function ModelViewer({ showId, onGoHome }) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [exportVisible, setExportVisible] = useState(false);
+  const [shareVisible, setShareVisible] = useState(false);
+  const [loadVisible, setLoadVisible] = useState(false);
   const [cursorOffsetMs, _setCursorOffsetMs] = useState(0);
   const cursorOffsetMsRef = useRef(0);
   const setCursorOffsetMs = useCallback((valOrFn) => {
@@ -171,6 +174,7 @@ export default function ModelViewer({ showId, onGoHome }) {
   const selectedMeshRef = useRef(null);
   const litHeadlightMatRef = useRef(null);
   const litTaillightMatRef = useRef(null);
+  const litBlinkerMatRef = useRef(null);
   const spotLightsRef = useRef({}); // { light_left_front: SpotLight, ... }
   const dotSpritesRef = useRef([]); // white dot sprites on interactive parts
   const sceneLightsRef = useRef([]); // all scene lights for brightness toggle
@@ -461,6 +465,26 @@ export default function ModelViewer({ showId, onGoHome }) {
     });
     litTaillightMatRef.current = litTaillightMat;
 
+    // Turn signal (blinker) materials — amber
+    const blinkerMaterial = new THREE.MeshBasicMaterial({
+      color: 0x332200,
+    });
+
+    const litBlinkerMat = new THREE.MeshStandardMaterial({
+      color: 0xffaa00,
+      metalness: 0.2,
+      roughness: 0.05,
+      emissive: 0xffaa00,
+      emissiveIntensity: 1.5,
+    });
+    litBlinkerMatRef.current = litBlinkerMat;
+
+    // Map non-standard Blender node names to clean part names
+    const nodeNameMap = {
+      'blink_front_left002': 'blink_front_left',
+      'blin_back_right': 'blink_back_right',
+    };
+
     const fixedPartMaterials = {
       window_left_front: windowMaterial,
       window_right_front: windowMaterial,
@@ -472,11 +496,15 @@ export default function ModelViewer({ showId, onGoHome }) {
       light_right_front: headlightMaterial,
       light_left_back: taillightMaterial,
       light_right_back: taillightMaterial,
+      blink_front_left: blinkerMaterial,
+      blink_front_right: blinkerMaterial,
+      blink_back_left: blinkerMaterial,
+      blink_back_right: blinkerMaterial,
     };
 
     // Load GLB model
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_windshield_geo.glb'));
+      const asset = Asset.fromModule(require('../assets/models/tesla_model_3_v3_geo.glb'));
       await asset.downloadAsync();
 
       const fileUri = asset.localUri || asset.uri;
@@ -501,7 +529,8 @@ export default function ModelViewer({ showId, onGoHome }) {
       const getPartName = (mesh) => {
         let node = mesh;
         while (node) {
-          if (INTERACTIVE_PARTS.includes(node.name) || fixedPartMaterials[node.name]) return node.name;
+          const mapped = nodeNameMap[node.name] || node.name;
+          if (INTERACTIVE_PARTS.includes(mapped) || fixedPartMaterials[mapped]) return mapped;
           node = node.parent;
         }
         return null;
@@ -539,12 +568,16 @@ export default function ModelViewer({ showId, onGoHome }) {
       scene.add(model);
       modelRef.current = model;
 
-      // Create SpotLights at each light mesh position
+      // Create SpotLights at each light/blinker mesh position
       const lightDefs = {
         light_left_front:  { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
         light_right_front: { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
         light_left_back:   { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
         light_right_back:  { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
+        blink_front_left:  { color: 0xffaa00, dir: new THREE.Vector3(-0.5, -0.3, 1) },
+        blink_front_right: { color: 0xffaa00, dir: new THREE.Vector3(0.5, -0.3, 1) },
+        blink_back_left:   { color: 0xffaa00, dir: new THREE.Vector3(-0.5, -0.3, -1) },
+        blink_back_right:  { color: 0xffaa00, dir: new THREE.Vector3(0.5, -0.3, -1) },
       };
 
       model.traverse((child) => {
@@ -557,7 +590,8 @@ export default function ModelViewer({ showId, onGoHome }) {
         const worldPos = new THREE.Vector3();
         child.getWorldPosition(worldPos);
 
-        const spot = new THREE.SpotLight(def.color, 0, 12, Math.PI / 5, 0.6, 1.5);
+        const isBlink = partName.includes('blink');
+        const spot = new THREE.SpotLight(def.color, 0, isBlink ? 8 : 12, isBlink ? Math.PI / 6 : Math.PI / 5, 0.6, 1.5);
         spot.position.copy(worldPos);
         // Target = position + direction
         const target = new THREE.Object3D();
@@ -704,7 +738,8 @@ export default function ModelViewer({ showId, onGoHome }) {
 
         // Build a map: partName -> { event, intensity }
         const activeMap = new Map();
-        const lightParts = ['light_left_front', 'light_right_front', 'light_left_back', 'light_right_back'];
+        const lightParts = ['light_left_front', 'light_right_front', 'light_left_back', 'light_right_back',
+          'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right'];
 
         for (const evt of events) {
           if (pos >= evt.startMs && pos < evt.endMs) {
@@ -754,9 +789,10 @@ export default function ModelViewer({ showId, onGoHome }) {
 
           const active = activeMap.get(partName);
           if (active) {
-            const isHeadlight = partName.includes('light') && partName.includes('front');
-            const isTaillight = partName.includes('light') && partName.includes('back');
-            if (!isHeadlight && !isTaillight) return;
+            const isHeadlight = isLight(partName) && partName.includes('front');
+            const isTaillight = isLight(partName) && partName.includes('back');
+            const isBlink = isBlinker(partName);
+            if (!isHeadlight && !isTaillight && !isBlink) return;
 
             if (active.blinkOff) {
               const originalMat = meshMaterialsRef.current.get(partName);
@@ -764,7 +800,8 @@ export default function ModelViewer({ showId, onGoHome }) {
               return;
             }
 
-            const litMat = isHeadlight ? litHeadlightMatRef.current
+            const litMat = isBlink ? litBlinkerMatRef.current
+                         : isHeadlight ? litHeadlightMatRef.current
                          : litTaillightMatRef.current;
             if (!litMat) return;
             const originalMat = meshMaterialsRef.current.get(partName);
@@ -1332,6 +1369,29 @@ export default function ModelViewer({ showId, onGoHome }) {
 
               <View style={styles.menuDivider} />
 
+              {/* Communauté */}
+              <View style={styles.settingsSection}>
+                <Text style={styles.settingsSectionTitle}>{t('editor.community')}</Text>
+                <TouchableOpacity
+                  style={styles.shareLoadBtn}
+                  onPress={() => { setSettingsVisible(false); setShareVisible(true); }}
+                >
+                  <Text style={styles.shareLoadBtnText}>{t('editor.share')}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Charger */}
+              <View style={styles.settingsSection}>
+                <TouchableOpacity
+                  style={styles.shareLoadBtn}
+                  onPress={() => { setSettingsVisible(false); setLoadVisible(true); }}
+                >
+                  <Text style={styles.shareLoadBtnText}>{t('editor.load')}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.menuDivider} />
+
               {/* Contact développeur */}
               <TouchableOpacity
                 style={styles.contactDevSection}
@@ -1343,6 +1403,100 @@ export default function ModelViewer({ showId, onGoHome }) {
             </ScrollView>
           </Pressable>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Share modal */}
+      <Modal
+        visible={shareVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShareVisible(false)}
+      >
+        <Pressable style={styles.centeredOverlay} onPress={() => setShareVisible(false)}>
+          <View style={styles.shareLoadModal} onStartShouldSetResponder={() => true}>
+            <Text style={styles.shareLoadTitle}>{t('share.title')}</Text>
+            <Text style={styles.shareLoadDesc}>{t('share.description')}</Text>
+            {eventsRef.current.length === 0 ? (
+              <Text style={styles.shareLoadWarning}>{t('share.noEvents')}</Text>
+            ) : (
+              <TouchableOpacity
+                style={styles.shareLoadAction}
+                onPress={async () => {
+                  try {
+                    const data = {
+                      _format: 'lightstudio_v1',
+                      name: showName || 'Light Show',
+                      events: eventsRef.current,
+                    };
+                    const json = JSON.stringify(data, null, 2);
+                    const fileName = (showName || 'lightshow').replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+                    const destUri = FileSystem.documentDirectory + fileName;
+                    await FileSystem.writeAsStringAsync(destUri, json);
+                    await Sharing.shareAsync(destUri, { mimeType: 'application/json', dialogTitle: t('share.title') });
+                    setShareVisible(false);
+                  } catch (e) {
+                    console.error('Share error:', e);
+                    alert(t('export.shareError') + e.message);
+                  }
+                }}
+              >
+                <Text style={styles.shareLoadActionText}>{t('share.shareBtn')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Load modal */}
+      <Modal
+        visible={loadVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLoadVisible(false)}
+      >
+        <Pressable style={styles.centeredOverlay} onPress={() => setLoadVisible(false)}>
+          <View style={styles.shareLoadModal} onStartShouldSetResponder={() => true}>
+            <Text style={styles.shareLoadTitle}>{t('load.title')}</Text>
+            <Text style={styles.shareLoadDesc}>{t('load.description')}</Text>
+            {!audioTimelineRef.current?.getTrackInfo() ? (
+              <Text style={styles.shareLoadWarning}>{t('load.noTrack')}</Text>
+            ) : (
+              <>
+                <Text style={styles.shareLoadWarningSmall}>{t('load.warning')}</Text>
+                <TouchableOpacity
+                  style={styles.shareLoadAction}
+                  onPress={async () => {
+                    try {
+                      const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+                      if (result.canceled || !result.assets || result.assets.length === 0) return;
+                      const fileUri = result.assets[0].uri;
+                      const raw = await FileSystem.readAsStringAsync(fileUri);
+                      const data = JSON.parse(raw);
+                      if (!data || !data._format || data._format !== 'lightstudio_v1' || !Array.isArray(data.events)) {
+                        alert(t('export.loadInvalidFile'));
+                        return;
+                      }
+                      if (data.events.length === 0) {
+                        alert(t('export.loadNoEvents'));
+                        return;
+                      }
+                      audioTimelineRef.current?.loadEvents(data.events);
+                      eventsRef.current = data.events;
+                      scheduleSave();
+                      setLoadVisible(false);
+                      Alert.alert(t('load.title'), t('export.loadSuccess', { count: data.events.length }));
+                    } catch (e) {
+                      console.error('Load error:', e);
+                      alert(t('export.loadError') + e.message);
+                    }
+                  }}
+                >
+                  <Text style={styles.shareLoadActionText}>{t('load.loadBtn')}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </Pressable>
       </Modal>
 
       {/* Export tutorial modal */}
@@ -1717,5 +1871,73 @@ const styles = StyleSheet.create({
     fontSize: 15,
     paddingHorizontal: 14,
     paddingVertical: 10,
+  },
+  shareLoadBtn: {
+    backgroundColor: 'rgba(40, 40, 70, 0.6)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#3a3a5a',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  shareLoadBtnText: {
+    color: '#ccccee',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  centeredOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareLoadModal: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 16,
+    width: '85%',
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#2a2a4a',
+  },
+  shareLoadTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 14,
+    textAlign: 'center',
+  },
+  shareLoadDesc: {
+    color: '#aaaacc',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  shareLoadWarning: {
+    color: '#e94560',
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  shareLoadWarningSmall: {
+    color: '#ffaa44',
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  shareLoadAction: {
+    backgroundColor: '#44aaff',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  shareLoadActionText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

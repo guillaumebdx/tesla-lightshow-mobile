@@ -8,6 +8,8 @@ export const INTERACTIVE_PARTS = [
   'flap', 'trunk',
   'light_left_front', 'light_right_front',
   'light_left_back', 'light_right_back',
+  'blink_front_left', 'blink_front_right',
+  'blink_back_left', 'blink_back_right',
 ];
 
 // French labels for each part
@@ -24,6 +26,10 @@ export const PART_LABELS = {
   light_right_front: 'Phare AV droit',
   light_left_back: 'Feu AR gauche',
   light_right_back: 'Feu AR droit',
+  blink_front_left: 'Clignotant AV gauche',
+  blink_front_right: 'Clignotant AV droit',
+  blink_back_left: 'Clignotant AR gauche',
+  blink_back_right: 'Clignotant AR droit',
 };
 
 // Icon images per part type
@@ -40,6 +46,10 @@ export const PART_ICONS = {
   retro_right: require('../assets/icons/retro.png'),
   flap: require('../assets/icons/charge.png'),
   trunk: require('../assets/icons/trunk.png'),
+  blink_front_left: require('../assets/icons/front_light.png'),
+  blink_front_right: require('../assets/icons/front_light.png'),
+  blink_back_left: require('../assets/icons/back_light.png'),
+  blink_back_right: require('../assets/icons/back_light.png'),
 };
 
 // Color per part type (for event rectangles on waveform)
@@ -56,6 +66,10 @@ export const PART_COLORS = {
   retro_right: '#aaaacc',
   flap: '#ffaa00',
   trunk: '#88cc44',
+  blink_front_left: '#ffaa00',
+  blink_front_right: '#ffaa00',
+  blink_back_left: '#ffaa00',
+  blink_back_right: '#ffaa00',
 };
 
 // Effect types for events (extensible later with fade, pulse, etc.)
@@ -109,6 +123,9 @@ export const DEFAULT_EVENT_OPTIONS = {
 // Helper: is this part a light?
 export const isLight = (part) => part && part.includes('light');
 
+// Helper: is this part a turn signal (blinker)?
+export const isBlinker = (part) => part && part.includes('blink');
+
 // Helper: is this part a retro mirror?
 export const isRetro = (part) => part && part.includes('retro');
 
@@ -116,4 +133,4 @@ export const isRetro = (part) => part && part.includes('retro');
 export const isWindow = (part) => part && part.includes('window');
 
 // Helper: can this part be placed on the timeline?
-export const isAnimatable = (part) => isLight(part) || isRetro(part) || isWindow(part);
+export const isAnimatable = (part) => isLight(part) || isBlinker(part) || isRetro(part) || isWindow(part);
