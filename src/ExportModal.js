@@ -8,129 +8,26 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
-const PAGES = [
-  {
-    title: 'Importer dans ta Tesla',
-    content: () => (
-      <View>
-        <Text style={s.paragraph}>
-          Pour importer ton LightShow dans ta Tesla, suis bien ces conseils :
-        </Text>
-
-        <View style={s.noteBox}>
-          <Text style={s.noteIcon}>⚠️</Text>
-          <Text style={s.noteText}>
-            Il n'est possible d'avoir qu'un seul LightShow personnalisé dans sa Tesla.{'\n'}
-            Pour en avoir plusieurs, il faut multiplier les clés USB !
-          </Text>
-        </View>
-
-        <View style={s.tipBox}>
-          <Text style={s.tipIcon}>💡</Text>
-          <Text style={s.tipText}>
-            Nos Tesla sont capricieuses. Si tu veux augmenter tes chances que ça fonctionne du premier coup :{' '}
-            <Text style={s.bold}>utilise une clé USB à part.</Text>
-          </Text>
-        </View>
-      </View>
-    ),
-  },
-  {
-    title: 'Formater ta clé USB',
-    content: () => (
-      <View>
-        <Text style={s.paragraph}>Formate ta clé USB :</Text>
-
-        <View style={s.stepList}>
-          <View style={s.step}>
-            <Text style={s.stepNumber}>1</Text>
-            <Text style={s.stepText}>Clique droit sur la clé</Text>
-          </View>
-          <View style={s.step}>
-            <Text style={s.stepNumber}>2</Text>
-            <Text style={s.stepText}>Formater</Text>
-          </View>
-          <View style={s.step}>
-            <Text style={s.stepNumber}>3</Text>
-            <View>
-              <Text style={s.stepText}>Système de fichiers : <Text style={s.bold}>exFAT</Text></Text>
-              <Text style={s.stepText}>Type d'allocation : <Text style={s.bold}>par défaut</Text></Text>
-            </View>
-          </View>
-          <View style={s.step}>
-            <Text style={s.stepNumber}>4</Text>
-            <Text style={s.stepText}>Démarrer</Text>
-          </View>
-        </View>
-      </View>
-    ),
-  },
-  {
-    title: 'Préparer les fichiers',
-    content: () => (
-      <View>
-        <Text style={s.paragraph}>
-          Crée un dossier à la racine de la clé, nomme-le :
-        </Text>
-
-        <View style={s.codeBox}>
-          <Text style={s.codeText}>LightShow</Text>
-        </View>
-
-        <View style={s.warningBox}>
-          <Text style={s.warningText}>
-            Ne le nomme pas autrement, sans espace et respecte les majuscules/minuscules.
-          </Text>
-        </View>
-
-        <Text style={s.paragraph}>
-          Dépose le fichier MP3 et le fichier FSEQ dans ce dossier.{'\n'}
-          Ils doivent obligatoirement avoir <Text style={s.bold}>le même nom</Text> :
-        </Text>
-
-        <View style={s.fileList}>
-          <View style={s.fileItem}>
-            <Text style={s.fileIcon}>🎵</Text>
-            <Text style={s.fileName}>lightshow.mp3</Text>
-          </View>
-          <View style={s.fileItem}>
-            <Text style={s.fileIcon}>📄</Text>
-            <Text style={s.fileName}>lightshow.fseq</Text>
-          </View>
-        </View>
-
-        <View style={s.warningBox}>
-          <Text style={s.warningText}>
-            Il ne faut rien déposer d'autre dans le dossier.
-          </Text>
-        </View>
-
-        <View style={s.tipBox}>
-          <Text style={s.tipIcon}>💡</Text>
-          <Text style={s.tipText}>
-            Dans Windows, si tu veux voir les extensions pour être certain : dans un dossier, clique sur{' '}
-            <Text style={s.bold}>Afficher → Afficher → Extensions de noms de fichiers</Text>
-          </Text>
-        </View>
-      </View>
-    ),
-  },
-  {
-    title: 'Brancher dans ta Tesla',
-    content: null, // Will be rendered dynamically with the export button
-  },
-];
+const PAGE_COUNT = 4;
 
 export default function ExportModal({ visible, onClose, onExportFseq, onExportMp3, trackInfo }) {
+  const { t } = useTranslation();
   const [page, setPage] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportingMp3, setExportingMp3] = useState(false);
 
   const isBuiltinTrack = trackInfo?.isBuiltin === true;
 
-  const isLastPage = page === PAGES.length - 1;
-  const currentPage = PAGES[page];
+  const isLastPage = page === PAGE_COUNT - 1;
+
+  const pageTitles = [
+    t('export.page1Title'),
+    t('export.page2Title'),
+    t('export.page3Title'),
+    t('export.page4Title'),
+  ];
 
   const handleClose = () => {
     setPage(0);
@@ -160,6 +57,129 @@ export default function ExportModal({ visible, onClose, onExportFseq, onExportMp
     }
   };
 
+  const renderPage = () => {
+    if (page === 0) return (
+      <View>
+        <Text style={s.paragraph}>{t('export.page1Intro')}</Text>
+        <View style={s.noteBox}>
+          <Text style={s.noteIcon}>⚠️</Text>
+          <Text style={s.noteText}>{t('export.page1Note')}</Text>
+        </View>
+        <View style={s.tipBox}>
+          <Text style={s.tipIcon}>💡</Text>
+          <Text style={s.tipText}>
+            {t('export.page1Tip')}<Text style={s.bold}>{t('export.page1TipBold')}</Text>
+          </Text>
+        </View>
+      </View>
+    );
+    if (page === 1) return (
+      <View>
+        <Text style={s.paragraph}>{t('export.page2Intro')}</Text>
+        <View style={s.stepList}>
+          <View style={s.step}>
+            <Text style={s.stepNumber}>1</Text>
+            <Text style={s.stepText}>{t('export.page2Step1')}</Text>
+          </View>
+          <View style={s.step}>
+            <Text style={s.stepNumber}>2</Text>
+            <Text style={s.stepText}>{t('export.page2Step2')}</Text>
+          </View>
+          <View style={s.step}>
+            <Text style={s.stepNumber}>3</Text>
+            <View>
+              <Text style={s.stepText}>{t('export.page2Step3a')}<Text style={s.bold}>{t('export.page2Step3aBold')}</Text></Text>
+              <Text style={s.stepText}>{t('export.page2Step3b')}<Text style={s.bold}>{t('export.page2Step3bBold')}</Text></Text>
+            </View>
+          </View>
+          <View style={s.step}>
+            <Text style={s.stepNumber}>4</Text>
+            <Text style={s.stepText}>{t('export.page2Step4')}</Text>
+          </View>
+        </View>
+      </View>
+    );
+    if (page === 2) return (
+      <View>
+        <Text style={s.paragraph}>{t('export.page3Intro')}</Text>
+        <View style={s.codeBox}>
+          <Text style={s.codeText}>LightShow</Text>
+        </View>
+        <View style={s.warningBox}>
+          <Text style={s.warningText}>{t('export.page3Warning1')}</Text>
+        </View>
+        <Text style={s.paragraph}>
+          {t('export.page3FileIntro')}<Text style={s.bold}>{t('export.page3FileIntroBold')}</Text>{t('export.page3FileIntroEnd')}
+        </Text>
+        <View style={s.fileList}>
+          <View style={s.fileItem}>
+            <Text style={s.fileIcon}>🎵</Text>
+            <Text style={s.fileName}>lightshow.mp3</Text>
+          </View>
+          <View style={s.fileItem}>
+            <Text style={s.fileIcon}>�</Text>
+            <Text style={s.fileName}>lightshow.fseq</Text>
+          </View>
+        </View>
+        <View style={s.warningBox}>
+          <Text style={s.warningText}>{t('export.page3Warning2')}</Text>
+        </View>
+        <View style={s.tipBox}>
+          <Text style={s.tipIcon}>💡</Text>
+          <Text style={s.tipText}>
+            {t('export.page3Tip')}<Text style={s.bold}>{t('export.page3TipBold')}</Text>
+          </Text>
+        </View>
+      </View>
+    );
+    // page === 3 (last page)
+    return (
+      <View>
+        <Text style={s.paragraph}>{t('export.page4Intro')}</Text>
+        <View style={s.tipBox}>
+          <Text style={s.tipIcon}>🔌</Text>
+          <Text style={s.tipText}>
+            {t('export.page4Tip')}<Text style={s.bold}>{t('export.page4TipBold1')}</Text>{t('export.page4TipMid')}<Text style={s.bold}>{t('export.page4TipBold2')}</Text>{t('export.page4TipEnd')}
+          </Text>
+        </View>
+        <Text style={s.paragraph}>
+          {t('export.page4Outro')}<Text style={s.bold}>{t('export.page4OutroBold')}</Text>{t('export.page4OutroEnd')}
+        </Text>
+        {/* Export buttons */}
+        <TouchableOpacity
+          style={[s.exportBtn, exporting && s.exportBtnDisabled]}
+          onPress={handleExportFseq}
+          disabled={exporting || exportingMp3}
+        >
+          {exporting ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <>
+              <Text style={s.exportBtnIcon}>📤</Text>
+              <Text style={s.exportBtnText}>{t('export.exportFseq')}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+        {isBuiltinTrack && (
+          <TouchableOpacity
+            style={[s.exportMp3Btn, exportingMp3 && s.exportBtnDisabled]}
+            onPress={handleExportMp3}
+            disabled={exporting || exportingMp3}
+          >
+            {exportingMp3 ? (
+              <ActivityIndicator size="small" color="#44aaff" />
+            ) : (
+              <>
+                <Text style={s.exportBtnIcon}>🎵</Text>
+                <Text style={s.exportMp3BtnText}>{t('export.exportMp3')}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
   return (
     <Modal
       visible={visible}
@@ -171,7 +191,7 @@ export default function ExportModal({ visible, onClose, onExportFseq, onExportMp
         <View style={s.modal}>
           {/* Header */}
           <View style={s.header}>
-            <Text style={s.headerTitle}>{currentPage.title}</Text>
+            <Text style={s.headerTitle}>{pageTitles[page]}</Text>
             <TouchableOpacity style={s.closeBtn} onPress={handleClose}>
               <Text style={s.closeBtnText}>✕</Text>
             </TouchableOpacity>
@@ -179,7 +199,7 @@ export default function ExportModal({ visible, onClose, onExportFseq, onExportMp
 
           {/* Page indicator */}
           <View style={s.pageIndicator}>
-            {PAGES.map((_, i) => (
+            {Array.from({ length: PAGE_COUNT }).map((_, i) => (
               <View
                 key={i}
                 style={[s.pageDot, i === page && s.pageDotActive]}
@@ -193,74 +213,21 @@ export default function ExportModal({ visible, onClose, onExportFseq, onExportMp
             contentContainerStyle={s.scrollContentInner}
             showsVerticalScrollIndicator={true}
           >
-            {isLastPage ? (
-              <View>
-                <Text style={s.paragraph}>
-                  Branche ta clé dans ta Tesla.
-                </Text>
-
-                <View style={s.tipBox}>
-                  <Text style={s.tipIcon}>🔌</Text>
-                  <Text style={s.tipText}>
-                    Utilise le <Text style={s.bold}>port USB principal</Text> et non un port USB dédié à la recharge.{'\n\n'}
-                    La plupart du temps, sur les modèles d'après 2021, le port USB data se trouve dans la <Text style={s.bold}>boîte à gants</Text>.
-                  </Text>
-                </View>
-
-                <Text style={s.paragraph}>
-                  Va dans <Text style={s.bold}>LightShow</Text> : tu verras directement sélectionné "lightshow" comme show à lancer. C'est que tout est bon !
-                </Text>
-
-                {/* Export buttons */}
-                <TouchableOpacity
-                  style={[s.exportBtn, exporting && s.exportBtnDisabled]}
-                  onPress={handleExportFseq}
-                  disabled={exporting || exportingMp3}
-                >
-                  {exporting ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <>
-                      <Text style={s.exportBtnIcon}>📤</Text>
-                      <Text style={s.exportBtnText}>Exporter le .fseq</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                {isBuiltinTrack && (
-                  <TouchableOpacity
-                    style={[s.exportMp3Btn, exportingMp3 && s.exportBtnDisabled]}
-                    onPress={handleExportMp3}
-                    disabled={exporting || exportingMp3}
-                  >
-                    {exportingMp3 ? (
-                      <ActivityIndicator size="small" color="#44aaff" />
-                    ) : (
-                      <>
-                        <Text style={s.exportBtnIcon}>🎵</Text>
-                        <Text style={s.exportMp3BtnText}>Exporter le MP3</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : (
-              currentPage.content()
-            )}
+            {renderPage()}
           </ScrollView>
 
           {/* Navigation */}
           <View style={s.nav}>
             {page > 0 ? (
               <TouchableOpacity style={s.navBtn} onPress={() => setPage(page - 1)}>
-                <Text style={s.navBtnText}>← Précédent</Text>
+                <Text style={s.navBtnText}>{t('export.previous')}</Text>
               </TouchableOpacity>
             ) : (
               <View />
             )}
             {!isLastPage && (
               <TouchableOpacity style={s.navBtnNext} onPress={() => setPage(page + 1)}>
-                <Text style={s.navBtnNextText}>Suivant →</Text>
+                <Text style={s.navBtnNextText}>{t('export.next')}</Text>
               </TouchableOpacity>
             )}
           </View>

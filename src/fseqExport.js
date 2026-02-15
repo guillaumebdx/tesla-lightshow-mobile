@@ -163,7 +163,7 @@ function buildHeader(frameCount) {
  */
 export async function exportFseq(events, durationMs) {
   if (!durationMs || durationMs <= 0) {
-    throw new Error('Aucune piste audio chargée');
+    throw new Error('No audio track loaded');
   }
 
   const { data, frameCount } = compileFrameData(events, durationMs);
@@ -187,7 +187,7 @@ export async function exportFseq(events, durationMs) {
   // Share/download
   await shareAsync(filePath, {
     mimeType: 'application/octet-stream',
-    dialogTitle: 'Exporter le Light Show',
+    dialogTitle: 'Export Light Show',
     UTI: 'public.data',
   });
 

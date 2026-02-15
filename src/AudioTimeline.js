@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { MP3_TRACKS } from '../assets/mp3/index';
 import { PART_ICONS, PART_COLORS, EFFECT_TYPES, isAnimatable } from './constants';
 import { pickAndImportAudio, loadCachedWaveform } from './audioPicker';
+import { useTranslation } from 'react-i18next';
 
 const LONG_PRESS_MS = 350;
 const SELECT_MS = 300;
@@ -137,6 +138,7 @@ function formatTime(ms) {
 }
 
 function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, isLoadingShow = false }, ref) {
+  const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [waveform, setWaveform] = useState([]);
@@ -200,14 +202,14 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
     // Load an imported track by URI + cached waveform (for saved shows)
     loadImportedTrack: async (trackUri, trackTitle) => {
       const waveform = await loadCachedWaveform(trackUri);
-      const track = {
+      const imported = {
         id: trackUri,
         title: trackTitle || 'Import',
-        artist: 'Fichier importé',
+        artist: t('timeline.importedFile'),
         uri: trackUri,
         waveform: waveform || { bars: [] },
       };
-      selectTrack(track, { keepEvents: true });
+      selectTrack(imported, { keepEvents: true });
     },
     // Get the current track info for saving
     getTrackId: () => selectedTrack?.id || null,
@@ -477,7 +479,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
         <View style={styles.container}>
           <View style={styles.loadingTrackContainer}>
             <ActivityIndicator size="small" color="#44aaff" />
-            <Text style={styles.loadingTrackText}>Chargement de la musique...</Text>
+            <Text style={styles.loadingTrackText}>{t('timeline.loadingMusic')}</Text>
           </View>
         </View>
       );
@@ -489,7 +491,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
           onPress={() => setModalVisible(true)}
         >
           <Text style={styles.chooseTrackIcon}>🎵</Text>
-          <Text style={styles.chooseTrackText}>Choisir une musique</Text>
+          <Text style={styles.chooseTrackText}>{t('timeline.chooseMusic')}</Text>
         </TouchableOpacity>
         <TrackModal
           visible={modalVisible}
@@ -655,7 +657,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
       {/* Events count */}
       {events.length > 0 && (
         <Text style={styles.markerCount}>
-          {events.length} événement{events.length > 1 ? 's' : ''} placé{events.length > 1 ? 's' : ''}
+          {events.length > 1 ? t('timeline.eventsPlaced', { count: events.length }) : t('timeline.eventPlaced', { count: events.length })}
         </Text>
       )}
 
@@ -702,6 +704,8 @@ function WaveformLoader({ status }) {
     return () => barsAnim.forEach(a => a.stopAnimation());
   }, []);
 
+  const { t } = useTranslation();
+
   return (
     <View style={loaderStyles.container}>
       <View style={loaderStyles.barsRow}>
@@ -729,8 +733,8 @@ function WaveformLoader({ status }) {
           );
         })}
       </View>
-      <Text style={loaderStyles.statusText}>{status || 'Analyse audio...'}</Text>
-      <Text style={loaderStyles.statusHint}>Cela peut prendre 2 minutes{'\n'}Ne quittez pas l'application</Text>
+      <Text style={loaderStyles.statusText}>{status || t('timeline.audioAnalysis')}</Text>
+      <Text style={loaderStyles.statusHint}>{t('timeline.loadingHint')}</Text>
     </View>
   );
 }
@@ -764,6 +768,7 @@ const loaderStyles = StyleSheet.create({
 });
 
 function TrackModal({ visible, onClose, onSelect }) {
+  const { t } = useTranslation();
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState('');
   const [previewId, setPreviewId] = useState(null);
@@ -821,7 +826,7 @@ function TrackModal({ visible, onClose, onSelect }) {
         const track = {
           id: result.uri,
           title: result.name,
-          artist: 'Fichier importé',
+          artist: t('timeline.importedFile'),
           uri: result.uri,
           waveform: result.waveform,
         };
@@ -829,7 +834,7 @@ function TrackModal({ visible, onClose, onSelect }) {
       }
     } catch (e) {
       console.error('Import error:', e);
-      alert('Erreur import: ' + e.message);
+      alert(t('timeline.importError') + e.message);
     } finally {
       setImporting(false);
       setImportStatus('');
@@ -845,7 +850,7 @@ function TrackModal({ visible, onClose, onSelect }) {
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Choisir une musique</Text>
+          <Text style={styles.modalTitle}>{t('timeline.chooseTrack')}</Text>
 
           {/* Import button on top */}
           {importing ? (
@@ -855,14 +860,14 @@ function TrackModal({ visible, onClose, onSelect }) {
               style={styles.importButton}
               onPress={handleImport}
             >
-              <Text style={styles.importButtonText}>📂  Importer un MP3</Text>
+              <Text style={styles.importButtonText}>{t('timeline.importMp3')}</Text>
             </TouchableOpacity>
           )}
 
           {/* Separator */}
           <View style={styles.modalSeparator}>
             <View style={styles.modalSeparatorLine} />
-            <Text style={styles.modalSeparatorText}>ou choisir parmi</Text>
+            <Text style={styles.modalSeparatorText}>{t('timeline.orChooseFrom')}</Text>
             <View style={styles.modalSeparatorLine} />
           </View>
 
@@ -905,7 +910,7 @@ function TrackModal({ visible, onClose, onSelect }) {
 
           {!importing && (
             <TouchableOpacity style={styles.modalClose} onPress={handleClose}>
-              <Text style={styles.modalCloseText}>Annuler</Text>
+              <Text style={styles.modalCloseText}>{t('timeline.cancel')}</Text>
             </TouchableOpacity>
           )}
         </View>

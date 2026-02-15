@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, Dimensions, ScrollView,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import * as THREE from 'three';
@@ -21,6 +22,7 @@ const CAR_MODELS = [
 ];
 
 export default function NewShowScreen({ onBack, onCreated }) {
+  const { t } = useTranslation();
   const [selectedIndex, setSelectedIndex] = useState(1); // Model 3
   const [showName, setShowName] = useState('');
   const scrollRef = useRef(null);
@@ -198,26 +200,26 @@ export default function NewShowScreen({ onBack, onCreated }) {
     <View style={styles.container}>
       {/* Back button */}
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backText}>← Retour</Text>
+        <Text style={styles.backText}>{t('newShow.back')}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>Nouveau Light Show</Text>
+      <Text style={styles.title}>{t('newShow.title')}</Text>
 
       {/* Name input */}
       <View style={styles.nameRow}>
-        <Text style={styles.nameLabel}>Nom</Text>
+        <Text style={styles.nameLabel}>{t('newShow.name')}</Text>
         <TextInput
           style={styles.nameInput}
           value={showName}
           onChangeText={setShowName}
-          placeholder="Mon Light Show"
+          placeholder={t('newShow.namePlaceholder')}
           placeholderTextColor="#444466"
           selectTextOnFocus
         />
       </View>
 
       {/* Car model carousel */}
-      <Text style={styles.sectionLabel}>Modèle</Text>
+      <Text style={styles.sectionLabel}>{t('newShow.model')}</Text>
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -249,16 +251,16 @@ export default function NewShowScreen({ onBack, onCreated }) {
               </View>
             ) : (
               <View style={styles.previewContainer}>
-                <Text style={styles.comingSoon}>Bientôt disponible</Text>
+                <Text style={styles.comingSoon}>{t('newShow.comingSoon')}</Text>
               </View>
             )}
             {idx === MODEL_3_INDEX && (
               <View style={styles.modelInfoBox}>
                 <Text style={styles.modelInfoText}>
-                  Compatible avec toutes les générations de Model 3.
+                  {t('newShow.model3Compat')}
                 </Text>
                 <Text style={styles.modelInfoHint}>
-                  En attendant le support du Model Y, vous pouvez utiliser ce modèle : les éléments et lumières sont sensiblement identiques.
+                  {t('newShow.model3Hint')}
                 </Text>
               </View>
             )}
@@ -273,7 +275,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
         disabled={!selectedModel.available}
       >
         <Text style={styles.createButtonText}>
-          {selectedModel.available ? 'Créer' : 'Non disponible'}
+          {selectedModel.available ? t('newShow.create') : t('newShow.unavailable')}
         </Text>
       </TouchableOpacity>
     </View>

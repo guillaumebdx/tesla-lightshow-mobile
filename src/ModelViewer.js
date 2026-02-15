@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text, TextInput, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import * as THREE from 'three';
@@ -21,6 +22,7 @@ import { loadShow, saveShow } from './storage';
 import ExportModal from './ExportModal';
 
 export default function ModelViewer({ showId, onGoHome }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
@@ -598,7 +600,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       setLoading(false);
     } catch (e) {
       console.error('Error loading model:', e);
-      setError('Impossible de charger le modèle 3D: ' + e.message);
+      setError('Failed to load 3D model: ' + e.message);
       setLoading(false);
     }
 
@@ -894,7 +896,7 @@ export default function ModelViewer({ showId, onGoHome }) {
             {selectedPart && (
               <View style={styles.selectionBadge}>
                 <Text style={styles.selectionText}>
-                  {PART_LABELS[selectedPart] || selectedPart}
+                  {t(`parts.${selectedPart}`, { defaultValue: PART_LABELS[selectedPart] || selectedPart })}
                 </Text>
               </View>
             )}
@@ -911,7 +913,7 @@ export default function ModelViewer({ showId, onGoHome }) {
             {loading && (
               <View style={styles.loadingOverlay}>
                 <ActivityIndicator size="large" color="#e94560" />
-                <Text style={styles.loadingText}>Chargement du modèle...</Text>
+                <Text style={styles.loadingText}>{t('editor.loadingModel')}</Text>
               </View>
             )}
 
@@ -1028,7 +1030,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               }}
             >
               <Text style={styles.menuItemIcon}>🏠</Text>
-              <Text style={styles.menuItemText}>Home</Text>
+              <Text style={styles.menuItemText}>{t('editor.home')}</Text>
             </TouchableOpacity>
 
             <View style={styles.menuDivider} />
@@ -1041,7 +1043,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               }}
             >
               <Text style={styles.menuItemIcon}>⚙</Text>
-              <Text style={styles.menuItemText}>Paramètres avancés</Text>
+              <Text style={styles.menuItemText}>{t('editor.advancedSettings')}</Text>
             </TouchableOpacity>
 
             <View style={styles.menuDivider} />
@@ -1050,12 +1052,12 @@ export default function ModelViewer({ showId, onGoHome }) {
               style={styles.menuItem}
               onPress={() => {
                 Alert.alert(
-                  'RAZ événements',
-                  'Supprimer tous les événements de la timeline ?',
+                  t('editor.resetEvents'),
+                  t('editor.resetEventsConfirm'),
                   [
-                    { text: 'Annuler', style: 'cancel' },
+                    { text: t('editor.cancel'), style: 'cancel' },
                     {
-                      text: 'Supprimer',
+                      text: t('editor.delete'),
                       style: 'destructive',
                       onPress: () => {
                         setMenuVisible(false);
@@ -1070,7 +1072,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               }}
             >
               <Text style={styles.menuItemIcon}>🗑</Text>
-              <Text style={styles.menuItemText}>RAZ événements</Text>
+              <Text style={styles.menuItemText}>{t('editor.resetEvents')}</Text>
             </TouchableOpacity>
 
             <View style={styles.menuDivider} />
@@ -1083,7 +1085,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               }}
             >
               <Text style={styles.menuItemIcon}>📤</Text>
-              <Text style={styles.menuItemText}>Exporter</Text>
+              <Text style={styles.menuItemText}>{t('editor.export')}</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -1099,11 +1101,11 @@ export default function ModelViewer({ showId, onGoHome }) {
         <Pressable style={styles.settingsOverlay} onPress={() => setSettingsVisible(false)}>
           <View style={styles.settingsPanel} onStartShouldSetResponder={() => true}>
             <View style={styles.settingsHandle} />
-            <Text style={styles.settingsTitle}>Paramètres avancés</Text>
+            <Text style={styles.settingsTitle}>{t('editor.advancedSettings')}</Text>
 
             {/* Renommer le projet */}
             <View style={styles.settingsSection}>
-              <Text style={styles.settingsSectionTitle}>✏️  Nom du projet</Text>
+              <Text style={styles.settingsSectionTitle}>{t('editor.projectName')}</Text>
               <TextInput
                 style={styles.renameInput}
                 value={showName}
@@ -1114,7 +1116,7 @@ export default function ModelViewer({ showId, onGoHome }) {
                     scheduleSave();
                   }
                 }}
-                placeholder="Nom du projet"
+                placeholder={t('editor.projectNamePlaceholder')}
                 placeholderTextColor="#555577"
                 maxLength={40}
               />
@@ -1122,7 +1124,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
             {/* Couleur carrosserie */}
             <View style={styles.settingsSection}>
-              <Text style={styles.settingsSectionTitle}>🎨  Couleur carrosserie</Text>
+              <Text style={styles.settingsSectionTitle}>{t('editor.bodyColor')}</Text>
               <View style={styles.menuColorRow}>
                 {BODY_COLORS.map((c) => (
                   <TouchableOpacity
@@ -1140,7 +1142,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
             {/* Offset curseur */}
             <View style={styles.settingsSection}>
-              <Text style={styles.settingsSectionTitle}>⏱  Offset curseur</Text>
+              <Text style={styles.settingsSectionTitle}>{t('editor.cursorOffset')}</Text>
               <View style={styles.offsetRow}>
                 <TouchableOpacity
                   style={styles.offsetBtn}
@@ -1181,7 +1183,7 @@ export default function ModelViewer({ showId, onGoHome }) {
             console.log(`Export OK: ${result.frameCount} frames, ${result.fileSize} bytes`);
           } catch (e) {
             console.error('Export error:', e);
-            alert('Erreur export: ' + e.message);
+            alert(t('editor.exportError') + e.message);
           }
         }}
         onExportMp3={async () => {
@@ -1189,15 +1191,15 @@ export default function ModelViewer({ showId, onGoHome }) {
             const trackInfo = audioTimelineRef.current?.getTrackInfo();
             if (!trackInfo?.isBuiltin) return;
             const track = MP3_TRACKS.find((t) => t.id === trackInfo.id);
-            if (!track) throw new Error('Track introuvable');
+            if (!track) throw new Error(t('editor.trackNotFound'));
             const asset = Asset.fromModule(track.file);
             await asset.downloadAsync();
             const destUri = FileSystem.documentDirectory + 'lightshow.mp3';
             await FileSystem.copyAsync({ from: asset.localUri, to: destUri });
-            await Sharing.shareAsync(destUri, { mimeType: 'audio/mpeg', dialogTitle: 'Exporter lightshow.mp3' });
+            await Sharing.shareAsync(destUri, { mimeType: 'audio/mpeg', dialogTitle: 'Export lightshow.mp3' });
           } catch (e) {
             console.error('MP3 export error:', e);
-            alert('Erreur export MP3: ' + e.message);
+            alert(t('editor.mp3ExportError') + e.message);
           }
         }}
       />

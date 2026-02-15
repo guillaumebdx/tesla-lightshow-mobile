@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Switch, TouchableOpacity, TextInput, Modal, Pressable } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Slider from '@react-native-community/slider';
 import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, isLight, isRetro, isWindow } from './constants';
 
 export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent, onDeleteEvent }) {
+  const { t } = useTranslation();
   const [durationInput, setDurationInput] = useState(null); // { field, value }
 
   const openDurationInput = (field, currentMs) => {
@@ -26,13 +28,13 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
   if (!selectedPart) {
     return (
       <View style={styles.container}>
-        <Text style={styles.hint}>Sélectionne une pièce sur la Tesla</Text>
+        <Text style={styles.hint}>{t('parts.selectHint')}</Text>
       </View>
     );
   }
 
   const icon = PART_ICONS[selectedPart];
-  const label = PART_LABELS[selectedPart] || selectedPart;
+  const label = t(`parts.${selectedPart}`, { defaultValue: PART_LABELS[selectedPart] || selectedPart });
   const lightPart = isLight(selectedPart);
   const retroPart = isRetro(selectedPart);
   const windowPart = isWindow(selectedPart);
@@ -47,7 +49,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>{label}</Text>
             {editingEvent && (
-              <Text style={styles.editingHint}>Modification de l'événement</Text>
+              <Text style={styles.editingHint}>{t('parts.editingEvent')}</Text>
             )}
           </View>
           {editingEvent && (
@@ -61,7 +63,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
           <View style={styles.optionsSection}>
             {/* Duration slider */}
             <View style={styles.optionRow}>
-              <Text style={styles.optionLabel}>Durée</Text>
+              <Text style={styles.optionLabel}>{t('parts.duration')}</Text>
               <TouchableOpacity onPress={() => openDurationInput('durationMs', eventOptions.durationMs)}>
                 <Text style={styles.optionValueTappable}>{(eventOptions.durationMs / 1000).toFixed(1)}s</Text>
               </TouchableOpacity>
@@ -80,7 +82,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
 
             {/* Power slider */}
             <View style={styles.optionRow}>
-              <Text style={styles.optionLabel}>Puissance</Text>
+              <Text style={styles.optionLabel}>{t('parts.power')}</Text>
               <Text style={styles.optionValue}>{eventOptions.power}%</Text>
             </View>
             <Slider
@@ -98,7 +100,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
             {/* Ease in / Ease out */}
             <View style={styles.easeRow}>
               <View style={styles.easeItem}>
-                <Text style={styles.optionLabel}>Ease in</Text>
+                <Text style={styles.optionLabel}>{t('parts.easeIn')}</Text>
                 <Switch
                   value={!!eventOptions.easeIn}
                   onValueChange={(val) => onOptionsChange({ ...eventOptions, easeIn: val })}
@@ -107,7 +109,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
                 />
               </View>
               <View style={styles.easeItem}>
-                <Text style={styles.optionLabel}>Ease out</Text>
+                <Text style={styles.optionLabel}>{t('parts.easeOut')}</Text>
                 <Switch
                   value={!!eventOptions.easeOut}
                   onValueChange={(val) => onOptionsChange({ ...eventOptions, easeOut: val })}
@@ -119,7 +121,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
 
             {/* Blink toggle + speed on same line */}
             <View style={styles.blinkRow}>
-              <Text style={styles.optionLabel}>Clignotement</Text>
+              <Text style={styles.optionLabel}>{t('parts.blink')}</Text>
               <View style={styles.blinkControls}>
                 {isBlink && (
                   <View style={styles.speedButtons}>
@@ -156,10 +158,10 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
 
         {retroPart && (
           <View style={styles.optionsSection}>
-            <Text style={styles.optionLabel}>Animation</Text>
+            <Text style={styles.optionLabel}>{t('parts.animation')}</Text>
             <View style={styles.retroModeRow}>
               <View style={styles.retroModeItem}>
-                <Text style={styles.retroModeLabel}>Fermer</Text>
+                <Text style={styles.retroModeLabel}>{t('parts.retroClose')}</Text>
                 <Switch
                   value={eventOptions.retroMode === RETRO_MODES.CLOSE}
                   onValueChange={() => onOptionsChange({ ...eventOptions, retroMode: RETRO_MODES.CLOSE, durationMs: RETRO_DURATIONS[RETRO_MODES.CLOSE] })}
@@ -168,7 +170,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
                 />
               </View>
               <View style={styles.retroModeItem}>
-                <Text style={styles.retroModeLabel}>Ouvrir</Text>
+                <Text style={styles.retroModeLabel}>{t('parts.retroOpen')}</Text>
                 <Switch
                   value={eventOptions.retroMode === RETRO_MODES.OPEN}
                   onValueChange={() => onOptionsChange({ ...eventOptions, retroMode: RETRO_MODES.OPEN, durationMs: RETRO_DURATIONS[RETRO_MODES.OPEN] })}
@@ -177,7 +179,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
                 />
               </View>
               <View style={styles.retroModeItem}>
-                <Text style={styles.retroModeLabel}>Aller-retour</Text>
+                <Text style={styles.retroModeLabel}>{t('parts.retroRoundTrip')}</Text>
                 <Switch
                   value={eventOptions.retroMode === RETRO_MODES.ROUND_TRIP}
                   onValueChange={() => onOptionsChange({ ...eventOptions, retroMode: RETRO_MODES.ROUND_TRIP, durationMs: RETRO_DURATIONS[RETRO_MODES.ROUND_TRIP] })}
@@ -191,11 +193,11 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
 
         {windowPart && (
           <View style={styles.optionsSection}>
-            <Text style={styles.optionLabel}>🪟  Dance (oscillation)</Text>
-            <Text style={styles.windowHint}>La vitre oscille haut/bas automatiquement</Text>
+            <Text style={styles.optionLabel}>{t('parts.windowDance')}</Text>
+            <Text style={styles.windowHint}>{t('parts.windowHint')}</Text>
 
             <View style={[styles.optionRow, { marginTop: 10 }]}>
-              <Text style={styles.optionLabel}>Durée</Text>
+              <Text style={styles.optionLabel}>{t('parts.duration')}</Text>
               <TouchableOpacity onPress={() => openDurationInput('windowDurationMs', eventOptions.windowDurationMs)}>
                 <Text style={styles.optionValueTappable}>{(eventOptions.windowDurationMs / 1000).toFixed(1)}s</Text>
               </TouchableOpacity>
@@ -211,13 +213,13 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
               maximumTrackTintColor="#2a2a4a"
               thumbTintColor="#44aaff"
             />
-            <Text style={styles.windowWarning}>⚠️ Max recommandé : 30s (limite thermique Tesla)</Text>
+            <Text style={styles.windowWarning}>{t('parts.windowWarning')}</Text>
           </View>
         )}
 
         {editingEvent && (
           <TouchableOpacity style={styles.deleteButton} onPress={onDeleteEvent}>
-            <Text style={styles.deleteButtonText}>🗑  Supprimer l'événement</Text>
+            <Text style={styles.deleteButtonText}>{t('parts.deleteEvent')}</Text>
           </TouchableOpacity>
         )}
 
@@ -225,11 +227,11 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
         <Modal visible={!!durationInput} transparent animationType="fade">
           <Pressable style={styles.durationOverlay} onPress={() => setDurationInput(null)}>
             <View style={styles.durationModal}>
-              <Text style={styles.durationModalTitle}>Durée (secondes)</Text>
+              <Text style={styles.durationModalTitle}>{t('parts.durationSeconds')}</Text>
               <TextInput
                 style={styles.durationTextInput}
                 value={durationInput?.value || ''}
-                onChangeText={(t) => setDurationInput((prev) => prev ? { ...prev, value: t } : null)}
+                onChangeText={(val) => setDurationInput((prev) => prev ? { ...prev, value: val } : null)}
                 keyboardType="decimal-pad"
                 autoFocus
                 selectTextOnFocus

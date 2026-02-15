@@ -36,7 +36,7 @@ export async function pickAndImportAudio(onProgress) {
   const asset = result.assets[0];
   const fileName = asset.name || `import_${Date.now()}.mp3`;
 
-  if (onProgress) onProgress('Copie du fichier...');
+  if (onProgress) onProgress('Copying file...');
 
   // Copy to persistent app storage
   await ensureAudioDir();
@@ -48,7 +48,7 @@ export async function pickAndImportAudio(onProgress) {
     await FileSystem.copyAsync({ from: asset.uri, to: destUri });
   }
 
-  if (onProgress) onProgress('Analyse audio...');
+  if (onProgress) onProgress('Audio analysis...');
 
   // Wait 600ms so the loader animation has time to render and build up
   // before the synchronous MP3 decode blocks the JS thread

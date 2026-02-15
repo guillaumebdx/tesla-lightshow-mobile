@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, Dimensions,
   Modal, Pressable, Linking, ScrollView,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { setAppLanguage } from './i18n';
 import { listShows, deleteShow, duplicateShow } from './storage';
 import { MP3_TRACKS } from '../assets/mp3/index';
 
@@ -31,7 +33,7 @@ function getTrackName(item) {
     if (track) return track.title;
   }
   if (item.trackTitle) return item.trackTitle;
-  return 'Aucune musique';
+  return null;
 }
 
 const CAR_MODEL_LABELS = {
@@ -45,7 +47,8 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
   const [loading, setLoading] = useState(true);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
-  const [selectedLang, setSelectedLang] = useState('fr');
+  const { t, i18n } = useTranslation();
+  const [selectedLang, setSelectedLang] = useState(i18n.language);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -60,12 +63,12 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
 
   const handleDelete = (show) => {
     Alert.alert(
-      'Supprimer',
-      `Supprimer "${show.name}" ?`,
+      t('home.delete'),
+      t('home.deleteConfirm', { name: show.name }),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('home.cancel'), style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: t('home.delete'),
           style: 'destructive',
           onPress: async () => {
             await deleteShow(show.id);
@@ -81,7 +84,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
       await duplicateShow(show.id);
       refresh();
     } catch (e) {
-      Alert.alert('Erreur', e.message);
+      Alert.alert(t('home.error'), e.message);
     }
   };
 
@@ -94,10 +97,10 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
           item.name,
           null,
           [
-            { text: 'Ouvrir', onPress: () => onOpenShow(item.id) },
-            { text: 'Dupliquer', onPress: () => handleDuplicate(item) },
-            { text: 'Supprimer', style: 'destructive', onPress: () => handleDelete(item) },
-            { text: 'Annuler', style: 'cancel' },
+            { text: t('home.open'), onPress: () => onOpenShow(item.id) },
+            { text: t('home.duplicate'), onPress: () => handleDuplicate(item) },
+            { text: t('home.delete'), style: 'destructive', onPress: () => handleDelete(item) },
+            { text: t('home.cancel'), style: 'cancel' },
           ],
         );
       }}
@@ -107,8 +110,8 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
         <Text style={styles.cardModel}>{CAR_MODEL_LABELS[item.carModel] || item.carModel}</Text>
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.cardTrack}>🎵  {getTrackName(item)}</Text>
-        <Text style={styles.cardEvents}>{item.eventCount || 0} événement{(item.eventCount || 0) > 1 ? 's' : ''}</Text>
+        <Text style={styles.cardTrack}>🎵  {getTrackName(item) || t('home.noMusic')}</Text>
+        <Text style={styles.cardEvents}>{item.eventCount || 0} {(item.eventCount || 0) > 1 ? t('home.events') : t('home.event')}</Text>
       </View>
       <Text style={styles.cardDate}>{formatDate(item.updatedAt)}</Text>
     </TouchableOpacity>
@@ -118,8 +121,8 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.title}>Light Studio</Text>
-          <Text style={styles.subtitle}>for Tesla</Text>
+          <Text style={styles.title}>{t('app.title')}</Text>
+          <Text style={styles.subtitle}>{t('app.subtitle')}</Text>
         </View>
         <TouchableOpacity style={styles.settingsBtn} onPress={() => setSettingsVisible(true)}>
           <Text style={styles.settingsBtnIcon}>⚙️</Text>
@@ -127,13 +130,13 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
       </View>
 
       <TouchableOpacity style={styles.newButton} onPress={onNewShow}>
-        <Text style={styles.newButtonText}>+  Nouveau Light Show</Text>
+        <Text style={styles.newButtonText}>{t('home.newShow')}</Text>
       </TouchableOpacity>
 
       {shows.length === 0 && !loading ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Aucun Light Show</Text>
-          <Text style={styles.emptyHint}>Créez votre premier show !</Text>
+          <Text style={styles.emptyText}>{t('home.noShows')}</Text>
+          <Text style={styles.emptyHint}>{t('home.noShowsHint')}</Text>
         </View>
       ) : (
         <FlatList
@@ -150,7 +153,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
         <Pressable style={styles.modalOverlay} onPress={() => setSettingsVisible(false)}>
           <Pressable style={styles.settingsModal} onPress={(e) => e.stopPropagation()}>
             <View style={styles.settingsHeader}>
-              <Text style={styles.settingsTitle}>Paramètres</Text>
+              <Text style={styles.settingsTitle}>{t('settings.title')}</Text>
               <TouchableOpacity style={styles.closeBtn} onPress={() => setSettingsVisible(false)}>
                 <Text style={styles.closeBtnText}>✕</Text>
               </TouchableOpacity>
@@ -160,19 +163,19 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
               {/* About */}
               <TouchableOpacity style={styles.settingsItem} onPress={() => setAboutVisible(true)}>
                 <Text style={styles.settingsItemIcon}>ℹ️</Text>
-                <Text style={styles.settingsItemText}>À propos de Light Studio</Text>
+                <Text style={styles.settingsItemText}>{t('settings.about')}</Text>
                 <Text style={styles.settingsItemArrow}>›</Text>
               </TouchableOpacity>
 
               {/* Languages */}
               <View style={styles.settingsSection}>
-                <Text style={styles.settingsSectionTitle}>Langue</Text>
+                <Text style={styles.settingsSectionTitle}>{t('settings.language')}</Text>
                 <View style={styles.langRow}>
                   {LANGUAGES.map((lang) => (
                     <TouchableOpacity
                       key={lang.code}
                       style={[styles.langBtn, selectedLang === lang.code && styles.langBtnActive]}
-                      onPress={() => setSelectedLang(lang.code)}
+                      onPress={() => { setSelectedLang(lang.code); setAppLanguage(lang.code); }}
                     >
                       <Text style={styles.langFlag}>{lang.flag}</Text>
                       <Text style={[styles.langLabel, selectedLang === lang.code && styles.langLabelActive]}>{lang.label}</Text>
@@ -189,13 +192,13 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
       <Modal visible={aboutVisible} transparent animationType="fade" onRequestClose={() => setAboutVisible(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setAboutVisible(false)}>
           <Pressable style={styles.aboutModal} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.aboutTitle}>À propos de Light Studio</Text>
+            <Text style={styles.aboutTitle}>{t('settings.about')}</Text>
             <Text style={styles.aboutText}>
-              Cette app a été entièrement conçue et construite par{' '}
+              {t('settings.aboutText1')}{' '}
               <Text style={styles.aboutBold}>Guillaume HARARI</Text>.
             </Text>
             <Text style={styles.aboutText}>
-              Elle est en constante amélioration. N'hésitez pas à faire part de vos demandes d'améliorations !
+              {t('settings.aboutText2')}
             </Text>
             <TouchableOpacity
               style={styles.aboutMailBtn}
@@ -205,7 +208,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
               <Text style={styles.aboutMailText}>guillaumeharari@hotmail.com</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.aboutCloseBtn} onPress={() => setAboutVisible(false)}>
-              <Text style={styles.aboutCloseBtnText}>Fermer</Text>
+              <Text style={styles.aboutCloseBtnText}>{t('settings.close')}</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>

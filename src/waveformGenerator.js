@@ -46,7 +46,7 @@ export async function generateWaveform(fileUri) {
   const pcmBuffer = decoder.decode();
 
   if (!pcmBuffer || pcmBuffer.byteLength === 0) {
-    throw new Error('Impossible de décoder le MP3');
+    throw new Error('Failed to decode MP3');
   }
 
   await yieldToUI();
