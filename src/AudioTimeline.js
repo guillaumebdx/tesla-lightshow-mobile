@@ -137,7 +137,7 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, isLoadingShow = false }, ref) {
+function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbackSpeed = 1, timelineScale = 1, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, isLoadingShow = false }, ref) {
   const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
@@ -324,11 +324,19 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
       setIsPlaying(false);
       if (onPlayingChange) onPlayingChange(false);
     } else {
+      await soundRef.current.setRateAsync(playbackSpeed, true);
       await soundRef.current.playAsync();
       setIsPlaying(true);
       if (onPlayingChange) onPlayingChange(true);
     }
   };
+
+  // Update playback rate when speed changes during playback
+  useEffect(() => {
+    if (isPlaying && soundRef.current) {
+      soundRef.current.setRateAsync(playbackSpeed, true);
+    }
+  }, [playbackSpeed, isPlaying]);
 
   const handleStop = async () => {
     if (soundRef.current) {
@@ -388,7 +396,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, selecte
   // Compute max overlapping lanes for dynamic height
   let maxLanes = 1;
   eventLanes.forEach((info) => { if (info.totalLanes > maxLanes) maxLanes = info.totalLanes; });
-  const BASE_HEIGHT = 80;
+  const BASE_HEIGHT = 80 * timelineScale;
   const timelineHeight = Math.min(BASE_HEIGHT * 1.5, BASE_HEIGHT * (maxLanes > 1 ? 1 + (maxLanes - 1) * 0.25 : 1));
 
   const isPlacementMode = selectedPart && isAnimatable(selectedPart);

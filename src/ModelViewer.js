@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TextInput, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TextInput, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
@@ -44,6 +44,18 @@ export default function ModelViewer({ showId, onGoHome }) {
   }, []);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showName, setShowName] = useState('');
+  const [playbackSpeed, _setPlaybackSpeed] = useState(1);
+  const playbackSpeedRef = useRef(1);
+  const setPlaybackSpeed = useCallback((v) => { _setPlaybackSpeed(v); playbackSpeedRef.current = v; }, []);
+  const [timelineScale, _setTimelineScale] = useState(1);
+  const timelineScaleRef = useRef(1);
+  const setTimelineScale = useCallback((valOrFn) => {
+    _setTimelineScale((prev) => {
+      const next = typeof valOrFn === 'function' ? valOrFn(prev) : valOrFn;
+      timelineScaleRef.current = next;
+      return next;
+    });
+  }, []);
   const audioTimelineRef = useRef(null);
   const showDataRef = useRef(null);
   const saveTimerRef = useRef(null);
@@ -64,6 +76,8 @@ export default function ModelViewer({ showId, onGoHome }) {
         isBuiltinTrack: trackInfo?.isBuiltin ?? true,
         cursorOffsetMs: cursorOffsetMsRef.current,
         bodyColor: activeColorRef.current,
+        playbackSpeed: playbackSpeedRef.current,
+        timelineScale: timelineScaleRef.current,
       };
       await saveShow(data);
       showDataRef.current = data;
@@ -86,6 +100,8 @@ export default function ModelViewer({ showId, onGoHome }) {
         }
       }
       if (data.cursorOffsetMs) setCursorOffsetMs(data.cursorOffsetMs);
+      if (data.playbackSpeed) setPlaybackSpeed(data.playbackSpeed);
+      if (data.timelineScale) setTimelineScale(data.timelineScale);
       // Wait for AudioTimeline to be ready, then load track + events
       const waitForTimeline = setInterval(() => {
         if (audioTimelineRef.current) {
@@ -343,7 +359,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
     // Materials
     const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: 0x222222,
+      color: activeColorRef.current || 0x222222,
       metalness: 0.9,
       roughness: 0.15,
     });
@@ -938,6 +954,12 @@ export default function ModelViewer({ showId, onGoHome }) {
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
+
+            {playbackSpeed !== 1 && (
+              <TouchableOpacity style={styles.speedBadge} onPress={() => setSettingsVisible(true)}>
+                <Text style={styles.speedBadgeText}>{playbackSpeed}x</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </GestureDetector>
       </View>
@@ -951,6 +973,8 @@ export default function ModelViewer({ showId, onGoHome }) {
             selectedPart={selectedPart}
             eventOptions={eventOptions}
             cursorOffsetMs={cursorOffsetMs}
+            playbackSpeed={playbackSpeed}
+            timelineScale={timelineScale}
             isLoadingShow={isLoadingShow}
             selectedEventId={selectedEvent?.id || null}
             onEventsChange={(evts) => { eventsRef.current = evts; scheduleSave(); }}
@@ -1114,77 +1138,132 @@ export default function ModelViewer({ showId, onGoHome }) {
         animationType="slide"
         onRequestClose={() => setSettingsVisible(false)}
       >
-        <Pressable style={styles.settingsOverlay} onPress={() => setSettingsVisible(false)}>
-          <View style={styles.settingsPanel} onStartShouldSetResponder={() => true}>
-            <View style={styles.settingsHandle} />
-            <Text style={styles.settingsTitle}>{t('editor.advancedSettings')}</Text>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={styles.settingsOverlay} onPress={() => setSettingsVisible(false)}>
+            <ScrollView
+              style={styles.settingsPanel}
+              onStartShouldSetResponder={() => true}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.settingsHandle} />
+              <Text style={styles.settingsTitle}>{t('editor.advancedSettings')}</Text>
 
-            {/* Renommer le projet */}
-            <View style={styles.settingsSection}>
-              <Text style={styles.settingsSectionTitle}>{t('editor.projectName')}</Text>
-              <TextInput
-                style={styles.renameInput}
-                value={showName}
-                onChangeText={(text) => {
-                  setShowName(text);
-                  if (showDataRef.current) {
-                    showDataRef.current.name = text;
-                    scheduleSave();
-                  }
-                }}
-                placeholder={t('editor.projectNamePlaceholder')}
-                placeholderTextColor="#555577"
-                maxLength={40}
-              />
-            </View>
-
-            {/* Couleur carrosserie */}
-            <View style={styles.settingsSection}>
-              <Text style={styles.settingsSectionTitle}>{t('editor.bodyColor')}</Text>
-              <View style={styles.menuColorRow}>
-                {BODY_COLORS.map((c) => (
-                  <TouchableOpacity
-                    key={c.hex}
-                    onPress={() => changeBodyColor(c.hex)}
-                    style={[
-                      styles.menuColorDot,
-                      { backgroundColor: c.hex },
-                      activeColor === c.hex && styles.menuColorDotActive,
-                    ]}
-                  />
-                ))}
+              {/* Renommer le projet */}
+              <View style={styles.settingsSection}>
+                <Text style={styles.settingsSectionTitle}>{t('editor.projectName')}</Text>
+                <TextInput
+                  style={styles.renameInput}
+                  value={showName}
+                  onChangeText={(text) => {
+                    setShowName(text);
+                    if (showDataRef.current) {
+                      showDataRef.current.name = text;
+                      scheduleSave();
+                    }
+                  }}
+                  placeholder={t('editor.projectNamePlaceholder')}
+                  placeholderTextColor="#555577"
+                  maxLength={40}
+                />
               </View>
-            </View>
 
-            {/* Offset curseur */}
-            <View style={styles.settingsSection}>
-              <Text style={styles.settingsSectionTitle}>{t('editor.cursorOffset')}</Text>
-              <View style={styles.offsetRow}>
-                <TouchableOpacity
-                  style={styles.offsetBtn}
-                  onPress={() => { setCursorOffsetMs((v) => v - 50); scheduleSave(); }}
-                >
-                  <Text style={styles.offsetBtnText}>−50</Text>
-                </TouchableOpacity>
-                <Text style={styles.offsetValue}>{cursorOffsetMs} ms</Text>
-                <TouchableOpacity
-                  style={styles.offsetBtn}
-                  onPress={() => { setCursorOffsetMs((v) => v + 50); scheduleSave(); }}
-                >
-                  <Text style={styles.offsetBtnText}>+50</Text>
-                </TouchableOpacity>
-                {cursorOffsetMs !== 0 && (
+              {/* Couleur carrosserie */}
+              <View style={styles.settingsSection}>
+                <Text style={styles.settingsSectionTitle}>{t('editor.bodyColor')}</Text>
+                <View style={styles.menuColorRow}>
+                  {BODY_COLORS.map((c) => (
+                    <TouchableOpacity
+                      key={c.hex}
+                      onPress={() => changeBodyColor(c.hex)}
+                      style={[
+                        styles.menuColorDot,
+                        { backgroundColor: c.hex },
+                        activeColor === c.hex && styles.menuColorDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              {/* Offset curseur */}
+              <View style={styles.settingsSection}>
+                <Text style={styles.settingsSectionTitle}>{t('editor.cursorOffset')}</Text>
+                <View style={styles.offsetRow}>
                   <TouchableOpacity
-                    style={styles.offsetResetBtn}
-                    onPress={() => { setCursorOffsetMs(0); scheduleSave(); }}
+                    style={styles.offsetBtn}
+                    onPress={() => { setCursorOffsetMs((v) => v - 50); scheduleSave(); }}
                   >
-                    <Text style={styles.offsetResetText}>Reset</Text>
+                    <Text style={styles.offsetBtnText}>−50</Text>
                   </TouchableOpacity>
-                )}
+                  <Text style={styles.offsetValue}>{cursorOffsetMs} ms</Text>
+                  <TouchableOpacity
+                    style={styles.offsetBtn}
+                    onPress={() => { setCursorOffsetMs((v) => v + 50); scheduleSave(); }}
+                  >
+                    <Text style={styles.offsetBtnText}>+50</Text>
+                  </TouchableOpacity>
+                  {cursorOffsetMs !== 0 && (
+                    <TouchableOpacity
+                      style={styles.offsetResetBtn}
+                      onPress={() => { setCursorOffsetMs(0); scheduleSave(); }}
+                    >
+                      <Text style={styles.offsetResetText}>Reset</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-            </View>
-          </View>
-        </Pressable>
+
+              {/* Vitesse de lecture */}
+              <View style={styles.settingsSection}>
+                <Text style={styles.settingsSectionTitle}>{t('editor.playbackSpeed')}</Text>
+                <View style={styles.speedRow}>
+                  {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
+                    <TouchableOpacity
+                      key={speed}
+                      style={[styles.speedBtn, playbackSpeed === speed && styles.speedBtnActive]}
+                      onPress={() => { setPlaybackSpeed(speed); scheduleSave(); }}
+                    >
+                      <Text style={[styles.speedBtnText, playbackSpeed === speed && styles.speedBtnTextActive]}>
+                        {speed}x
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Taille timeline */}
+              <View style={styles.settingsSection}>
+                <Text style={styles.settingsSectionTitle}>{t('editor.timelineHeight')}</Text>
+                <View style={styles.offsetRow}>
+                  <TouchableOpacity
+                    style={styles.offsetBtn}
+                    onPress={() => { setTimelineScale((v) => Math.max(1, +(v - 0.25).toFixed(2))); scheduleSave(); }}
+                  >
+                    <Text style={styles.offsetBtnText}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.offsetValue}>{Math.round(timelineScale * 100)}%</Text>
+                  <TouchableOpacity
+                    style={styles.offsetBtn}
+                    onPress={() => { setTimelineScale((v) => Math.min(2, +(v + 0.25).toFixed(2))); scheduleSave(); }}
+                  >
+                    <Text style={styles.offsetBtnText}>+</Text>
+                  </TouchableOpacity>
+                  {timelineScale !== 1 && (
+                    <TouchableOpacity
+                      style={styles.offsetResetBtn}
+                      onPress={() => { setTimelineScale(1); scheduleSave(); }}
+                    >
+                      <Text style={styles.offsetResetText}>Reset</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Export tutorial modal */}
@@ -1423,6 +1502,48 @@ const styles = StyleSheet.create({
     color: '#e94560',
     fontSize: 11,
     fontWeight: '600',
+  },
+  speedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  speedBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#2a2a4a',
+    borderWidth: 1,
+    borderColor: '#3a3a5a',
+  },
+  speedBtnActive: {
+    backgroundColor: '#44aaff',
+    borderColor: '#44aaff',
+  },
+  speedBtnText: {
+    color: '#ccccee',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  speedBtnTextActive: {
+    color: '#ffffff',
+  },
+  speedBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(68, 170, 255, 0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  speedBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   settingsOverlay: {
     flex: 1,

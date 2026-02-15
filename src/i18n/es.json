@@ -52,7 +52,9 @@
     "cursorOffset": "⏱  Offset del cursor",
     "exportError": "Error de exportación: ",
     "mp3ExportError": "Error de exportación MP3: ",
-    "trackNotFound": "Pista no encontrada"
+    "trackNotFound": "Pista no encontrada",
+    "playbackSpeed": "🎵  Velocidad de reproducción",
+    "timelineHeight": "📏  Altura de la línea de tiempo"
   },
   "timeline": {
     "loadingMusic": "Cargando música...",

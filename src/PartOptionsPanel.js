@@ -14,7 +14,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
 
   const confirmDuration = () => {
     if (!durationInput) return;
-    const seconds = parseFloat(durationInput.value);
+    const seconds = parseFloat(durationInput.value.replace(',', '.'));
     if (isNaN(seconds) || seconds <= 0) { setDurationInput(null); return; }
     const ms = Math.round(seconds * 1000);
     if (durationInput.field === 'durationMs') {
