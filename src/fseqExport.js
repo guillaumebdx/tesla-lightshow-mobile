@@ -55,7 +55,7 @@ function computeIntensity(evt, posMs) {
   const evtDuration = evt.endMs - evt.startMs;
   const elapsed = posMs - evt.startMs;
   const remaining = evt.endMs - posMs;
-  const easeDuration = Math.min(evtDuration * 0.3, 300);
+  const easeDuration = Math.min(evtDuration * 0.3, 1500);
 
   if (evt.easeIn && elapsed < easeDuration && easeDuration > 0) {
     intensity *= elapsed / easeDuration;

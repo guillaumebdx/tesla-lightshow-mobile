@@ -23,6 +23,8 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
       onOptionsChange({ ...eventOptions, windowDurationMs: ms, durationMs: ms });
     } else if (durationInput.field === 'trunkDanceDurationMs') {
       onOptionsChange({ ...eventOptions, durationMs: ms });
+    } else if (durationInput.field === 'flapRainbowDurationMs') {
+      onOptionsChange({ ...eventOptions, durationMs: ms });
     }
     setDurationInput(null);
   };
@@ -323,6 +325,27 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
                 />
               </View>
             </View>
+            {eventOptions.flapMode === FLAP_MODES.RAINBOW && (
+              <>
+                <View style={[styles.optionRow, { marginTop: 10 }]}>
+                  <Text style={styles.optionLabel}>{t('parts.duration')}</Text>
+                  <TouchableOpacity onPress={() => openDurationInput('flapRainbowDurationMs', eventOptions.durationMs)}>
+                    <Text style={styles.optionValueTappable}>{(eventOptions.durationMs / 1000).toFixed(1)}s</Text>
+                  </TouchableOpacity>
+                </View>
+                <Slider
+                  style={{ width: '100%', height: 30 }}
+                  minimumValue={2000}
+                  maximumValue={30000}
+                  step={1000}
+                  value={eventOptions.durationMs}
+                  onValueChange={(val) => onOptionsChange({ ...eventOptions, durationMs: val })}
+                  minimumTrackTintColor="#ffaa00"
+                  maximumTrackTintColor="#2a2a4a"
+                  thumbTintColor="#ffaa00"
+                />
+              </>
+            )}
           </View>
         )}
 

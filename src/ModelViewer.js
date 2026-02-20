@@ -170,6 +170,7 @@ export default function ModelViewer({ showId, onGoHome }) {
   // Materials
   const bodyMaterialRef = useRef(null);
   const highlightMaterialRef = useRef(null);
+  const highlightMaterialNoDepthRef = useRef(null);
   const meshMaterialsRef = useRef(new Map());
   const selectedMeshRef = useRef(null);
   const litHeadlightMatRef = useRef(null);
@@ -185,6 +186,7 @@ export default function ModelViewer({ showId, onGoHome }) {
   const retroNodesRef = useRef({}); // { retro_left: { mesh, geoCenter, initMatrix }, ... }
   const windowNodesRef = useRef({}); // { window_left_front: { mesh, initMatrix, travelY }, ... }
   const trunkNodeRef = useRef(null); // { mesh, initMatrix, pivotLocal }
+  const flapNodeRef = useRef(null);  // { mesh, initMatrix, pivotLocal }
   const [activeColor, setActiveColor] = useState('#222222');
   const activeColorRef = useRef('#222222');
 
@@ -237,7 +239,7 @@ export default function ModelViewer({ showId, onGoHome }) {
     // Find and select new (match by userData.interactiveName)
     model.traverse((child) => {
       if (child.isMesh && child.userData.interactiveName === meshName) {
-        child.material = highlightMaterialRef.current;
+        child.material = meshName === 'flap' ? highlightMaterialNoDepthRef.current : highlightMaterialRef.current;
         selectedMeshRef.current = child;
         setSelectedPart(meshName);
         // Reset event options for the part type
@@ -288,7 +290,6 @@ export default function ModelViewer({ showId, onGoHome }) {
     if (intersects.length > 0) {
       const hit = intersects[0].object;
       const interactiveName = hit.userData.interactiveName;
-      console.log('Tap hit:', interactiveName || hit.name);
       if (interactiveName) {
         selectPart(interactiveName);
       } else {
@@ -321,7 +322,6 @@ export default function ModelViewer({ showId, onGoHome }) {
         }
       }
     } else {
-      console.log('Tap miss - no intersection');
       selectPart(null);
     }
   }, [selectPart]);
@@ -428,6 +428,19 @@ export default function ModelViewer({ showId, onGoHome }) {
     });
     highlightMaterialRef.current = highlightMaterial;
 
+    // Flap is embedded under the body — needs depthTest off to be visible
+    const highlightMaterialNoDepth = new THREE.MeshStandardMaterial({
+      color: 0x44aaff,
+      metalness: 0.5,
+      roughness: 0.2,
+      emissive: 0x1155aa,
+      emissiveIntensity: 0.8,
+      depthTest: false,
+      transparent: true,
+      opacity: 0.85,
+    });
+    highlightMaterialNoDepthRef.current = highlightMaterialNoDepth;
+
     const windowMaterial = new THREE.MeshStandardMaterial({
       color: 0x445566,
       metalness: 0.7,
@@ -524,13 +537,6 @@ export default function ModelViewer({ showId, onGoHome }) {
       });
 
       const model = gltf.scene;
-
-      // Debug: log full hierarchy to find correct name level
-      model.traverse((child) => {
-        if (child.isMesh) {
-          console.log(`MESH: "${child.name}" parent: "${child.parent?.name}" grandparent: "${child.parent?.parent?.name}"`);
-        }
-      });
 
       // Apply materials per mesh - find the part name by walking up the hierarchy
       const getPartName = (mesh) => {
@@ -631,7 +637,6 @@ export default function ModelViewer({ showId, onGoHome }) {
             geoCenter: geoCenter,
             initMatrix: child.matrix.clone(),
           };
-          console.log(`RETRO mesh: "${interactiveName}" geoCenter=(${geoCenter.x.toFixed(3)}, ${geoCenter.y.toFixed(3)}, ${geoCenter.z.toFixed(3)}) pos=(${child.position.x.toFixed(3)}, ${child.position.y.toFixed(3)}, ${child.position.z.toFixed(3)})`);
         }
       });
 
@@ -651,7 +656,6 @@ export default function ModelViewer({ showId, onGoHome }) {
             initMatrix: child.matrix.clone(),
             travelZ: travelZ,
           };
-          console.log(`WINDOW mesh: "${interactiveName}" travelZ=${travelZ.toFixed(3)}`);
         }
       });
 
@@ -662,6 +666,22 @@ export default function ModelViewer({ showId, onGoHome }) {
       model.traverse((child) => {
         if (!child.isMesh) return;
         const interactiveName = child.userData.interactiveName;
+        if (interactiveName === 'flap' && !flapNodeRef.current) {
+          child.geometry.computeBoundingBox();
+          const bb = child.geometry.boundingBox;
+          // Flap bbox: X=1757..1993 (front-back), Y=-805..-760 (left side), Z=888..1009 (up-down)
+          // Hinge at top edge (max Z), center X — flap opens like a lid, bottom swings outward
+          const pivotLocal = new THREE.Vector3(
+            (bb.min.x + bb.max.x) / 2,         // center X
+            (bb.min.y + bb.max.y) / 2,         // center Y
+            bb.max.z                           // top edge = hinge
+          );
+          flapNodeRef.current = {
+            mesh: child,
+            initMatrix: child.matrix.clone(),
+            pivotLocal: pivotLocal,
+          };
+        }
         if (interactiveName === 'trunk' && !trunkNodeRef.current) {
           child.geometry.computeBoundingBox();
           const geoBBox = child.geometry.boundingBox;
@@ -679,14 +699,41 @@ export default function ModelViewer({ showId, onGoHome }) {
             initMatrix: child.matrix.clone(),
             pivotLocal: pivotLocal,
           };
-          console.log(`TRUNK pivot=(${pivotLocal.x.toFixed(1)}, ${pivotLocal.y.toFixed(1)}, ${pivotLocal.z.toFixed(1)})`);
         }
       });
+
+      // Create rainbow plane for flap — positioned at the bbox center in world space
+      model.updateMatrixWorld(true);
+      if (flapNodeRef.current && flapNodeRef.current.mesh) {
+        const flapMesh = flapNodeRef.current.mesh;
+        // Get bbox center in local geometry space
+        const bb = flapMesh.geometry.boundingBox;
+        const localCenter = new THREE.Vector3();
+        bb.getCenter(localCenter);
+        // Transform to world space using the mesh's matrixWorld
+        const worldCenter = localCenter.clone().applyMatrix4(flapMesh.matrixWorld);
+
+        const rainbowGeo = new THREE.PlaneGeometry(0.075, 0.04);
+        const rainbowMat = new THREE.MeshBasicMaterial({
+          color: 0xff0000,
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide,
+          depthTest: false,
+        });
+        const rainbowPlane = new THREE.Mesh(rainbowGeo, rainbowMat);
+        // Convert world center back to model local space so it moves with the car
+        const modelInverse = new THREE.Matrix4().copy(model.matrixWorld).invert();
+        const modelLocal = worldCenter.clone().applyMatrix4(modelInverse);
+        rainbowPlane.position.copy(modelLocal);
+        model.add(rainbowPlane);
+        flapNodeRef.current.rainbowPlane = rainbowPlane;
+        flapNodeRef.current.rainbowMat = rainbowMat;
+      }
 
       // Create round white dot using a small sphere for each interactive part
       // depthTest is OFF so dots are always rendered; visibility is controlled
       // dynamically in the animation loop based on camera orientation.
-      model.updateMatrixWorld(true);
       const dotGeo = new THREE.SphereGeometry(1, 16, 16);
       const dotBaseMat = new THREE.MeshBasicMaterial({
         color: 0xffffff,
@@ -710,6 +757,11 @@ export default function ModelViewer({ showId, onGoHome }) {
         const dotPosition = localCenter.clone();
         if (partName.startsWith('window_')) {
           dotPosition.z = bbox.max.z - (bbox.max.z - bbox.min.z) * 0.15;
+        }
+        // Offset flap dot away from taillight onto the body panel
+        if (partName === 'flap') {
+          dotPosition.y -= 120; // shift left (more negative Y = away from taillight)
+          dotPosition.z -= 80;  // shift down slightly
         }
 
         const dot = new THREE.Mesh(dotGeo, dotBaseMat.clone());
@@ -782,7 +834,7 @@ export default function ModelViewer({ showId, onGoHome }) {
             const evtDuration = evt.endMs - evt.startMs;
             const elapsed = pos - evt.startMs;
             const remaining = evt.endMs - pos;
-            const easeDuration = Math.min(evtDuration * 0.3, 300);
+            const easeDuration = Math.min(evtDuration * 0.3, 1500);
 
             if (evt.easeIn && elapsed < easeDuration && easeDuration > 0) {
               intensity *= elapsed / easeDuration;
@@ -1039,6 +1091,97 @@ export default function ModelViewer({ showId, onGoHome }) {
             mesh.matrix.copy(combined);
           }
           mesh.matrixAutoUpdate = false;
+        }
+
+        // Animate flap (charge port) — same pivot rotation as trunk but around Y axis
+        // Flap bbox: X=1757..1993, Y=-805..-760, Z=888..1009
+        // Hinge at max X (rear), opens by rotating rear edge upward
+        const FLAP_OPEN_ANGLE = -Math.PI / 3; // ~60° open — bottom swings outward (negative X = away from car)
+        const flapData = flapNodeRef.current;
+        if (flapData && flapData.mesh) {
+          const flapMesh = flapData.mesh;
+          const flapActive = activeMap.get('flap');
+
+          // Determine rest state from past events
+          let flapRestOpen = false;
+          for (const evt of events) {
+            if (evt.part !== 'flap') continue;
+            if (evt.endMs <= pos) {
+              if (evt.flapMode === 'flap_open' || evt.flapMode === 'flap_rainbow') flapRestOpen = true;
+              else if (evt.flapMode === 'flap_close') flapRestOpen = false;
+            }
+          }
+
+          let flapProgress = flapRestOpen ? 1 : 0;
+
+          if (flapActive) {
+            const elapsed = pos - flapActive.evt.startMs;
+            const evtDuration = flapActive.evt.endMs - flapActive.evt.startMs;
+            const t = evtDuration > 0 ? Math.min(elapsed / evtDuration, 1) : 0;
+            const mode = flapActive.evt.flapMode || 'flap_open';
+
+            if (mode === 'flap_open') {
+              flapProgress = Math.sin(t * Math.PI / 2);
+            } else if (mode === 'flap_close') {
+              flapProgress = Math.cos(t * Math.PI / 2);
+            } else if (mode === 'flap_rainbow') {
+              // Rainbow: just open quickly and stay open (light effect handled separately)
+              if (!flapRestOpen) {
+                const openT = Math.min(elapsed / 500, 1); // 0.5s open
+                flapProgress = Math.sin(openT * Math.PI / 2);
+              } else {
+                flapProgress = 1;
+              }
+            }
+          }
+
+          if (flapProgress === 0) {
+            flapMesh.matrix.copy(flapData.initMatrix);
+          } else {
+            const p = flapData.pivotLocal;
+            const toOrigin = new THREE.Matrix4().makeTranslation(-p.x, -p.y, -p.z);
+            const _xAxisFlap = new THREE.Vector3(1, 0, 0);
+            const rot = new THREE.Matrix4().makeRotationAxis(_xAxisFlap, FLAP_OPEN_ANGLE * flapProgress);
+            const fromOrigin = new THREE.Matrix4().makeTranslation(p.x, p.y, p.z);
+            const combined = flapData.initMatrix.clone()
+              .multiply(fromOrigin)
+              .multiply(rot)
+              .multiply(toOrigin);
+            flapMesh.matrix.copy(combined);
+          }
+          flapMesh.matrixAutoUpdate = false;
+
+          // Rainbow plane effect: cycle through 5 colors when flap_rainbow is active
+          const RAINBOW_COLORS = [
+            new THREE.Color(0xff0000), // red
+            new THREE.Color(0x00ff00), // green
+            new THREE.Color(0x0000ff), // blue
+            new THREE.Color(0xff8800), // orange
+            new THREE.Color(0xaa00ff), // purple
+          ];
+          const RAINBOW_CYCLE_MS = 2500; // full cycle through all 5 colors = 2.5s (0.5s per color)
+          if (flapData.rainbowMat) {
+            const isRainbow = flapActive && flapActive.evt.flapMode === 'flap_rainbow';
+            if (isRainbow) {
+              const elapsed = pos - flapActive.evt.startMs;
+              const rainbowStart = flapRestOpen ? 0 : 500;
+              if (elapsed >= rainbowStart) {
+                const rainbowElapsed = elapsed - rainbowStart;
+                const phase = (rainbowElapsed % RAINBOW_CYCLE_MS) / RAINBOW_CYCLE_MS;
+                const idx = phase * RAINBOW_COLORS.length;
+                const i0 = Math.floor(idx) % RAINBOW_COLORS.length;
+                const i1 = (i0 + 1) % RAINBOW_COLORS.length;
+                const blend = idx - Math.floor(idx);
+                const color = RAINBOW_COLORS[i0].clone().lerp(RAINBOW_COLORS[i1], blend);
+                flapData.rainbowMat.color.copy(color);
+                flapData.rainbowMat.opacity = 0.9;
+              } else {
+                flapData.rainbowMat.opacity = 0;
+              }
+            } else {
+              flapData.rainbowMat.opacity = 0;
+            }
+          }
         }
       } // end if (modelRef.current)
 
@@ -1612,7 +1755,6 @@ export default function ModelViewer({ showId, onGoHome }) {
           try {
             const duration = playbackDurationRef.current;
             const result = await exportFseq(eventsRef.current, duration);
-            console.log(`Export OK: ${result.frameCount} frames, ${result.fileSize} bytes`);
           } catch (e) {
             console.error('Export error:', e);
             alert(t('editor.exportError') + e.message);
