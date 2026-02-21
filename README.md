@@ -180,4 +180,8 @@ Blender (export GLB avec nodes nommés)
 
 ## Licence
 
-Projet privé.
+
+This project is proprietary. No commercial use or redistribution is allowed without prior written permission.
+
+This project is an independent project and is not affiliated with or endorsed by Tesla, Inc.
+Tesla is a trademark of Tesla, Inc.
