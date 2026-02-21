@@ -168,6 +168,7 @@ Blender (export GLB avec nodes nommés)
 
 | Document | Description |
 |----------|-------------|
+| [`LIGHTS.md`](./LIGHTS.md) | Channels FSEQ des lumières (phares, clignotants, feux), mapping officiel Tesla, canaux disponibles pour expansion |
 | [`CLOSURES.md`](./CLOSURES.md) | Channels FSEQ des closures (rétros, fenêtres, coffre, trappe), commandes, limites, résultats de rétro-ingénierie |
 | [`FSEQ_SPEC.md`](./FSEQ_SPEC.md) | Spécifications du format FSEQ V2 pour l'export Tesla Light Show |
 | [`GLB_PIPELINE.md`](./GLB_PIPELINE.md) | Workflow pour intégrer un nouveau modèle 3D GLB |
