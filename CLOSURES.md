@@ -84,7 +84,7 @@ Pour les remonter : envoyer Close (192). Dance (128) = oscillation haut/bas.
 |-------------------|---------|---------|-------------|-------|
 | Rétroviseurs      | ~2s     | ~2s     | N/A         | |
 | Fenêtres          | ~3s     | ~3s     | oscillation continue | Limite thermique ~30s |
-| Coffre            | **~13s** | **~13s** | oscillation lente | Mesuré sur vraie Model 3 |
+| Coffre            | **~13s** | **~4s** | oscillation lente | Mesuré sur vraie Model 3 |
 | Trappe de charge  | ~1s     | ~1s     | LED rainbow | OPEN suffit en 1s (spec Tesla) |
 
 ## Règles Tesla officielles (spec GitHub)

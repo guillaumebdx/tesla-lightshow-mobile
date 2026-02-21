@@ -170,6 +170,11 @@
     "noEvents": "Du hast noch keine Ereignisse auf der Timeline. Platziere mindestens ein Ereignis, um teilen zu können.",
     "shareBtn": "Datei teilen"
   },
+  "flash": {
+    "trunkDanceNeedsOpen": "Platziere zuerst ein \"Öffnen\"-Ereignis für den Kofferraum. Er braucht ~{{seconds}}s zum Öffnen, bevor er tanzen kann.",
+    "closureLimitReached": "Limit erreicht für {{part}} (max {{limit}} Befehle pro Show)",
+    "eventPlaced": "Ereignis platziert"
+  },
   "load": {
     "title": "Light Show laden",
     "description": "Du kannst eine Light Show laden, die ein Freund mit Light Studio erstellt hat. Die Ereignisse werden zu deiner Timeline hinzugefügt.",

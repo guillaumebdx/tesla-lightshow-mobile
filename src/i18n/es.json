@@ -170,6 +170,11 @@
     "noEvents": "Aún no tienes eventos en la línea de tiempo. Coloca al menos un evento para poder compartir.",
     "shareBtn": "Compartir archivo"
   },
+  "flash": {
+    "trunkDanceNeedsOpen": "Coloca primero un evento \"Abrir\" en el maletero. Tarda ~{{seconds}}s en abrirse antes de poder bailar.",
+    "closureLimitReached": "Límite alcanzado para {{part}} (máx {{limit}} comandos por show)",
+    "eventPlaced": "Evento colocado"
+  },
   "load": {
     "title": "Cargar un Light Show",
     "description": "Puedes cargar un Light Show creado por un amigo que tenga Light Studio. Los eventos se añadirán a tu línea de tiempo.",

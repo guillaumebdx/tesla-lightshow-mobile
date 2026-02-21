@@ -13,7 +13,7 @@
       "backgroundColor": "#0a0a1a"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.guillaumebdx.lightstudiofortesla",
       "buildNumber": "1",
       "infoPlist": {

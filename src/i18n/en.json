@@ -170,6 +170,11 @@
     "noEvents": "You don't have any events on the timeline yet. Place at least one event to be able to share.",
     "shareBtn": "Share file"
   },
+  "flash": {
+    "trunkDanceNeedsOpen": "Place a trunk \"Open\" event first. The trunk takes ~{{seconds}}s to open before it can dance.",
+    "closureLimitReached": "Limit reached for {{part}} (max {{limit}} commands per show)",
+    "eventPlaced": "Event placed"
+  },
   "load": {
     "title": "Load a Light Show",
     "description": "You can load a Light Show created by a friend who has Light Studio. The events will be added to your timeline.",

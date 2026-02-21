@@ -21,6 +21,7 @@ import { MP3_TRACKS } from '../assets/mp3/index';
 import { exportFseq } from './fseqExport';
 import { loadShow, saveShow } from './storage';
 import ExportModal from './ExportModal';
+import FlashMessage from './FlashMessage';
 
 export default function ModelViewer({ showId, onGoHome }) {
   const { t } = useTranslation();
@@ -45,6 +46,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       return next;
     });
   }, []);
+  const flashRef = useRef(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showName, setShowName] = useState('');
   const [playbackSpeed, _setPlaybackSpeed] = useState(1);
@@ -1301,6 +1303,7 @@ export default function ModelViewer({ showId, onGoHome }) {
             timelineScale={timelineScale}
             isLoadingShow={isLoadingShow}
             selectedEventId={selectedEvent?.id || null}
+            flashRef={flashRef}
             onEventsChange={(evts) => { eventsRef.current = evts; scheduleSave(); }}
             onPlayingChange={(playing) => { isPlayingRef.current = playing; }}
             onPositionChange={(pos, dur) => {
@@ -1344,6 +1347,21 @@ export default function ModelViewer({ showId, onGoHome }) {
             editingEvent={selectedEvent}
             events={eventsRef.current}
             onOptionsChange={(newOpts) => {
+              // Block trunk DANCE toggle if no prior OPEN exists before this event
+              if (selectedEvent && isTrunk(selectedEvent.part) && newOpts.trunkMode === TRUNK_MODES.DANCE) {
+                const hasPriorOpen = eventsRef.current.some(
+                  (e) => e.id !== selectedEvent.id && e.part === 'trunk' && e.trunkMode === TRUNK_MODES.OPEN && e.endMs <= selectedEvent.startMs
+                );
+                if (!hasPriorOpen) {
+                  const minSeconds = Math.ceil(TRUNK_DURATIONS[TRUNK_MODES.OPEN] / 1000);
+                  flashRef?.current?.show(
+                    t('flash.trunkDanceNeedsOpen', { seconds: minSeconds }),
+                    'error',
+                    4000
+                  );
+                  return; // reject the change
+                }
+              }
               setEventOptions(newOpts);
               if (selectedEvent) {
                 // Update the selected event in the timeline
@@ -1777,6 +1795,7 @@ export default function ModelViewer({ showId, onGoHome }) {
           }
         }}
       />
+      <FlashMessage ref={flashRef} />
     </GestureHandlerRootView>
   );
 }

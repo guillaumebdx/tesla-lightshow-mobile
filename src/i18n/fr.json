@@ -170,6 +170,11 @@
     "noEvents": "Tu n'as encore aucun événement sur la timeline. Place au moins un événement pour pouvoir partager.",
     "shareBtn": "Partager le fichier"
   },
+  "flash": {
+    "trunkDanceNeedsOpen": "Place d'abord un événement « Ouvrir » sur le coffre. Le coffre met ~{{seconds}}s à s'ouvrir avant de pouvoir danser.",
+    "closureLimitReached": "Limite atteinte pour {{part}} (max {{limit}} commandes par show)",
+    "eventPlaced": "Événement placé"
+  },
   "load": {
     "title": "Charger un Light Show",
     "description": "Tu peux charger un Light Show créé par un ami qui a Light Studio. Les événements seront ajoutés à ta timeline.",

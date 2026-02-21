@@ -15,7 +15,7 @@ import {
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { MP3_TRACKS } from '../assets/mp3/index';
-import { PART_ICONS, PART_COLORS, EFFECT_TYPES, CLOSURE_LIMITS, closureCommandCost, isClosure, isAnimatable } from './constants';
+import { PART_ICONS, PART_COLORS, EFFECT_TYPES, CLOSURE_LIMITS, closureCommandCost, isClosure, isAnimatable, isTrunk, TRUNK_MODES, TRUNK_DURATIONS } from './constants';
 import { pickAndImportAudio, loadCachedWaveform, resolveAudioUri } from './audioPicker';
 import { useTranslation } from 'react-i18next';
 
@@ -138,7 +138,7 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbackSpeed = 1, timelineScale = 1, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, isLoadingShow = false }, ref) {
+function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbackSpeed = 1, timelineScale = 1, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, isLoadingShow = false, flashRef }, ref) {
   const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
@@ -463,7 +463,12 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
         for (const evt of events) {
           if (evt.part === selectedPart) used += closureCommandCost(selectedPart, evt);
         }
-        if (used >= limit) {
+        const neededCost = closureCommandCost(selectedPart, { retroMode: eventOptions?.retroMode });
+        if (used + neededCost > limit) {
+          flashRef?.current?.show(
+            t('flash.closureLimitReached', { part: selectedPart, limit }),
+            'error'
+          );
           seekToRatio(ratio);
           return;
         }
@@ -485,6 +490,25 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
         trunkMode: eventOptions?.trunkMode ?? 'trunk_open',
         flapMode: eventOptions?.flapMode ?? 'flap_open',
       };
+
+      // Block trunk DANCE if no prior OPEN exists, or if placed too early
+      if (isTrunk(selectedPart) && newEvent.trunkMode === TRUNK_MODES.DANCE) {
+        const openDuration = TRUNK_DURATIONS[TRUNK_MODES.OPEN];
+        const hasPriorOpen = events.some(
+          (e) => e.part === 'trunk' && e.trunkMode === TRUNK_MODES.OPEN && e.endMs <= startMs
+        );
+        if (!hasPriorOpen) {
+          const minSeconds = Math.ceil(openDuration / 1000);
+          flashRef?.current?.show(
+            t('flash.trunkDanceNeedsOpen', { seconds: minSeconds }),
+            'error',
+            4000
+          );
+          seekToRatio(ratio);
+          return;
+        }
+      }
+
       setEvents((prev) => {
         const updated = [...prev, newEvent].sort((a, b) => a.startMs - b.startMs);
         if (onEventsChange) onEventsChange(updated);
