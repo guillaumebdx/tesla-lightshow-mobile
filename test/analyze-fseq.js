@@ -1,4 +1,5 @@
-// Diagnostic: parse the FSEQ binary and dump closure channel activity
+// Diagnostic: parse FSEQ binary and validate closure channel activity
+// Usage: node test/analyze-fseq.js [path-to-fseq]
 const fs = require('fs');
 const path = require('path');
 
@@ -6,14 +7,14 @@ const CHANNEL_COUNT = 48;
 const STEP_TIME_MS = 20;
 
 const CLOSURE_CHANNELS = {
-  33: 'retro_left',
-  34: 'retro_right',
-  35: 'window_left_front',
-  36: 'window_left_back',
-  37: 'window_right_front',
-  39: 'flap',
-  40: 'trunk',
-  45: 'window_right_back',
+  34: 'retro_left',       // Left Mirror
+  35: 'retro_right',      // Right Mirror
+  36: 'window_left_front', // Left Front Window
+  37: 'window_left_back',  // Left Rear Window
+  38: 'window_right_front',// Right Front Window
+  39: 'window_right_back', // Right Rear Window
+  40: 'trunk',             // Liftgate
+  45: 'flap',              // Charge Port
 };
 
 const CMD_NAMES = {
@@ -24,7 +25,6 @@ const CMD_NAMES = {
   255: 'STOP',
 };
 
-// Also check light channels for ease in/out
 const LIGHT_CHANNELS = {
   25: 'light_left_back',
   26: 'light_right_back',

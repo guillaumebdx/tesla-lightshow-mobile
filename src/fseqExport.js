@@ -19,18 +19,20 @@ const CHANNEL_MAP = {
   blink_back_right:  [23],                   // clignotant AR droit
 };
 
-// Closure channel mapping — confirmed via retro-engineering on Model 3 (tests v1-v3)
+// Closure channel mapping — official Tesla xLights layout (Tesla Model S.xmodel)
 // These use command byte values instead of brightness:
 //   0=Idle, 64=Open, 128=Dance, 192=Close, 255=Stop
+// Note: ch 30-33 are Falcon/Front Doors (Model S/X only, no effect on Model 3)
+// Note: ch 41-44 are Door Handles (Model S only, no effect on Model 3)
 const CLOSURE_MAP = {
-  retro_left:         33,
-  retro_right:        34,
-  window_left_front:  35,
-  window_left_back:   36,
-  window_right_front: 37,
-  flap:               39,
-  trunk:              40,
-  window_right_back:  45,
+  retro_left:         34,  // Left Mirror
+  retro_right:        35,  // Right Mirror
+  window_left_front:  36,  // Left Front Window
+  window_left_back:   37,  // Left Rear Window
+  window_right_front: 38,  // Right Front Window
+  window_right_back:  39,  // Right Rear Window
+  trunk:              40,  // Liftgate
+  flap:               45,  // Charge Port
 };
 
 const CLOSURE_CMD = {
@@ -160,10 +162,11 @@ function compileFrameData(events, durationMs) {
       // Write a single command for the event duration
       writeClosure(data, ch, evt.startMs, evt.endMs, cmd.value, frameCount);
     } else if (cmd.type === 'roundtrip') {
-      // First half: open, second half: close
+      // First half: close (fold), second half: open (unfold back)
+      // Retros start unfolded, so roundtrip = fold in → fold out
       const midMs = evt.startMs + Math.floor((evt.endMs - evt.startMs) / 2);
-      writeClosure(data, ch, evt.startMs, midMs, CLOSURE_CMD.OPEN, frameCount);
-      writeClosure(data, ch, midMs, evt.endMs, CLOSURE_CMD.CLOSE, frameCount);
+      writeClosure(data, ch, evt.startMs, midMs, CLOSURE_CMD.CLOSE, frameCount);
+      writeClosure(data, ch, midMs, evt.endMs, CLOSURE_CMD.OPEN, frameCount);
     }
   }
 
