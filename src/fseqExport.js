@@ -1,4 +1,4 @@
-// .fseq V2 export for Tesla Light Show
+// .fseq V2 export for Light Show
 // Generates an uncompressed .fseq file from timeline events
 // Frame interval: 20ms, channelCount: 48 (only 4 used for V1)
 
@@ -19,7 +19,7 @@ const CHANNEL_MAP = {
   blink_back_right:  [23],                   // clignotant AR droit
 };
 
-// Closure channel mapping — official Tesla xLights layout (Tesla Model S.xmodel)
+// Closure channel mapping — official xLights layout (see CLOSURES.md)
 // These use command byte values instead of brightness:
 //   0=Idle, 64=Open, 128=Dance, 192=Close, 255=Stop
 // Note: ch 30-33 are Falcon/Front Doors (Model S/X only, no effect on Model 3)

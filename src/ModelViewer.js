@@ -1660,7 +1660,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               {/* Contact développeur */}
               <TouchableOpacity
                 style={styles.contactDevSection}
-                onPress={() => Linking.openURL('mailto:guillaumeharari@hotmail.com?subject=Light Studio for Tesla')}
+                onPress={() => Linking.openURL('mailto:guillaumeharari@hotmail.com?subject=LightShow Studio')}
               >
                 <Text style={styles.contactDevText}>{t('editor.contactDev')}</Text>
                 <Text style={styles.contactDevSub}>{t('editor.contactDevSub')} ✉️</Text>

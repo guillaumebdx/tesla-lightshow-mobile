@@ -1,4 +1,4 @@
-// Shared constants for Tesla Light Show Creator
+// Shared constants for LightShow Studio
 
 // Interactive mesh parts in the GLB model
 export const INTERACTIVE_PARTS = [
@@ -93,10 +93,10 @@ export const RETRO_DURATIONS = {
 
 // Window animation modes
 export const WINDOW_MODES = {
-  DANCE: 'window_dance',   // Oscillation haut/bas (native Tesla dance)
+  DANCE: 'window_dance',   // Oscillation haut/bas (native dance)
 };
 
-// Max dance duration recommended by Tesla (thermal limits)
+// Max dance duration recommended (thermal limits)
 export const WINDOW_MAX_DANCE_MS = 30000; // 30s max recommended
 
 // Trunk (coffre) animation modes
@@ -125,7 +125,7 @@ export const FLAP_DURATIONS = {
   [FLAP_MODES.RAINBOW]: 5000,
 };
 
-// Closure command limits per show (Tesla-imposed)
+// Closure command limits per show (vehicle-imposed)
 // Each event placed counts as 1 command, except roundtrip = 2 (open+close)
 export const CLOSURE_LIMITS = {
   retro_left: 20,

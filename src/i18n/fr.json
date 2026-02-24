@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "Light Studio",
-    "subtitle": "pour Tesla"
+    "title": "LightShow Studio",
+    "subtitle": ""
   },
   "home": {
     "newShow": "+  Nouveau Light Show",
@@ -19,7 +19,7 @@
   },
   "settings": {
     "title": "Paramètres",
-    "about": "À propos de Light Studio",
+    "about": "À propos de LightShow Studio",
     "language": "Langue",
     "aboutText1": "Cette app a été entièrement conçue et construite par",
     "aboutText2": "Elle est en constante amélioration. N'hésitez pas à faire part de vos demandes d'améliorations !",
@@ -45,7 +45,7 @@
     "resetEventsConfirm": "Supprimer tous les événements de la timeline ?",
     "delete": "Supprimer",
     "cancel": "Annuler",
-    "export": "Exporter dans ma Tesla",
+    "export": "Exporter",
     "projectName": "✏️  Nom du projet",
     "projectNamePlaceholder": "Nom du projet",
     "bodyColor": "🎨  Couleur carrosserie",
@@ -72,13 +72,13 @@
     "importedFile": "Fichier importé",
     "orChooseFrom": "ou choisir parmi",
     "importError": "Erreur import: ",
-    "durationTooLong": "Ce fichier dure {{duration}}. La durée maximale imposée par Tesla est de {{max}}.",
+    "durationTooLong": "Ce fichier dure {{duration}}. La durée maximale autorisée est de {{max}}.",
     "cancel": "Annuler",
     "eventPlaced": "{{count}} événement placé",
     "eventsPlaced": "{{count}} événements placés"
   },
   "parts": {
-    "selectHint": "Sélectionne une pièce sur la Tesla",
+    "selectHint": "Sélectionne une pièce sur le véhicule",
     "editingEvent": "Modification de l'événement",
     "duration": "Durée",
     "power": "Puissance",
@@ -91,7 +91,7 @@
     "retroRoundTrip": "Aller-retour",
     "windowDance": "🪟  Dance (oscillation)",
     "windowHint": "La vitre oscille haut/bas automatiquement",
-    "windowWarning": "⚠️ Max recommandé : 30s (limite thermique Tesla)",
+    "windowWarning": "⚠️ Max recommandé : 30s (limite thermique du véhicule)",
     "trunkOpen": "Ouvrir",
     "trunkClose": "Fermer",
     "trunkDance": "Dance",
@@ -121,10 +121,10 @@
     "blink_back_right": "Clignotant AR droit"
   },
   "export": {
-    "page1Title": "Importer dans ta Tesla",
-    "page1Intro": "Pour importer ton LightShow dans ta Tesla, suis bien ces conseils :",
-    "page1Note": "Il n'est possible d'avoir qu'un seul LightShow personnalisé dans sa Tesla.\nPour en avoir plusieurs, il faut multiplier les clés USB !",
-    "page1Tip": "Nos Tesla sont capricieuses. Si tu veux augmenter tes chances que ça fonctionne du premier coup : ",
+    "page1Title": "Importer dans ton véhicule",
+    "page1Intro": "Pour importer ton LightShow dans ton véhicule, suis bien ces conseils :",
+    "page1Note": "Il n'est possible d'avoir qu'un seul LightShow personnalisé dans ton véhicule.\nPour en avoir plusieurs, il faut multiplier les clés USB !",
+    "page1Tip": "Les véhicules peuvent être capricieux. Si tu veux augmenter tes chances que ça fonctionne du premier coup : ",
     "page1TipBold": "utilise une clé USB à part.",
     "page2Title": "Formater ta clé USB",
     "page2Intro": "Formate ta clé USB :",
@@ -144,8 +144,8 @@
     "page3Warning2": "Il ne faut rien déposer d'autre dans le dossier.",
     "page3Tip": "Dans Windows, si tu veux voir les extensions pour être certain : dans un dossier, clique sur ",
     "page3TipBold": "Afficher → Afficher → Extensions de noms de fichiers",
-    "page4Title": "Brancher dans ta Tesla",
-    "page4Intro": "Branche ta clé dans ta Tesla.",
+    "page4Title": "Brancher dans ton véhicule",
+    "page4Intro": "Branche ta clé dans ton véhicule.",
     "page4Tip": "Utilise le ",
     "page4TipBold1": "port USB principal",
     "page4TipMid": " et non un port USB dédié à la recharge.\n\nLa plupart du temps, sur les modèles d'après 2021, le port USB data se trouve dans la ",
@@ -159,14 +159,14 @@
     "loadError": "Erreur de chargement : ",
     "loadSuccess": "{{count}} événements chargés avec succès !",
     "loadNoEvents": "Ce fichier ne contient aucun événement.",
-    "loadInvalidFile": "Fichier invalide. Sélectionne un fichier .json exporté depuis Light Studio.",
+    "loadInvalidFile": "Fichier invalide. Sélectionne un fichier .json exporté depuis LightShow Studio.",
     "exportMp3": "Exporter le MP3",
     "previous": "← Précédent",
     "next": "Suivant →"
   },
   "share": {
     "title": "Partager le Light Show",
-    "description": "Tu peux exporter tes événements dans un fichier pour qu'un ami qui a Light Studio puisse aussi charger ton Light Show.",
+    "description": "Tu peux exporter tes événements dans un fichier pour qu'un ami qui a LightShow Studio puisse aussi charger ton Light Show.",
     "noEvents": "Tu n'as encore aucun événement sur la timeline. Place au moins un événement pour pouvoir partager.",
     "shareBtn": "Partager le fichier"
   },
@@ -177,7 +177,7 @@
   },
   "load": {
     "title": "Charger un Light Show",
-    "description": "Tu peux charger un Light Show créé par un ami qui a Light Studio. Les événements seront ajoutés à ta timeline.",
+    "description": "Tu peux charger un Light Show créé par un ami qui a LightShow Studio. Les événements seront ajoutés à ta timeline.",
     "noTrack": "Tu dois d'abord charger une musique sur ce Light Show avant de pouvoir importer des événements.",
     "warning": "Attention : les événements actuels seront remplacés par ceux du fichier importé.",
     "loadBtn": "Choisir un fichier"

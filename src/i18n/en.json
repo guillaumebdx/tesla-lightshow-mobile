@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "Light Studio",
-    "subtitle": "for Tesla"
+    "title": "LightShow Studio",
+    "subtitle": ""
   },
   "home": {
     "newShow": "+  New Light Show",
@@ -19,7 +19,7 @@
   },
   "settings": {
     "title": "Settings",
-    "about": "About Light Studio",
+    "about": "About LightShow Studio",
     "language": "Language",
     "aboutText1": "This app was entirely designed and built by",
     "aboutText2": "It is constantly being improved. Feel free to share your suggestions for improvements!",
@@ -45,7 +45,7 @@
     "resetEventsConfirm": "Delete all timeline events?",
     "delete": "Delete",
     "cancel": "Cancel",
-    "export": "Export to my Tesla",
+    "export": "Export",
     "projectName": "✏️  Project name",
     "projectNamePlaceholder": "Project name",
     "bodyColor": "🎨  Body color",
@@ -72,13 +72,13 @@
     "importedFile": "Imported file",
     "orChooseFrom": "or choose from",
     "importError": "Import error: ",
-    "durationTooLong": "This file is {{duration}} long. The maximum duration allowed by Tesla is {{max}}.",
+    "durationTooLong": "This file is {{duration}} long. The maximum allowed duration is {{max}}.",
     "cancel": "Cancel",
     "eventPlaced": "{{count}} event placed",
     "eventsPlaced": "{{count}} events placed"
   },
   "parts": {
-    "selectHint": "Select a part on the Tesla",
+    "selectHint": "Select a part on the vehicle",
     "editingEvent": "Editing event",
     "duration": "Duration",
     "power": "Power",
@@ -91,7 +91,7 @@
     "retroRoundTrip": "Round trip",
     "windowDance": "🪟  Dance (oscillation)",
     "windowHint": "The window oscillates up/down automatically",
-    "windowWarning": "⚠️ Max recommended: 30s (Tesla thermal limit)",
+    "windowWarning": "⚠️ Max recommended: 30s (vehicle thermal limit)",
     "trunkOpen": "Open",
     "trunkClose": "Close",
     "trunkDance": "Dance",
@@ -121,10 +121,10 @@
     "blink_back_right": "Rear right turn signal"
   },
   "export": {
-    "page1Title": "Import into your Tesla",
-    "page1Intro": "To import your LightShow into your Tesla, follow these tips:",
-    "page1Note": "You can only have one custom LightShow in your Tesla.\nTo have multiple, you need multiple USB drives!",
-    "page1Tip": "Our Teslas can be finicky. To increase your chances of it working the first time: ",
+    "page1Title": "Import into your vehicle",
+    "page1Intro": "To import your LightShow into your vehicle, follow these tips:",
+    "page1Note": "You can only have one custom LightShow in your vehicle.\nTo have multiple, you need multiple USB drives!",
+    "page1Tip": "Vehicles can be finicky. To increase your chances of it working the first time: ",
     "page1TipBold": "use a separate USB drive.",
     "page2Title": "Format your USB drive",
     "page2Intro": "Format your USB drive:",
@@ -144,8 +144,8 @@
     "page3Warning2": "Do not place anything else in the folder.",
     "page3Tip": "In Windows, if you want to see extensions to be sure: in a folder, click on ",
     "page3TipBold": "View → Show → File name extensions",
-    "page4Title": "Plug into your Tesla",
-    "page4Intro": "Plug your drive into your Tesla.",
+    "page4Title": "Plug into your vehicle",
+    "page4Intro": "Plug your drive into your vehicle.",
     "page4Tip": "Use the ",
     "page4TipBold1": "main USB port",
     "page4TipMid": " and not a USB port dedicated to charging.\n\nMost of the time, on post-2021 models, the USB data port is in the ",
@@ -159,14 +159,14 @@
     "loadError": "Load error: ",
     "loadSuccess": "{{count}} events loaded successfully!",
     "loadNoEvents": "This file contains no events.",
-    "loadInvalidFile": "Invalid file. Please select a .json file exported from Light Studio.",
+    "loadInvalidFile": "Invalid file. Please select a .json file exported from LightShow Studio.",
     "exportMp3": "Export MP3",
     "previous": "← Previous",
     "next": "Next →"
   },
   "share": {
     "title": "Share Light Show",
-    "description": "You can export your events to a file so that a friend who has Light Studio can also load your Light Show.",
+    "description": "You can export your events to a file so that a friend who has LightShow Studio can also load your Light Show.",
     "noEvents": "You don't have any events on the timeline yet. Place at least one event to be able to share.",
     "shareBtn": "Share file"
   },
@@ -177,7 +177,7 @@
   },
   "load": {
     "title": "Load a Light Show",
-    "description": "You can load a Light Show created by a friend who has Light Studio. The events will be added to your timeline.",
+    "description": "You can load a Light Show created by a friend who has LightShow Studio. The events will be added to your timeline.",
     "noTrack": "You must first load a music track on this Light Show before you can import events.",
     "warning": "Warning: current events will be replaced by those from the imported file.",
     "loadBtn": "Choose a file"

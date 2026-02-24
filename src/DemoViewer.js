@@ -1,5 +1,5 @@
 /**
- * DemoViewer — Non-interactive rotating Tesla with random light show animation.
+ * DemoViewer — Non-interactive rotating car with random light show animation.
  * Used on the HomeScreen when no light shows exist.
  */
 import React, { useRef, useEffect } from 'react';

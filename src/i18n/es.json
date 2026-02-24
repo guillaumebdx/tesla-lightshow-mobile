@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "Light Studio",
-    "subtitle": "para Tesla"
+    "title": "LightShow Studio",
+    "subtitle": ""
   },
   "home": {
     "newShow": "+  Nuevo Light Show",
@@ -19,7 +19,7 @@
   },
   "settings": {
     "title": "Ajustes",
-    "about": "Acerca de Light Studio",
+    "about": "Acerca de LightShow Studio",
     "language": "Idioma",
     "aboutText1": "Esta app fue diseñada y construida íntegramente por",
     "aboutText2": "Está en constante mejora. ¡No dudes en compartir tus sugerencias de mejora!",
@@ -45,7 +45,7 @@
     "resetEventsConfirm": "¿Eliminar todos los eventos de la línea de tiempo?",
     "delete": "Eliminar",
     "cancel": "Cancelar",
-    "export": "Exportar a mi Tesla",
+    "export": "Exportar",
     "projectName": "✏️  Nombre del proyecto",
     "projectNamePlaceholder": "Nombre del proyecto",
     "bodyColor": "🎨  Color de carrocería",
@@ -72,13 +72,13 @@
     "importedFile": "Archivo importado",
     "orChooseFrom": "o elegir entre",
     "importError": "Error de importación: ",
-    "durationTooLong": "Este archivo dura {{duration}}. La duración máxima permitida por Tesla es {{max}}.",
+    "durationTooLong": "Este archivo dura {{duration}}. La duración máxima permitida es {{max}}.",
     "cancel": "Cancelar",
     "eventPlaced": "{{count}} evento colocado",
     "eventsPlaced": "{{count}} eventos colocados"
   },
   "parts": {
-    "selectHint": "Selecciona una pieza en el Tesla",
+    "selectHint": "Selecciona una pieza en el vehículo",
     "editingEvent": "Editando evento",
     "duration": "Duración",
     "power": "Potencia",
@@ -91,7 +91,7 @@
     "retroRoundTrip": "Ida y vuelta",
     "windowDance": "🪟  Dance (oscilación)",
     "windowHint": "La ventana oscila arriba/abajo automáticamente",
-    "windowWarning": "⚠️ Máx recomendado: 30s (límite térmico Tesla)",
+    "windowWarning": "⚠️ Máx recomendado: 30s (límite térmico del vehículo)",
     "trunkOpen": "Abrir",
     "trunkClose": "Cerrar",
     "trunkDance": "Dance",
@@ -121,10 +121,10 @@
     "blink_back_right": "Intermitente trasero derecho"
   },
   "export": {
-    "page1Title": "Importar en tu Tesla",
-    "page1Intro": "Para importar tu LightShow en tu Tesla, sigue estos consejos:",
-    "page1Note": "Solo puedes tener un LightShow personalizado en tu Tesla.\n¡Para tener varios, necesitas varias memorias USB!",
-    "page1Tip": "Nuestros Tesla pueden ser caprichosos. Para aumentar tus posibilidades de que funcione a la primera: ",
+    "page1Title": "Importar en tu vehículo",
+    "page1Intro": "Para importar tu LightShow en tu vehículo, sigue estos consejos:",
+    "page1Note": "Solo puedes tener un LightShow personalizado en tu vehículo.\n¡Para tener varios, necesitas varias memorias USB!",
+    "page1Tip": "Los vehículos pueden ser caprichosos. Para aumentar tus posibilidades de que funcione a la primera: ",
     "page1TipBold": "usa una memoria USB aparte.",
     "page2Title": "Formatear tu memoria USB",
     "page2Intro": "Formatea tu memoria USB:",
@@ -144,8 +144,8 @@
     "page3Warning2": "No coloques nada más en la carpeta.",
     "page3Tip": "En Windows, si quieres ver las extensiones para estar seguro: en una carpeta, haz clic en ",
     "page3TipBold": "Ver → Mostrar → Extensiones de nombre de archivo",
-    "page4Title": "Conectar en tu Tesla",
-    "page4Intro": "Conecta tu memoria en tu Tesla.",
+    "page4Title": "Conectar en tu vehículo",
+    "page4Intro": "Conecta tu memoria en tu vehículo.",
     "page4Tip": "Usa el ",
     "page4TipBold1": "puerto USB principal",
     "page4TipMid": " y no un puerto USB dedicado a la carga.\n\nLa mayoría de las veces, en modelos posteriores a 2021, el puerto USB de datos está en la ",
@@ -159,14 +159,14 @@
     "loadError": "Error al cargar: ",
     "loadSuccess": "¡{{count}} eventos cargados con éxito!",
     "loadNoEvents": "Este archivo no contiene eventos.",
-    "loadInvalidFile": "Archivo inválido. Selecciona un archivo .json exportado desde Light Studio.",
+    "loadInvalidFile": "Archivo inválido. Selecciona un archivo .json exportado desde LightShow Studio.",
     "exportMp3": "Exportar MP3",
     "previous": "← Anterior",
     "next": "Siguiente →"
   },
   "share": {
     "title": "Compartir el Light Show",
-    "description": "Puedes exportar tus eventos en un archivo para que un amigo que tenga Light Studio también pueda cargar tu Light Show.",
+    "description": "Puedes exportar tus eventos en un archivo para que un amigo que tenga LightShow Studio también pueda cargar tu Light Show.",
     "noEvents": "Aún no tienes eventos en la línea de tiempo. Coloca al menos un evento para poder compartir.",
     "shareBtn": "Compartir archivo"
   },
@@ -177,7 +177,7 @@
   },
   "load": {
     "title": "Cargar un Light Show",
-    "description": "Puedes cargar un Light Show creado por un amigo que tenga Light Studio. Los eventos se añadirán a tu línea de tiempo.",
+    "description": "Puedes cargar un Light Show creado por un amigo que tenga LightShow Studio. Los eventos se añadirán a tu línea de tiempo.",
     "noTrack": "Primero debes cargar una música en este Light Show antes de poder importar eventos.",
     "warning": "Atención: los eventos actuales serán reemplazados por los del archivo importado.",
     "loadBtn": "Elegir un archivo"
