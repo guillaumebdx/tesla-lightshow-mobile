@@ -32,8 +32,8 @@
     "namePlaceholder": "Mi Light Show",
     "model": "Modelo",
     "comingSoon": "Próximamente",
-    "model3Compat": "Compatible con todas las generaciones de Model 3.",
-    "model3Hint": "Mientras esperamos el soporte del Model Y, puedes usar este modelo: los elementos y luces son prácticamente idénticos.",
+    "model3Compat": "Compatible con todas las berlinas que soportan Light Show.",
+    "model3Hint": "Más modelos próximamente.",
     "create": "Crear",
     "unavailable": "No disponible"
   },

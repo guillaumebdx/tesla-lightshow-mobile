@@ -6,7 +6,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { shareAsync } from 'expo-sharing';
 import { BLINK_SPEEDS, RETRO_MODES, TRUNK_MODES, FLAP_MODES, WINDOW_MODES, isRetro, isWindow, isTrunk, isFlap, isClosure } from './constants';
 
-// Channel mapping (0-indexed) — confirmed via retro-engineering on Model 3
+// Channel mapping (0-indexed) — confirmed via retro-engineering
 // Each part maps to an array of channels that should all activate together
 const CHANNEL_MAP = {
   light_left_front:  [0, 2, 4, 6, 8, 10],   // DRL + low beam + 4 segments haut gauche
@@ -22,8 +22,8 @@ const CHANNEL_MAP = {
 // Closure channel mapping — official xLights layout (see CLOSURES.md)
 // These use command byte values instead of brightness:
 //   0=Idle, 64=Open, 128=Dance, 192=Close, 255=Stop
-// Note: ch 30-33 are Falcon/Front Doors (Model S/X only, no effect on Model 3)
-// Note: ch 41-44 are Door Handles (Model S only, no effect on Model 3)
+// Note: ch 30-33 are Falcon/Front Doors (not available on compact models)
+// Note: ch 41-44 are Door Handles (not available on compact models)
 const CLOSURE_MAP = {
   retro_left:         34,  // Left Mirror
   retro_right:        35,  // Right Mirror

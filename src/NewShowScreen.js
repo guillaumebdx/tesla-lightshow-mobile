@@ -15,15 +15,14 @@ const CARD_WIDTH = SCREEN_WIDTH * 0.7;
 const CARD_MARGIN = 12;
 
 const CAR_MODELS = [
-  { id: 'model_s', label: 'Model S', available: false },
-  { id: 'model_3', label: 'Model 3', available: true },
-  { id: 'model_x', label: 'Model X', available: false },
-  { id: 'model_y', label: 'Model Y', available: false },
+  { id: 'model_s', label: 'Sport', available: false },
+  { id: 'model_3', label: 'Compact', available: true },
+  { id: 'model_x', label: 'SUV', available: false },
 ];
 
 export default function NewShowScreen({ onBack, onCreated }) {
   const { t } = useTranslation();
-  const [selectedIndex, setSelectedIndex] = useState(1); // Model 3
+  const [selectedIndex, setSelectedIndex] = useState(1); // Compact
   const [showName, setShowName] = useState('');
   const scrollRef = useRef(null);
   const glRef = useRef(null);
@@ -41,7 +40,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
     })();
   }, []);
 
-  // Scroll to Model 3 on mount
+  // Scroll to default model on mount
   useEffect(() => {
     setTimeout(() => {
       scrollRef.current?.scrollTo({
@@ -276,9 +275,6 @@ export default function NewShowScreen({ onBack, onCreated }) {
               <View style={styles.modelInfoBox}>
                 <Text style={styles.modelInfoText}>
                   {t('newShow.model3Compat')}
-                </Text>
-                <Text style={styles.modelInfoHint}>
-                  {t('newShow.model3Hint')}
                 </Text>
               </View>
             )}
