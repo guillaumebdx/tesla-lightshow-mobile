@@ -118,7 +118,12 @@
     "blink_front_left": "Intermitente delantero izquierdo",
     "blink_front_right": "Intermitente delantero derecho",
     "blink_back_left": "Intermitente trasero izquierdo",
-    "blink_back_right": "Intermitente trasero derecho"
+    "blink_back_right": "Intermitente trasero derecho",
+    "license_plate": "Luz de matrícula",
+    "brake_lights": "Luces de freno",
+    "rear_fog": "Antiniebla trasero",
+    "side_repeater_left": "Repetidor izquierdo",
+    "side_repeater_right": "Repetidor derecho"
   },
   "export": {
     "page1Title": "Importar en tu vehículo",

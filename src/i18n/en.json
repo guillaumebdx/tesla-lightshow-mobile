@@ -118,7 +118,12 @@
     "blink_front_left": "Front left turn signal",
     "blink_front_right": "Front right turn signal",
     "blink_back_left": "Rear left turn signal",
-    "blink_back_right": "Rear right turn signal"
+    "blink_back_right": "Rear right turn signal",
+    "license_plate": "License plate light",
+    "brake_lights": "Brake lights",
+    "rear_fog": "Rear fog light",
+    "side_repeater_left": "Left side repeater",
+    "side_repeater_right": "Right side repeater"
   },
   "export": {
     "page1Title": "Import into your vehicle",

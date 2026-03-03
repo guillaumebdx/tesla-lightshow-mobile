@@ -32,16 +32,16 @@
 | **17**  | Right Aux Park           | —                      | ❌      | ⚠️ à confirmer | Feux de position droit |
 | **18**  | Left Side Marker         | —                      | ❌      | ✅ confirmé    | Feux latéraux gauche |
 | **19**  | Right Side Marker        | —                      | ❌      | ✅ confirmé    | Feux latéraux droit |
-| **20**  | Left Side Repeater       | —                      | ❌      | ✅ confirmé    | Répétiteur clignotant gauche |
-| **21**  | Right Side Repeater      | —                      | ❌      | ✅ confirmé    | Répétiteur clignotant droit |
+| **20**  | Left Side Repeater       | `side_repeater_left`   | ✅      | ✅ confirmé    | Répétiteur clignotant gauche |
+| **21**  | Right Side Repeater      | `side_repeater_right`  | ✅      | ✅ confirmé    | Répétiteur clignotant droit |
 | **22**  | Left Rear Turn           | `blink_back_left`      | ✅      | ✅ confirmé    | Clignotant AR gauche |
 | **23**  | Right Rear Turn          | `blink_back_right`     | ✅      | ✅ confirmé    | Clignotant AR droit |
-| **24**  | Brake Lights             | —                      | ❌      | ✅ confirmé    | Feux stop (les 3 ensemble) |
+| **24**  | Brake Lights             | `brake_lights`         | ✅      | ✅ confirmé    | Feux stop (les 3 ensemble) |
 | **25**  | Left Tail                | `light_left_back`      | ✅      | ✅ confirmé    | Feu signature AR gauche |
 | **26**  | Right Tail               | `light_right_back`     | ✅      | ✅ confirmé    | Feu signature AR droit |
 | **27**  | Reverse Lights           | —                      | ❌      | ✅ confirmé    | Feux de recul (les 2) |
-| **28**  | Rear Fog Lights          | —                      | ❌      | ✅ confirmé    | Feu rond AR (antibrouillard) |
-| **29**  | License Plate            | —                      | ❌      | ✅ confirmé    | Éclairage plaque |
+| **28**  | Rear Fog Lights          | `rear_fog`             | ✅      | ✅ confirmé    | Feu rond AR (antibrouillard) |
+| **29**  | License Plate            | `license_plate`        | ✅      | ✅ confirmé    | Éclairage plaque |
 
 ### Closures (Ch 30-45) — valeurs commandes (voir CLOSURES.md)
 

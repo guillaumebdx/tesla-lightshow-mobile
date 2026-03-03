@@ -118,7 +118,12 @@
     "blink_front_left": "Blinker vorne links",
     "blink_front_right": "Blinker vorne rechts",
     "blink_back_left": "Blinker hinten links",
-    "blink_back_right": "Blinker hinten rechts"
+    "blink_back_right": "Blinker hinten rechts",
+    "license_plate": "Kennzeichenbeleuchtung",
+    "brake_lights": "Bremslichter",
+    "rear_fog": "Nebelschlussleuchte",
+    "side_repeater_left": "Seitenblinker links",
+    "side_repeater_right": "Seitenblinker rechts"
   },
   "export": {
     "page1Title": "In dein Fahrzeug importieren",

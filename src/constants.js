@@ -10,6 +10,10 @@ export const INTERACTIVE_PARTS = [
   'light_left_back', 'light_right_back',
   'blink_front_left', 'blink_front_right',
   'blink_back_left', 'blink_back_right',
+  'license_plate',
+  'brake_lights',
+  'rear_fog',
+  'side_repeater_left', 'side_repeater_right',
 ];
 
 // French labels for each part
@@ -30,6 +34,11 @@ export const PART_LABELS = {
   blink_front_right: 'Clignotant AV droit',
   blink_back_left: 'Clignotant AR gauche',
   blink_back_right: 'Clignotant AR droit',
+  license_plate: 'Éclairage plaque',
+  brake_lights: 'Feux stop',
+  rear_fog: 'Antibrouillard AR',
+  side_repeater_left: 'Répétiteur gauche',
+  side_repeater_right: 'Répétiteur droit',
 };
 
 // Icon images per part type
@@ -50,6 +59,11 @@ export const PART_ICONS = {
   blink_front_right: require('../assets/icons/front_light.png'),
   blink_back_left: require('../assets/icons/back_light.png'),
   blink_back_right: require('../assets/icons/back_light.png'),
+  license_plate: require('../assets/icons/back_light.png'),
+  brake_lights: require('../assets/icons/back_light.png'),
+  rear_fog: require('../assets/icons/back_light.png'),
+  side_repeater_left: require('../assets/icons/front_light.png'),
+  side_repeater_right: require('../assets/icons/front_light.png'),
 };
 
 // Color per part type (for event rectangles on waveform)
@@ -70,6 +84,11 @@ export const PART_COLORS = {
   blink_front_right: '#ffaa00',
   blink_back_left: '#ffaa00',
   blink_back_right: '#ffaa00',
+  license_plate: '#ccccff',
+  brake_lights: '#ff2222',
+  rear_fog: '#ff4444',
+  side_repeater_left: '#ffaa00',
+  side_repeater_right: '#ffaa00',
 };
 
 // Effect types for events (extensible later with fade, pulse, etc.)
@@ -168,10 +187,10 @@ export const DEFAULT_EVENT_OPTIONS = {
 };
 
 // Helper: is this part a light?
-export const isLight = (part) => part && part.includes('light');
+export const isLight = (part) => part && (part.includes('light') || part === 'license_plate' || part === 'rear_fog');
 
 // Helper: is this part a turn signal (blinker)?
-export const isBlinker = (part) => part && part.includes('blink');
+export const isBlinker = (part) => part && (part.includes('blink') || part.includes('repeater'));
 
 // Helper: is this part a retro mirror?
 export const isRetro = (part) => part && part.includes('retro');

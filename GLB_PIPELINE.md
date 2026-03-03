@@ -57,6 +57,12 @@ Cela affiche :
 | Clignotant avant droit | `blink_front_right`    |
 | Clignotant arrière gauche | `blink_back_left`   |
 | Clignotant arrière droit  | `blink_back_right`  |
+| Éclairage plaque       | `plaque` → `license_plate` |
+| Feu stop central       | `stop_light` → `brake_lights` |
+| Antibrouillard AR gauche | `anti_fog_back_left` → `rear_fog` |
+| Antibrouillard AR droit  | `anti_fog_back_right` → `rear_fog` |
+| Répétiteur gauche      | `side_clignoant_left` → `side_repeater_left` |
+| Répétiteur droit       | `side_clignotant_right` → `side_repeater_right` |
 
 ---
 

@@ -118,7 +118,12 @@
     "blink_front_left": "Clignotant AV gauche",
     "blink_front_right": "Clignotant AV droit",
     "blink_back_left": "Clignotant AR gauche",
-    "blink_back_right": "Clignotant AR droit"
+    "blink_back_right": "Clignotant AR droit",
+    "license_plate": "Éclairage plaque",
+    "brake_lights": "Feux stop",
+    "rear_fog": "Antibrouillard AR",
+    "side_repeater_left": "Répétiteur gauche",
+    "side_repeater_right": "Répétiteur droit"
   },
   "export": {
     "page1Title": "Importer dans ton véhicule",

@@ -17,6 +17,11 @@ const CHANNEL_MAP = {
   blink_front_right: [13],                   // clignotant AV droit
   blink_back_left:   [22],                   // clignotant AR gauche
   blink_back_right:  [23],                   // clignotant AR droit
+  license_plate:     [29],                   // éclairage plaque
+  brake_lights:      [24],                   // feux stop (les 3 ensemble)
+  rear_fog:          [28],                   // antibrouillard AR
+  side_repeater_left:  [20],                 // répétiteur clignotant gauche
+  side_repeater_right: [21],                 // répétiteur clignotant droit
 };
 
 // Closure channel mapping — official xLights layout (see CLOSURES.md)

@@ -504,7 +504,14 @@ export default function ModelViewer({ showId, onGoHome }) {
     // Map non-standard Blender node names to clean part names
     const nodeNameMap = {
       'blink_front_left002': 'blink_front_left',
+      'blink_front_left.002': 'blink_front_left',
       'blin_back_right': 'blink_back_right',
+      'plaque': 'license_plate',
+      'stop_light': 'brake_lights',
+      'anti_fog_back_left': 'rear_fog',
+      'anti_fog_back_right': 'rear_fog',
+      'side_clignoant_left': 'side_repeater_left',
+      'side_clignotant_right': 'side_repeater_right',
     };
 
     const fixedPartMaterials = {
@@ -522,11 +529,16 @@ export default function ModelViewer({ showId, onGoHome }) {
       blink_front_right: blinkerMaterial,
       blink_back_left: blinkerMaterial,
       blink_back_right: blinkerMaterial,
+      license_plate: headlightMaterial,
+      brake_lights: taillightMaterial,
+      rear_fog: taillightMaterial,
+      side_repeater_left: blinkerMaterial,
+      side_repeater_right: blinkerMaterial,
     };
 
     // Load GLB model
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_model_3_v3_geo.glb'));
+      const asset = Asset.fromModule(require('../assets/models/tesla_20260303_geo.glb'));
       await asset.downloadAsync();
 
       const fileUri = asset.localUri || asset.uri;
@@ -593,6 +605,11 @@ export default function ModelViewer({ showId, onGoHome }) {
         blink_front_right: { color: 0xffaa00, dir: new THREE.Vector3(0.5, -0.3, 1) },
         blink_back_left:   { color: 0xffaa00, dir: new THREE.Vector3(-0.5, -0.3, -1) },
         blink_back_right:  { color: 0xffaa00, dir: new THREE.Vector3(0.5, -0.3, -1) },
+        license_plate:     { color: 0xffffff, dir: new THREE.Vector3(0, -1, -0.3) },
+        brake_lights:      { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
+        rear_fog:          { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
+        side_repeater_left:  { color: 0xffaa00, dir: new THREE.Vector3(-1, -0.3, 0) },
+        side_repeater_right: { color: 0xffaa00, dir: new THREE.Vector3(1, -0.3, 0) },
       };
 
       model.traverse((child) => {
@@ -605,8 +622,8 @@ export default function ModelViewer({ showId, onGoHome }) {
         const worldPos = new THREE.Vector3();
         child.getWorldPosition(worldPos);
 
-        const isBlink = partName.includes('blink');
-        const spot = new THREE.SpotLight(def.color, 0, isBlink ? 8 : 12, isBlink ? Math.PI / 6 : Math.PI / 5, 0.6, 1.5);
+        const isSmallLight = partName.includes('blink') || partName.includes('repeater') || partName === 'license_plate' || partName === 'rear_fog' || partName === 'brake_lights';
+        const spot = new THREE.SpotLight(def.color, 0, isSmallLight ? 8 : 12, isSmallLight ? Math.PI / 6 : Math.PI / 5, 0.6, 1.5);
         spot.position.copy(worldPos);
         // Target = position + direction
         const target = new THREE.Object3D();
@@ -828,7 +845,8 @@ export default function ModelViewer({ showId, onGoHome }) {
         // Build a map: partName -> { event, intensity }
         const activeMap = new Map();
         const lightParts = ['light_left_front', 'light_right_front', 'light_left_back', 'light_right_back',
-          'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right'];
+          'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
+          'license_plate', 'brake_lights', 'rear_fog', 'side_repeater_left', 'side_repeater_right'];
 
         for (const evt of events) {
           if (pos >= evt.startMs && pos < evt.endMs) {
@@ -878,10 +896,9 @@ export default function ModelViewer({ showId, onGoHome }) {
 
           const active = activeMap.get(partName);
           if (active) {
-            const isHeadlight = isLight(partName) && partName.includes('front');
-            const isTaillight = isLight(partName) && partName.includes('back');
+            const isLightPart = isLight(partName);
             const isBlink = isBlinker(partName);
-            if (!isHeadlight && !isTaillight && !isBlink) return;
+            if (!isLightPart && !isBlink) return;
 
             if (active.blinkOff) {
               const originalMat = meshMaterialsRef.current.get(partName);
@@ -889,8 +906,9 @@ export default function ModelViewer({ showId, onGoHome }) {
               return;
             }
 
+            // Determine lit material: blinkers/repeaters=amber, front lights + license plate=white, rest=red
             const litMat = isBlink ? litBlinkerMatRef.current
-                         : isHeadlight ? litHeadlightMatRef.current
+                         : (partName.includes('front') || partName === 'license_plate') ? litHeadlightMatRef.current
                          : litTaillightMatRef.current;
             if (!litMat) return;
             const originalMat = meshMaterialsRef.current.get(partName);
