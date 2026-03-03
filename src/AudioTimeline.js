@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -376,28 +376,24 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
 
   const progress = duration > 0 ? position / duration : 0;
 
-  // Compute overlap lanes for events
-  const computeLanes = (evts) => {
-    const lanes = new Map(); // eventId -> { lane, totalLanes }
-    for (let i = 0; i < evts.length; i++) {
-      const evt = evts[i];
-      // Find all events overlapping with this one
-      const overlapping = evts.filter(
-        (other) => other.startMs < evt.endMs && other.endMs > evt.startMs
-      );
-      // Sort overlapping group consistently by startMs then id
-      overlapping.sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id));
-      const laneIdx = overlapping.findIndex((o) => o.id === evt.id);
-      lanes.set(evt.id, { lane: laneIdx, totalLanes: overlapping.length });
-    }
-    return lanes;
-  };
+  // Assign a fixed lane per part so vertical order never changes on drag.
+  // Parts are sorted alphabetically for a deterministic lane order.
+  const partLaneKey = [...new Set(events.map(e => e.part))].sort().join(',');
+  const partLaneMap = useMemo(() => {
+    const parts = partLaneKey.split(',').filter(Boolean);
+    const map = new Map();
+    parts.forEach((p, i) => map.set(p, i));
+    return map;
+  }, [partLaneKey]);
 
-  const eventLanes = computeLanes(events);
+  const totalLanes = Math.max(1, partLaneMap.size);
+  const eventLanes = new Map();
+  for (const evt of events) {
+    const lane = partLaneMap.get(evt.part) || 0;
+    eventLanes.set(evt.id, { lane, totalLanes });
+  }
 
-  // Compute max overlapping lanes for dynamic height
-  let maxLanes = 1;
-  eventLanes.forEach((info) => { if (info.totalLanes > maxLanes) maxLanes = info.totalLanes; });
+  let maxLanes = totalLanes;
   const BASE_HEIGHT = 80 * timelineScale;
   const timelineHeight = Math.min(BASE_HEIGHT * 1.5, BASE_HEIGHT * (maxLanes > 1 ? 1 + (maxLanes - 1) * 0.25 : 1));
 
@@ -428,7 +424,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
 
     const updated = { ...evt, startMs: newStart, endMs: newEnd };
     setEvents((prev) => {
-      const newList = prev.map((e) => e.id === evt.id ? updated : e).sort((a, b) => a.startMs - b.startMs);
+      const newList = prev.map((e) => e.id === evt.id ? updated : e);
       if (onEventsChange) onEventsChange(newList);
       return newList;
     });
