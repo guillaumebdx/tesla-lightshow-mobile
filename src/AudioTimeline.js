@@ -387,13 +387,27 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
   }, [partLaneKey]);
 
   const totalLanes = Math.max(1, partLaneMap.size);
-  const eventLanes = new Map();
-  for (const evt of events) {
-    const lane = partLaneMap.get(evt.part) || 0;
-    eventLanes.set(evt.id, { lane, totalLanes });
-  }
 
-  let maxLanes = totalLanes;
+  // For each event, compute how many distinct part-lanes overlap at its time range
+  // so heights adapt dynamically when events are moved apart.
+  const eventLanes = new Map();
+  let maxLanes = 1;
+  for (const evt of events) {
+    const lane = partLaneMap.get(evt.part) ?? 0;
+    // Collect sorted distinct part-lanes that overlap this event's time range
+    const overlappingLanes = new Set();
+    overlappingLanes.add(lane);
+    for (const other of events) {
+      if (other.startMs < evt.endMs && other.endMs > evt.startMs) {
+        overlappingLanes.add(partLaneMap.get(other.part) ?? 0);
+      }
+    }
+    const sorted = [...overlappingLanes].sort((a, b) => a - b);
+    const lanesHere = sorted.length;
+    const relativeLane = sorted.indexOf(lane);
+    if (lanesHere > maxLanes) maxLanes = lanesHere;
+    eventLanes.set(evt.id, { lane: relativeLane, lanesHere });
+  }
   const BASE_HEIGHT = 80 * timelineScale;
   const timelineHeight = Math.min(BASE_HEIGHT * 1.5, BASE_HEIGHT * (maxLanes > 1 ? 1 + (maxLanes - 1) * 0.25 : 1));
 
@@ -636,8 +650,8 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
               const widthPx = Math.max(4, (endRatio - startRatio) * totalWaveWidth);
               const color = PART_COLORS[evt.part] || '#44aaff';
               const isSelected = evt.id === selectedEventId;
-              const laneInfo = eventLanes.get(evt.id) || { lane: 0, totalLanes: 1 };
-              const laneHeight = timelineHeight / laneInfo.totalLanes;
+              const laneInfo = eventLanes.get(evt.id) || { lane: 0, lanesHere: 1 };
+              const laneHeight = timelineHeight / laneInfo.lanesHere;
               const laneTop = laneInfo.lane * laneHeight;
               return (
                 <DraggableEvent
