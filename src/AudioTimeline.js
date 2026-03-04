@@ -157,6 +157,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const touchStartRef = useRef({ x: 0, time: 0 });
   const eventTappedRef = useRef(false);
+  const pinchRef = useRef({ active: false, startDist: 0, startZoomIndex: 3, centerX: 0 });
 
   useImperativeHandle(ref, () => ({
     openTrackPicker: () => setModalVisible(true),
@@ -589,6 +590,53 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
             }
           }, 50);
         }}
+        onStartShouldSetResponder={() => false}
+        onStartShouldSetResponderCapture={() => false}
+        onMoveShouldSetResponder={() => false}
+        onMoveShouldSetResponderCapture={(e) => {
+          // Intercept in capture phase when 2+ fingers detected (pinch)
+          const touches = e.nativeEvent.touches || [];
+          return touches.length >= 2;
+        }}
+        onResponderGrant={(e) => {
+          const touches = e.nativeEvent.touches || [];
+          if (touches.length >= 2) {
+            const dx = touches[1].pageX - touches[0].pageX;
+            const dy = touches[1].pageY - touches[0].pageY;
+            pinchRef.current = {
+              active: true,
+              startDist: Math.sqrt(dx * dx + dy * dy),
+              startZoomIndex: zoomIndex,
+            };
+            setScrollEnabled(false);
+          }
+        }}
+        onResponderMove={(e) => {
+          const touches = e.nativeEvent.touches || [];
+          if (touches.length >= 2 && pinchRef.current.active) {
+            const dx = touches[1].pageX - touches[0].pageX;
+            const dy = touches[1].pageY - touches[0].pageY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const ratio = dist / pinchRef.current.startDist;
+            const steps = Math.round(Math.log(ratio) / Math.log(1.5));
+            const newIndex = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, pinchRef.current.startZoomIndex + steps));
+            if (newIndex !== zoomIndex) {
+              setZoomIndex(newIndex);
+            }
+          }
+        }}
+        onResponderRelease={() => {
+          if (pinchRef.current.active) {
+            pinchRef.current.active = false;
+            setScrollEnabled(true);
+          }
+        }}
+        onResponderTerminate={() => {
+          if (pinchRef.current.active) {
+            pinchRef.current.active = false;
+            setScrollEnabled(true);
+          }
+        }}
       >
         <ScrollView
           ref={scrollRef}
@@ -611,6 +659,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
             };
           }}
           onTouchEnd={(e) => {
+            if (pinchRef.current.active) return;
             if (eventTappedRef.current) {
               eventTappedRef.current = false;
               return;

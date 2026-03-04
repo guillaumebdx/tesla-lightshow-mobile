@@ -23,6 +23,7 @@ import { exportFseq } from './fseqExport';
 import { loadShow, saveShow } from './storage';
 import ExportModal from './ExportModal';
 import FlashMessage from './FlashMessage';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ModelViewer({ showId, onGoHome }) {
   const { t } = useTranslation();
@@ -1461,7 +1462,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               style={styles.menuItem}
               onPress={() => closeDrawer(() => { if (onGoHome) onGoHome(); })}
             >
-              <Text style={styles.menuItemIcon}>🏠</Text>
+              <Ionicons name="home-outline" size={20} color="#e94560" />
               <Text style={styles.menuItemText}>{t('editor.home')}</Text>
             </TouchableOpacity>
 
@@ -1471,7 +1472,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               style={styles.menuItem}
               onPress={() => closeDrawer(() => setSettingsVisible(true))}
             >
-              <Text style={styles.menuItemIcon}>⚙</Text>
+              <Ionicons name="settings-outline" size={20} color="#e94560" />
               <Text style={styles.menuItemText}>{t('editor.advancedSettings')}</Text>
             </TouchableOpacity>
 
@@ -1501,7 +1502,7 @@ export default function ModelViewer({ showId, onGoHome }) {
                 );
               }}
             >
-              <Text style={styles.menuItemIcon}>🗑</Text>
+              <Ionicons name="trash-outline" size={20} color="#e94560" />
               <Text style={styles.menuItemText}>{t('editor.resetEvents')}</Text>
             </TouchableOpacity>
 
@@ -1511,7 +1512,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               style={styles.menuItem}
               onPress={() => closeDrawer(() => setExportVisible(true))}
             >
-              <Text style={styles.menuItemIcon}>📤</Text>
+              <Ionicons name="share-outline" size={20} color="#e94560" />
               <Text style={styles.menuItemText}>{t('editor.export')}</Text>
             </TouchableOpacity>
           </RNAnimated.View>
