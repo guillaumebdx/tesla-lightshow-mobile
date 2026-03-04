@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TextInput, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert, KeyboardAvoidingView, Platform, Linking } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TextInput, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert, KeyboardAvoidingView, Platform, Linking, Animated as RNAnimated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
@@ -25,6 +26,7 @@ import FlashMessage from './FlashMessage';
 
 export default function ModelViewer({ showId, onGoHome }) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
@@ -33,6 +35,25 @@ export default function ModelViewer({ showId, onGoHome }) {
   const playbackDurationRef = useRef(0);
   const [eventOptions, setEventOptions] = useState({ ...DEFAULT_EVENT_OPTIONS });
   const [menuVisible, setMenuVisible] = useState(false);
+  const drawerAnim = useRef(new RNAnimated.Value(0)).current;
+  const overlayAnim = useRef(new RNAnimated.Value(0)).current;
+  const DRAWER_WIDTH = 260;
+  const openDrawer = useCallback(() => {
+    setMenuVisible(true);
+    RNAnimated.parallel([
+      RNAnimated.spring(drawerAnim, { toValue: 1, useNativeDriver: true, speed: 18, bounciness: 4 }),
+      RNAnimated.timing(overlayAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
+  }, [drawerAnim, overlayAnim]);
+  const closeDrawer = useCallback((cb) => {
+    RNAnimated.parallel([
+      RNAnimated.timing(drawerAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+      RNAnimated.timing(overlayAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start(() => {
+      setMenuVisible(false);
+      if (cb) cb();
+    });
+  }, [drawerAnim, overlayAnim]);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [exportVisible, setExportVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
@@ -1410,29 +1431,35 @@ export default function ModelViewer({ showId, onGoHome }) {
         </View>
       </ScrollView>
 
-      {/* Burger menu button */}
+      {/* Burger menu button — native 3-bar icon */}
       <TouchableOpacity
-        style={styles.burgerButton}
-        onPress={() => setMenuVisible(true)}
+        style={[styles.burgerButton, { top: insets.top + 8 }]}
+        onPress={openDrawer}
+        activeOpacity={0.7}
       >
-        <Text style={styles.burgerIcon}>☰</Text>
+        <View style={styles.burgerBar} />
+        <View style={[styles.burgerBar, { width: 16 }]} />
+        <View style={styles.burgerBar} />
       </TouchableOpacity>
 
-      {/* Burger menu modal */}
-      <Modal
-        visible={menuVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMenuVisible(false)}
-      >
-        <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
-          <View style={styles.menuContent} onStartShouldSetResponder={() => true}>
+      {/* Slide-in drawer from right */}
+      {menuVisible && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <RNAnimated.View
+            style={[styles.drawerOverlay, { opacity: overlayAnim }]}
+          >
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => closeDrawer()} />
+          </RNAnimated.View>
+          <RNAnimated.View
+            style={[
+              styles.drawerContainer,
+              { width: DRAWER_WIDTH, paddingTop: insets.top + 16 },
+              { transform: [{ translateX: drawerAnim.interpolate({ inputRange: [0, 1], outputRange: [DRAWER_WIDTH, 0] }) }] },
+            ]}
+          >
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                if (onGoHome) onGoHome();
-              }}
+              onPress={() => closeDrawer(() => { if (onGoHome) onGoHome(); })}
             >
               <Text style={styles.menuItemIcon}>🏠</Text>
               <Text style={styles.menuItemText}>{t('editor.home')}</Text>
@@ -1442,10 +1469,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                setSettingsVisible(true);
-              }}
+              onPress={() => closeDrawer(() => setSettingsVisible(true))}
             >
               <Text style={styles.menuItemIcon}>⚙</Text>
               <Text style={styles.menuItemText}>{t('editor.advancedSettings')}</Text>
@@ -1465,11 +1489,12 @@ export default function ModelViewer({ showId, onGoHome }) {
                       text: t('editor.delete'),
                       style: 'destructive',
                       onPress: () => {
-                        setMenuVisible(false);
-                        setSelectedEvent(null);
-                        audioTimelineRef.current?.clearAllEvents();
-                        eventsRef.current = [];
-                        scheduleSave();
+                        closeDrawer(() => {
+                          setSelectedEvent(null);
+                          audioTimelineRef.current?.clearAllEvents();
+                          eventsRef.current = [];
+                          scheduleSave();
+                        });
                       },
                     },
                   ]
@@ -1484,17 +1509,14 @@ export default function ModelViewer({ showId, onGoHome }) {
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                setExportVisible(true);
-              }}
+              onPress={() => closeDrawer(() => setExportVisible(true))}
             >
               <Text style={styles.menuItemIcon}>📤</Text>
               <Text style={styles.menuItemText}>{t('editor.export')}</Text>
             </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
+          </RNAnimated.View>
+        </View>
+      )}
 
       {/* Settings bottom panel */}
       <Modal
@@ -1509,7 +1531,7 @@ export default function ModelViewer({ showId, onGoHome }) {
         >
           <Pressable style={styles.settingsOverlay} onPress={() => setSettingsVisible(false)}>
             <ScrollView
-              style={styles.settingsPanel}
+              style={[styles.settingsPanel, { maxHeight: Dimensions.get('window').height - insets.top - 20 }]}
               onStartShouldSetResponder={() => true}
               keyboardShouldPersistTaps="handled"
             >
@@ -1927,37 +1949,40 @@ const styles = StyleSheet.create({
   },
   burgerButton: {
     position: 'absolute',
-    top: 46,
     right: 14,
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: 'rgba(30, 30, 60, 0.85)',
-    borderWidth: 1,
-    borderColor: '#3a3a5a',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(20, 20, 40, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 4,
     zIndex: 10,
   },
-  burgerIcon: {
-    color: '#ccccee',
-    fontSize: 24,
+  burgerBar: {
+    width: 20,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#ccccee',
   },
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    paddingTop: 86,
-    paddingRight: 14,
+  drawerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
-  menuContent: {
-    backgroundColor: '#1a1a2e',
-    borderRadius: 12,
-    borderWidth: 1,
+  drawerContainer: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#141428',
+    borderLeftWidth: 1,
     borderColor: '#2a2a4a',
-    paddingVertical: 6,
-    minWidth: 200,
+    paddingHorizontal: 0,
+    elevation: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   menuItem: {
     flexDirection: 'row',
@@ -2121,19 +2146,19 @@ const styles = StyleSheet.create({
   },
   settingsCloseBtn: {
     position: 'absolute',
-    right: 16,
-    top: 14,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    right: 12,
+    top: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(60, 60, 90, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   settingsCloseBtnText: {
     color: '#aaaacc',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
   },
   settingsSection: {
     paddingHorizontal: 20,

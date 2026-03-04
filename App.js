@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import './src/i18n'; // Initialize i18n
 import HomeScreen from './src/HomeScreen';
 import NewShowScreen from './src/NewShowScreen';
@@ -23,7 +24,7 @@ export default function App() {
   };
 
   return (
-    <>
+    <SafeAreaProvider>
       <StatusBar style="light" />
       {screen === 'home' && (
         <HomeScreen onNewShow={goNew} onOpenShow={openShow} />
@@ -34,6 +35,6 @@ export default function App() {
       {screen === 'editor' && (
         <ModelViewer showId={currentShowId} onGoHome={goHome} />
       )}
-    </>
+    </SafeAreaProvider>
   );
 }
