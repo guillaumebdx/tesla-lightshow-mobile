@@ -166,18 +166,18 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
     updateEvent: (updatedEvt) => {
       setEvents((prev) => {
         const updated = prev.map((e) => e.id === updatedEvt.id ? updatedEvt : e);
-        if (onEventsChange) onEventsChange(updated);
+        queueMicrotask(() => { if (onEventsChange) onEventsChange(updated); });
         return updated;
       });
     },
     clearAllEvents: () => {
       setEvents([]);
-      if (onEventsChange) onEventsChange([]);
+      queueMicrotask(() => { if (onEventsChange) onEventsChange([]); });
     },
     deleteEvent: (eventId) => {
       setEvents((prev) => {
         const updated = prev.filter((e) => e.id !== eventId);
-        if (onEventsChange) onEventsChange(updated);
+        queueMicrotask(() => { if (onEventsChange) onEventsChange(updated); });
         return updated;
       });
     },
@@ -201,7 +201,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
       let sorted = [...savedEvents].sort((a, b) => a.startMs - b.startMs);
       if (sorted.length > MAX_EVENTS) sorted = sorted.slice(0, MAX_EVENTS);
       setEvents(sorted);
-      if (onEventsChange) onEventsChange(sorted);
+      queueMicrotask(() => { if (onEventsChange) onEventsChange(sorted); });
     },
     // Select a track by its ID (for loading saved shows — keeps events)
     selectTrackById: (trackId) => {
@@ -261,7 +261,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
       if (demoEvents && demoEvents.length > 0) {
         const sorted = [...demoEvents].sort((a, b) => a.startMs - b.startMs);
         setEvents(sorted);
-        if (onEventsChange) onEventsChange(sorted);
+        queueMicrotask(() => { if (onEventsChange) onEventsChange(sorted); });
       } else {
         setEvents([]);
       }
@@ -456,7 +456,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
     const updated = { ...evt, startMs: newStart, endMs: newEnd };
     setEvents((prev) => {
       const newList = prev.map((e) => e.id === evt.id ? updated : e);
-      if (onEventsChange) onEventsChange(newList);
+      queueMicrotask(() => { if (onEventsChange) onEventsChange(newList); });
       return newList;
     });
     if (onEventSelect) onEventSelect(updated);
@@ -548,7 +548,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
 
       setEvents((prev) => {
         const updated = [...prev, newEvent].sort((a, b) => a.startMs - b.startMs);
-        if (onEventsChange) onEventsChange(updated);
+        queueMicrotask(() => { if (onEventsChange) onEventsChange(updated); });
         return updated;
       });
 

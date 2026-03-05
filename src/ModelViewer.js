@@ -526,21 +526,23 @@ export default function ModelViewer({ showId, onGoHome }) {
     bodyMaterialRef.current = bodyMaterial;
 
     const highlightMaterial = new THREE.MeshStandardMaterial({
-      color: 0x44aaff,
-      metalness: 0.5,
-      roughness: 0.2,
-      emissive: 0x1155aa,
-      emissiveIntensity: 0.6,
+      color: 0x22ddff,
+      metalness: 0.3,
+      roughness: 0.15,
+      emissive: 0x00aaff,
+      emissiveIntensity: 1.0,
+      transparent: true,
+      opacity: 0.92,
     });
     highlightMaterialRef.current = highlightMaterial;
 
     // Flap is embedded under the body — needs depthTest off to be visible
     const highlightMaterialNoDepth = new THREE.MeshStandardMaterial({
-      color: 0x44aaff,
-      metalness: 0.5,
-      roughness: 0.2,
-      emissive: 0x1155aa,
-      emissiveIntensity: 0.8,
+      color: 0x22ddff,
+      metalness: 0.3,
+      roughness: 0.15,
+      emissive: 0x00aaff,
+      emissiveIntensity: 1.0,
       depthTest: false,
       transparent: true,
       opacity: 0.85,
@@ -939,6 +941,20 @@ export default function ModelViewer({ showId, onGoHome }) {
             toCam.subVectors(camPos, dotWorldPos);
             // If dot faces camera (same hemisphere), show it
             dot.visible = toCenter.dot(toCam) > 0;
+          }
+        }
+
+        // Pulse highlight material glow on selected part
+        if (selectedMeshRef.current) {
+          const t = Date.now() * 0.003; // ~3 cycles per second
+          const pulse = 0.6 + 0.5 * Math.sin(t); // oscillates 0.1 — 1.1
+          if (highlightMaterialRef.current) {
+            highlightMaterialRef.current.emissiveIntensity = pulse;
+            highlightMaterialRef.current.opacity = 0.75 + 0.2 * Math.sin(t);
+          }
+          if (highlightMaterialNoDepthRef.current) {
+            highlightMaterialNoDepthRef.current.emissiveIntensity = pulse;
+            highlightMaterialNoDepthRef.current.opacity = 0.65 + 0.2 * Math.sin(t);
           }
         }
 
@@ -1453,7 +1469,10 @@ export default function ModelViewer({ showId, onGoHome }) {
               eventsRef.current = evts;
               scheduleSave();
             }}
-            onPlayingChange={(playing) => { isPlayingRef.current = playing; }}
+            onPlayingChange={(playing) => {
+              isPlayingRef.current = playing;
+              if (playing) selectPart(null);
+            }}
             onPositionChange={(pos, dur) => {
               playbackPositionRef.current = pos;
               playbackDurationRef.current = dur;
