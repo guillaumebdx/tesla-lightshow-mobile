@@ -27,7 +27,9 @@ const WINDOW_PARTS = ['window_left_front', 'window_right_front', 'window_left_ba
 const HEAD_PARTS = ['light_left_front', 'light_right_front'];
 const TAIL_PARTS = ['light_left_back', 'light_right_back'];
 const BLINK_PARTS = ['blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right'];
-const ALL_ANIM_PARTS = [...WINDOW_PARTS, ...HEAD_PARTS, ...TAIL_PARTS, ...BLINK_PARTS];
+const EXTRA_LIGHT_PARTS = ['license_plate', 'brake_lights', 'rear_fog'];
+const REPEATER_PARTS = ['side_repeater_left', 'side_repeater_right'];
+const ALL_ANIM_PARTS = [...WINDOW_PARTS, ...HEAD_PARTS, ...TAIL_PARTS, ...BLINK_PARTS, ...EXTRA_LIGHT_PARTS, ...REPEATER_PARTS];
 
 export default function DemoViewer({ style }) {
   const frameIdRef = useRef(null);
@@ -68,7 +70,7 @@ export default function DemoViewer({ style }) {
     const partMeshes = {}; // partName -> mesh
 
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_model_3_v3_geo.glb'));
+      const asset = Asset.fromModule(require('../assets/models/tesla_20260303_geo.glb'));
       await asset.downloadAsync();
       const loader = new GLTFLoader();
       const gltf = await new Promise((resolve, reject) => {
@@ -98,10 +100,22 @@ export default function DemoViewer({ style }) {
         light_left_back: mats.tailOff, light_right_back: mats.tailOff,
         blink_front_left: mats.blinkOff, blink_front_right: mats.blinkOff,
         blink_back_left: mats.blinkOff, blink_back_right: mats.blinkOff,
+        license_plate: mats.headOff,
+        brake_lights: mats.tailOff,
+        rear_fog: mats.tailOff,
+        side_repeater_left: mats.blinkOff,
+        side_repeater_right: mats.blinkOff,
       };
       const nodeNameMap = {
         'blink_front_left002': 'blink_front_left',
+        'blink_front_left.002': 'blink_front_left',
         'blin_back_right': 'blink_back_right',
+        'plaque': 'license_plate',
+        'stop_light': 'brake_lights',
+        'anti_fog_back_left': 'rear_fog',
+        'anti_fog_back_right': 'rear_fog',
+        'side_clignoant_left': 'side_repeater_left',
+        'side_clignotant_right': 'side_repeater_right',
       };
       const getPartName = (mesh) => {
         let node = mesh;
@@ -147,6 +161,10 @@ export default function DemoViewer({ style }) {
       const tailSpeed = TAIL_PARTS.map(() => 10 + Math.random() * 12);
       const blinkPhase = BLINK_PARTS.map(() => Math.random() * Math.PI * 2);
       const blinkSpeed = BLINK_PARTS.map(() => 8 + Math.random() * 8);
+      const extraPhase = EXTRA_LIGHT_PARTS.map(() => Math.random() * Math.PI * 2);
+      const extraSpeed = EXTRA_LIGHT_PARTS.map(() => 10 + Math.random() * 10);
+      const repPhase = REPEATER_PARTS.map(() => Math.random() * Math.PI * 2);
+      const repSpeed = REPEATER_PARTS.map(() => 8 + Math.random() * 8);
       const winPhase = WINDOW_PARTS.map(() => Math.random() * Math.PI * 2);
       const winSpeed = WINDOW_PARTS.map(() => 3 + Math.random() * 2);
       const DANCE_CYCLE_MS = 3500;
@@ -180,6 +198,21 @@ export default function DemoViewer({ style }) {
         BLINK_PARTS.forEach((p, i) => {
           if (!partMeshes[p]) return;
           const on = Math.sin(time * blinkSpeed[i] + blinkPhase[i]) > 0;
+          partMeshes[p].material = on ? mats.blinkOn : mats.blinkOff;
+        });
+
+        // Extra lights — brake/license/rear_fog
+        EXTRA_LIGHT_PARTS.forEach((p, i) => {
+          if (!partMeshes[p]) return;
+          const on = Math.sin(time * extraSpeed[i] + extraPhase[i]) > 0;
+          const isWhite = p === 'license_plate';
+          partMeshes[p].material = on ? (isWhite ? mats.headOn : mats.tailOn) : (isWhite ? mats.headOff : mats.tailOff);
+        });
+
+        // Side repeaters — amber chaotic blink
+        REPEATER_PARTS.forEach((p, i) => {
+          if (!partMeshes[p]) return;
+          const on = Math.sin(time * repSpeed[i] + repPhase[i]) > 0;
           partMeshes[p].material = on ? mats.blinkOn : mats.blinkOff;
         });
 

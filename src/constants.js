@@ -171,6 +171,9 @@ export const BLINK_SPEEDS = [
   { label: '3x', periodMs: 30 },   // Fast
 ];
 
+// Maximum number of events per show (performance limit for iOS)
+export const MAX_EVENTS = 300;
+
 // Default event options when placing a new event
 export const DEFAULT_EVENT_OPTIONS = {
   durationMs: 500,

@@ -14,7 +14,7 @@ import {
 } from 'react-native-gesture-handler';
 import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
-import { INTERACTIVE_PARTS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isRetro, isWindow, isLight, isBlinker, isTrunk, isFlap, isClosure } from './constants';
+import { INTERACTIVE_PARTS, PART_LABELS, PART_COLORS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isRetro, isWindow, isLight, isBlinker, isTrunk, isFlap, isClosure } from './constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -32,6 +32,8 @@ export default function ModelViewer({ showId, onGoHome }) {
   const [error, setError] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
   const eventsRef = useRef([]);
+  const lastEventsIdentityRef = useRef(null);
+  const sortedEventsRef = useRef([]);
   const playbackPositionRef = useRef(0);
   const playbackDurationRef = useRef(0);
   const [eventOptions, setEventOptions] = useState({ ...DEFAULT_EVENT_OPTIONS });
@@ -870,30 +872,75 @@ export default function ModelViewer({ showId, onGoHome }) {
           'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
           'license_plate', 'brake_lights', 'rear_fog', 'side_repeater_left', 'side_repeater_right'];
 
-        for (const evt of events) {
-          if (pos >= evt.startMs && pos < evt.endMs) {
-            let intensity = (evt.power ?? 100) / 100;
-            const evtDuration = evt.endMs - evt.startMs;
-            const elapsed = pos - evt.startMs;
-            const remaining = evt.endMs - pos;
-            const easeDuration = Math.min(evtDuration * 0.3, 1500);
-
-            if (evt.easeIn && elapsed < easeDuration && easeDuration > 0) {
-              intensity *= elapsed / easeDuration;
-            }
-            if (evt.easeOut && remaining < easeDuration && easeDuration > 0) {
-              intensity *= remaining / easeDuration;
-            }
-
-            let blinkOff = false;
-            if (evt.effect === 'blink') {
-              const speedIdx = evt.blinkSpeed ?? 0;
-              const periodMs = BLINK_SPEEDS[speedIdx]?.periodMs ?? 80;
-              blinkOff = (Math.floor(elapsed / (periodMs / 2)) % 2) !== 0;
-            }
-
-            activeMap.set(evt.part, { evt, intensity, blinkOff });
+        // Idle light animation when no events exist
+        if (events.length === 0 && modelRef.current) {
+          const t = Date.now() / 1000;
+          for (let li = 0; li < lightParts.length; li++) {
+            const pn = lightParts[li];
+            const phase = li * 1.7;
+            const speed = 10 + (li % 5) * 2.5;
+            const on = Math.sin(t * speed + phase) > 0;
+            const spot = spotLightsRef.current[pn];
+            if (spot) spot.intensity = on ? 5 : 0;
           }
+          modelRef.current.traverse((child) => {
+            if (!child.isMesh) return;
+            const pn = child.userData.interactiveName;
+            if (!pn || !lightParts.includes(pn)) return;
+            if (selectedMeshRef.current && selectedMeshRef.current.userData.interactiveName === pn) return;
+            const li = lightParts.indexOf(pn);
+            const phase = li * 1.7;
+            const speed = 10 + (li % 5) * 2.5;
+            const on = Math.sin(t * speed + phase) > 0;
+            if (on) {
+              const isBlink_ = isBlinker(pn);
+              const litMat = isBlink_ ? litBlinkerMatRef.current
+                           : (pn.includes('front') || pn === 'license_plate') ? litHeadlightMatRef.current
+                           : litTaillightMatRef.current;
+              if (litMat) child.material = litMat;
+            } else {
+              const origMat = meshMaterialsRef.current.get(pn);
+              if (origMat) child.material = origMat;
+            }
+          });
+          rendererRef.current.render(sceneRef.current, cameraRef.current);
+          gl.endFrameEXP();
+          return;
+        }
+
+        // Cache sorted events — only re-sort when events array identity changes
+        if (events !== lastEventsIdentityRef.current) {
+          lastEventsIdentityRef.current = events;
+          sortedEventsRef.current = [...events].sort((a, b) => a.startMs - b.startMs);
+        }
+        const sorted = sortedEventsRef.current;
+
+        // Scan only relevant events (sorted by startMs, early-break)
+        for (let i = 0; i < sorted.length; i++) {
+          const evt = sorted[i];
+          if (evt.startMs > pos) break;   // no more can be active
+          if (evt.endMs <= pos) continue;  // already ended
+          let intensity = (evt.power ?? 100) / 100;
+          const evtDuration = evt.endMs - evt.startMs;
+          const elapsed = pos - evt.startMs;
+          const remaining = evt.endMs - pos;
+          const easeDuration = Math.min(evtDuration * 0.3, 1500);
+
+          if (evt.easeIn && elapsed < easeDuration && easeDuration > 0) {
+            intensity *= elapsed / easeDuration;
+          }
+          if (evt.easeOut && remaining < easeDuration && easeDuration > 0) {
+            intensity *= remaining / easeDuration;
+          }
+
+          let blinkOff = false;
+          if (evt.effect === 'blink') {
+            const speedIdx = evt.blinkSpeed ?? 0;
+            const periodMs = BLINK_SPEEDS[speedIdx]?.periodMs ?? 80;
+            blinkOff = (Math.floor(elapsed / (periodMs / 2)) % 2) !== 0;
+          }
+
+          activeMap.set(evt.part, { evt, intensity, blinkOff });
         }
 
         // Update SpotLight intensities
@@ -976,7 +1023,9 @@ export default function ModelViewer({ showId, onGoHome }) {
           // Determine the retro state: find the last retro event that ended before pos
           // to know if the retro should be closed or open at rest
           let restClosed = false;
-          for (const evt of events) {
+          for (let i = 0; i < sorted.length; i++) {
+            const evt = sorted[i];
+            if (evt.startMs > pos) break; // no future events can have ended
             if (evt.part !== partName) continue;
             if (evt.endMs <= pos) {
               // This event has finished — check its final state
@@ -1292,11 +1341,17 @@ export default function ModelViewer({ showId, onGoHome }) {
             />
 
             {selectedPart && (
-              <View style={styles.selectionBadge}>
+              <TouchableOpacity
+                style={[styles.selectionBadge, { top: insets.top + 2 }]}
+                activeOpacity={0.7}
+                onPress={() => selectPart(null)}
+              >
+                <View style={[styles.selectionDot, { backgroundColor: PART_COLORS[selectedPart] || '#44aaff' }]} />
                 <Text style={styles.selectionText}>
                   {t(`parts.${selectedPart}`, { defaultValue: PART_LABELS[selectedPart] || selectedPart })}
                 </Text>
-              </View>
+                <Ionicons name="close" size={14} color="#888899" style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
             )}
 
             <View style={styles.zoomControls}>
@@ -1546,7 +1601,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
               {/* Renommer le projet */}
               <View style={styles.settingsSection}>
-                <Text style={styles.settingsSectionTitle}>{t('editor.projectName')}</Text>
+                <Text style={styles.settingsSectionTitle}><Ionicons name="create-outline" size={18} color="#ccccee" />  {t('editor.projectName')}</Text>
                 <TextInput
                   style={styles.renameInput}
                   value={showName}
@@ -1567,7 +1622,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
               {/* Couleur carrosserie */}
               <View style={styles.settingsSection}>
-                <Text style={styles.settingsSectionTitle}>{t('editor.bodyColor')}</Text>
+                <Text style={styles.settingsSectionTitle}><Ionicons name="color-palette-outline" size={18} color="#ccccee" />  {t('editor.bodyColor')}</Text>
                 <View style={styles.menuColorRow}>
                   {BODY_COLORS.map((c) => (
                     <TouchableOpacity
@@ -1587,7 +1642,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
               {/* Offset curseur */}
               <View style={styles.settingsSection}>
-                <Text style={styles.settingsSectionTitle}>{t('editor.cursorOffset')}</Text>
+                <Text style={styles.settingsSectionTitle}><Ionicons name="time-outline" size={18} color="#ccccee" />  {t('editor.cursorOffset')}</Text>
                 <View style={styles.offsetRow}>
                   <TouchableOpacity
                     style={styles.offsetBtn}
@@ -1618,7 +1673,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               {/* Allumer la lumière */}
               <View style={styles.settingsSection}>
                 <TouchableOpacity style={styles.brightToggle} onPress={toggleBrightMode}>
-                  <Text style={styles.settingsSectionTitle}>{t('editor.brightMode')}</Text>
+                  <Text style={styles.settingsSectionTitle}><Ionicons name="bulb-outline" size={18} color="#ccccee" />  {t('editor.brightMode')}</Text>
                   <Text style={styles.brightToggleIcon}>{brightMode ? '☀️' : '🌙'}</Text>
                 </TouchableOpacity>
               </View>
@@ -1627,7 +1682,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
               {/* Vitesse de lecture */}
               <View style={styles.settingsSection}>
-                <Text style={styles.settingsSectionTitle}>{t('editor.playbackSpeed')}</Text>
+                <Text style={styles.settingsSectionTitle}><Ionicons name="speedometer-outline" size={18} color="#ccccee" />  {t('editor.playbackSpeed')}</Text>
                 <View style={styles.speedRow}>
                   {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
                     <TouchableOpacity
@@ -1647,7 +1702,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
               {/* Taille timeline */}
               <View style={styles.settingsSection}>
-                <Text style={styles.settingsSectionTitle}>{t('editor.timelineHeight')}</Text>
+                <Text style={styles.settingsSectionTitle}><Ionicons name="resize-outline" size={18} color="#ccccee" />  {t('editor.timelineHeight')}</Text>
                 <View style={styles.offsetRow}>
                   <TouchableOpacity
                     style={styles.offsetBtn}
@@ -1677,7 +1732,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
               {/* Communauté */}
               <View style={styles.settingsSection}>
-                <Text style={styles.settingsSectionTitle}>{t('editor.community')}</Text>
+                <Text style={styles.settingsSectionTitle}><Ionicons name="globe-outline" size={18} color="#ccccee" />  {t('editor.community')}</Text>
                 <TouchableOpacity
                   style={styles.shareLoadBtn}
                   onPress={() => { setSettingsVisible(false); setShareVisible(true); }}
@@ -1878,17 +1933,27 @@ const styles = StyleSheet.create({
   },
   selectionBadge: {
     position: 'absolute',
-    top: 12,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(68, 170, 255, 0.9)',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
+    left: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 15, 30, 0.75)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    gap: 8,
+  },
+  selectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   selectionText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#ccccdd',
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

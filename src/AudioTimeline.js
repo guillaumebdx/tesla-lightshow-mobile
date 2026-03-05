@@ -15,9 +15,11 @@ import {
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { MP3_TRACKS } from '../assets/mp3/index';
-import { PART_ICONS, PART_COLORS, EFFECT_TYPES, CLOSURE_LIMITS, closureCommandCost, isClosure, isAnimatable, isTrunk, TRUNK_MODES, TRUNK_DURATIONS } from './constants';
+import { PART_ICONS, PART_COLORS, EFFECT_TYPES, CLOSURE_LIMITS, closureCommandCost, isClosure, isAnimatable, isTrunk, TRUNK_MODES, TRUNK_DURATIONS, MAX_EVENTS } from './constants';
 import { pickAndImportAudio, loadCachedWaveform, resolveAudioUri } from './audioPicker';
+import { DEMO_SHOWS } from './demoShows';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 
 const LONG_PRESS_MS = 350;
 const SELECT_MS = 300;
@@ -192,14 +194,15 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
     },
     // Load saved events into the timeline (without clearing the track)
     loadEvents: (savedEvents) => {
-      const sorted = [...savedEvents].sort((a, b) => a.startMs - b.startMs);
+      let sorted = [...savedEvents].sort((a, b) => a.startMs - b.startMs);
+      if (sorted.length > MAX_EVENTS) sorted = sorted.slice(0, MAX_EVENTS);
       setEvents(sorted);
       if (onEventsChange) onEventsChange(sorted);
     },
     // Select a track by its ID (for loading saved shows — keeps events)
     selectTrackById: (trackId) => {
       const track = MP3_TRACKS.find((t) => t.id === trackId);
-      if (track) selectTrack(track, { keepEvents: true });
+      if (track) selectTrack(track, null, { keepEvents: true });
     },
     // Load an imported track by URI + cached waveform (for saved shows)
     loadImportedTrack: async (trackUri, trackTitle) => {
@@ -212,7 +215,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
         uri: resolvedUri,
         waveform: waveform || { bars: [] },
       };
-      selectTrack(imported, { keepEvents: true });
+      selectTrack(imported, null, { keepEvents: true });
     },
     // Get the current track info for saving
     getTrackId: () => selectedTrack?.id || null,
@@ -235,7 +238,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
     };
   }, []);
 
-  const selectTrack = async (track, { keepEvents = false } = {}) => {
+  const selectTrack = async (track, demoEvents, { keepEvents = false } = {}) => {
     setModalVisible(false);
 
     if (soundRef.current) {
@@ -249,7 +252,15 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
     setWaveform(bars);
     setIsPlaying(false);
     setPosition(0);
-    if (!keepEvents) setEvents([]);
+    if (!keepEvents) {
+      if (demoEvents && demoEvents.length > 0) {
+        const sorted = [...demoEvents].sort((a, b) => a.startMs - b.startMs);
+        setEvents(sorted);
+        if (onEventsChange) onEventsChange(sorted);
+      } else {
+        setEvents([]);
+      }
+    }
     cursorAnim.setValue(0);
 
     try {
@@ -464,6 +475,16 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
         // Can't place here — exit placement mode and seek to click position
         seekToRatio(ratio);
         if (onDeselectPart) onDeselectPart();
+        return;
+      }
+
+      // Block placement if max events reached
+      if (events.length >= MAX_EVENTS) {
+        flashRef?.current?.show(
+          t('flash.maxEventsReached', { max: MAX_EVENTS }),
+          'error'
+        );
+        seekToRatio(ratio);
         return;
       }
 
@@ -763,11 +784,11 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
         <Text style={styles.timeText}>{formatTime(position)}</Text>
 
         <TouchableOpacity style={styles.stopButton} onPress={handleStop}>
-          <Text style={styles.stopButtonText}>■</Text>
+          <Ionicons name="stop" size={18} color="#ffffff" />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
-          <Text style={styles.playButtonText}>{isPlaying ? '❚❚' : '▶'}</Text>
+          <Ionicons name={isPlaying ? 'pause' : 'play'} size={20} color="#ffffff" />
         </TouchableOpacity>
 
         <Text style={styles.timeText}>{formatTime(duration)}</Text>
@@ -931,6 +952,12 @@ function TrackModal({ visible, onClose, onSelect }) {
     onSelect(track);
   }, [onSelect, stopPreview]);
 
+  const handleSelectWithDemo = useCallback(async (track) => {
+    await stopPreview();
+    const demo = DEMO_SHOWS[track.id];
+    onSelect(track, demo ? demo.events : null);
+  }, [onSelect, stopPreview]);
+
   const handleClose = useCallback(async () => {
     await stopPreview();
     onClose();
@@ -984,7 +1011,7 @@ function TrackModal({ visible, onClose, onSelect }) {
               style={styles.importButton}
               onPress={handleImport}
             >
-              <Text style={styles.importButtonText}>{t('timeline.importMp3')}</Text>
+              <Text style={styles.importButtonText}><Ionicons name="folder-open-outline" size={16} color="#ffffff" />  {t('timeline.importMp3')}</Text>
             </TouchableOpacity>
           )}
 
@@ -1005,26 +1032,40 @@ function TrackModal({ visible, onClose, onSelect }) {
             >
               {MP3_TRACKS.map((item) => {
                 const isPreviewing = previewId === item.id;
+                const hasDemo = !!DEMO_SHOWS[item.id];
                 return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.trackItem}
-                    onPress={() => handleSelect(item)}
-                  >
-                    <TouchableOpacity
-                      style={styles.trackPreviewBtn}
-                      onPress={(e) => { e.stopPropagation(); togglePreview(item); }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Text style={styles.trackPreviewIcon}>
-                        {isPreviewing ? '⏹' : '▶'}
-                      </Text>
-                    </TouchableOpacity>
-                    <View style={styles.trackItemInfo}>
-                      <Text style={styles.trackItemTitle}>{item.title}</Text>
-                      <Text style={styles.trackItemArtist}>{item.artist}</Text>
+                  <View key={item.id} style={styles.trackItem}>
+                    <View style={styles.trackItemRow}>
+                      <TouchableOpacity
+                        style={styles.trackPreviewBtn}
+                        onPress={(e) => { e.stopPropagation(); togglePreview(item); }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name={isPreviewing ? 'stop' : 'play'} size={18} color={isPreviewing ? '#e94560' : '#8888aa'} />
+                      </TouchableOpacity>
+                      <View style={styles.trackItemInfo}>
+                        <Text style={styles.trackItemTitle}>{item.title}</Text>
+                        <Text style={styles.trackItemArtist}>{item.artist}</Text>
+                      </View>
                     </View>
-                  </TouchableOpacity>
+                    {hasDemo ? (
+                      <View style={styles.trackActions}>
+                        <TouchableOpacity style={styles.trackActionBtn} onPress={() => handleSelect(item)}>
+                          <Ionicons name="musical-note-outline" size={14} color="#8888aa" />
+                          <Text style={styles.trackActionText}>{t('timeline.addMusic')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.trackActionBtnHighlight} onPress={() => handleSelectWithDemo(item)}>
+                          <Ionicons name="sparkles-outline" size={14} color="#e94560" />
+                          <Text style={styles.trackActionTextHighlight}>{t('timeline.addMusicWithShow')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity style={styles.trackActionBtnFull} onPress={() => handleSelect(item)}>
+                        <Ionicons name="musical-note-outline" size={14} color="#8888aa" />
+                        <Text style={styles.trackActionText}>{t('timeline.addMusic')}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 );
               })}
             </ScrollView>
@@ -1236,14 +1277,68 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   trackItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
     backgroundColor: 'rgba(40, 40, 70, 0.5)',
     marginBottom: 8,
+  },
+  trackItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+  },
+  trackActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    marginLeft: 48,
+  },
+  trackActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  trackActionBtnHighlight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(233, 69, 96, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(233, 69, 96, 0.3)',
+  },
+  trackActionBtnFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    marginTop: 8,
+    marginLeft: 48,
+    alignSelf: 'flex-start',
+  },
+  trackActionText: {
+    color: '#8888aa',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  trackActionTextHighlight: {
+    color: '#e94560',
+    fontSize: 12,
+    fontWeight: '600',
   },
   trackPreviewBtn: {
     width: 36,

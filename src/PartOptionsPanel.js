@@ -3,6 +3,7 @@ import { View, Text, Image, StyleSheet, Switch, TouchableOpacity, TextInput, Mod
 import { useTranslation } from 'react-i18next';
 import Slider from '@react-native-community/slider';
 import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isLight, isBlinker, isRetro, isWindow, isTrunk, isFlap, isClosure } from './constants';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent, onDeleteEvent, events = [] }) {
   const { t } = useTranslation();
@@ -12,11 +13,13 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
     setDurationInput({ field, value: (currentMs / 1000).toString() });
   };
 
+  const MIN_DURATION_MS = 50; // ~2-3 FSEQ frames (STEP_TIME_MS = 20ms), minimum visible duration
+
   const confirmDuration = () => {
     if (!durationInput) return;
     const seconds = parseFloat(durationInput.value.replace(',', '.'));
     if (isNaN(seconds) || seconds <= 0) { setDurationInput(null); return; }
-    const ms = Math.round(seconds * 1000);
+    const ms = Math.max(Math.round(seconds * 1000), MIN_DURATION_MS);
     if (durationInput.field === 'durationMs') {
       onOptionsChange({ ...eventOptions, durationMs: ms });
     } else if (durationInput.field === 'windowDurationMs') {
@@ -361,7 +364,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
 
         {editingEvent && (
           <TouchableOpacity style={styles.deleteButton} onPress={onDeleteEvent}>
-            <Text style={styles.deleteButtonText}>{t('parts.deleteEvent')}</Text>
+            <Ionicons name="trash-outline" size={16} color="#ff4466" /><Text style={styles.deleteButtonText}>  {t('parts.deleteEvent')}</Text>
           </TouchableOpacity>
         )}
 

@@ -176,6 +176,52 @@ export async function duplicateShow(id) {
 }
 
 /**
+ * Create the demo light show (Star Wars) pre-populated with events.
+ * Returns the created show object.
+ */
+export async function createDemoShow(trackId = 'star_wars_battle', showName = 'Demo Light Show') {
+  const { DEMO_SHOWS } = require('./demoShows');
+  const demoData = DEMO_SHOWS[trackId];
+  if (!demoData) throw new Error('No demo show for track: ' + trackId);
+
+  const index = await listShows();
+  if (index.length >= MAX_SHOWS) {
+    throw new Error(`Limite de ${MAX_SHOWS} sauvegardes atteinte`);
+  }
+
+  const now = Date.now();
+  const show = {
+    id: generateId(),
+    name: showName,
+    carModel: 'model_3',
+    createdAt: now,
+    updatedAt: now,
+    trackId: demoData.trackId,
+    isBuiltinTrack: demoData.isBuiltinTrack,
+    bodyColor: demoData.bodyColor,
+    cursorOffsetMs: demoData.cursorOffsetMs,
+    events: demoData.events,
+  };
+
+  await AsyncStorage.setItem(SHOW_PREFIX + show.id, JSON.stringify(show));
+
+  const summary = {
+    id: show.id,
+    name: show.name,
+    carModel: show.carModel,
+    createdAt: show.createdAt,
+    updatedAt: show.updatedAt,
+    trackId: show.trackId,
+    isBuiltinTrack: show.isBuiltinTrack,
+    eventCount: (show.events || []).length,
+  };
+  index.push(summary);
+  await AsyncStorage.setItem(SHOWS_INDEX_KEY, JSON.stringify(index));
+
+  return show;
+}
+
+/**
  * Get the count of existing shows (for naming new ones).
  */
 export async function getShowCount() {

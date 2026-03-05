@@ -15,7 +15,9 @@
     "cancel": "Cancel",
     "open": "Open",
     "duplicate": "Duplicate",
-    "error": "Error"
+    "error": "Error",
+    "demoShow": "Watch the demo Light Show",
+    "createDemo": "Create demo show"
   },
   "settings": {
     "title": "Settings",
@@ -46,21 +48,21 @@
     "delete": "Delete",
     "cancel": "Cancel",
     "export": "Export",
-    "projectName": "✏️  Project name",
+    "projectName": "Project name",
     "projectNamePlaceholder": "Project name",
-    "bodyColor": "🎨  Body color",
-    "cursorOffset": "⏱  Cursor offset",
+    "bodyColor": "Body color",
+    "cursorOffset": "Cursor offset",
     "exportError": "Export error: ",
     "mp3ExportError": "MP3 export error: ",
     "trackNotFound": "Track not found",
-    "playbackSpeed": "🎵  Playback speed",
-    "timelineHeight": "📏  Timeline height",
-    "brightMode": "💡  Boost lighting",
+    "playbackSpeed": "Playback speed",
+    "timelineHeight": "Timeline height",
+    "brightMode": "Boost lighting",
     "contactDev": "Need more features?",
     "contactDevSub": "Ask the developer!",
-    "community": "🌐  Community",
-    "share": "📤  Share Light Show",
-    "load": "📥  Load a Light Show"
+    "community": "Community",
+    "share": "Share Light Show",
+    "load": "Load a Light Show"
   },
   "timeline": {
     "loadingMusic": "Loading music...",
@@ -68,14 +70,16 @@
     "audioAnalysis": "Audio analysis...",
     "loadingHint": "This may take 2 minutes\nDo not quit the app",
     "chooseTrack": "Choose a music",
-    "importMp3": "📂  Import an MP3",
+    "importMp3": "Import an MP3",
     "importedFile": "Imported file",
     "orChooseFrom": "or choose from",
     "importError": "Import error: ",
     "durationTooLong": "This file is {{duration}} long. The maximum allowed duration is {{max}}.",
     "cancel": "Cancel",
     "eventPlaced": "{{count}} event placed",
-    "eventsPlaced": "{{count}} events placed"
+    "eventsPlaced": "{{count}} events placed",
+    "addMusic": "Music only",
+    "addMusicWithShow": "Music + Demo"
   },
   "parts": {
     "selectHint": "Select a part on the vehicle",
@@ -101,7 +105,7 @@
     "flapRainbow": "Rainbow light",
     "closureUsage": "{{used}}/{{max}} uses",
     "closureMaxReached": "Maximum number of actions reached for this show",
-    "deleteEvent": "🗑  Delete event",
+    "deleteEvent": "Delete event",
     "durationSeconds": "Duration (seconds)",
     "window_left_front": "Front left window",
     "window_right_front": "Front right window",
@@ -178,7 +182,8 @@
   "flash": {
     "trunkDanceNeedsOpen": "Place a trunk \"Open\" event first. The trunk takes ~{{seconds}}s to open before it can dance.",
     "closureLimitReached": "Limit reached for {{part}} (max {{limit}} commands per show)",
-    "eventPlaced": "Event placed"
+    "eventPlaced": "Event placed",
+    "maxEventsReached": "Maximum {{max}} events per show (iOS performance limit)"
   },
   "load": {
     "title": "Load a Light Show",

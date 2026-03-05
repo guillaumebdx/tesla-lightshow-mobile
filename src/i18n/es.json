@@ -15,7 +15,9 @@
     "cancel": "Cancelar",
     "open": "Abrir",
     "duplicate": "Duplicar",
-    "error": "Error"
+    "error": "Error",
+    "demoShow": "Ver el Light Show de demostración",
+    "createDemo": "Crear show de demostración"
   },
   "settings": {
     "title": "Ajustes",
@@ -46,21 +48,21 @@
     "delete": "Eliminar",
     "cancel": "Cancelar",
     "export": "Exportar",
-    "projectName": "✏️  Nombre del proyecto",
+    "projectName": "Nombre del proyecto",
     "projectNamePlaceholder": "Nombre del proyecto",
-    "bodyColor": "🎨  Color de carrocería",
-    "cursorOffset": "⏱  Offset del cursor",
+    "bodyColor": "Color de carrocería",
+    "cursorOffset": "Offset del cursor",
     "exportError": "Error de exportación: ",
     "mp3ExportError": "Error de exportación MP3: ",
     "trackNotFound": "Pista no encontrada",
-    "playbackSpeed": "🎵  Velocidad de reproducción",
-    "timelineHeight": "📏  Altura de la línea de tiempo",
-    "brightMode": "💡  Aumentar iluminación",
+    "playbackSpeed": "Velocidad de reproducción",
+    "timelineHeight": "Altura de la línea de tiempo",
+    "brightMode": "Aumentar iluminación",
     "contactDev": "¿Necesitas más funciones?",
     "contactDevSub": "¡Pregúntale al desarrollador!",
-    "community": "🌐  Comunidad",
-    "share": "📤  Compartir el Light Show",
-    "load": "📥  Cargar un Light Show"
+    "community": "Comunidad",
+    "share": "Compartir el Light Show",
+    "load": "Cargar un Light Show"
   },
   "timeline": {
     "loadingMusic": "Cargando música...",
@@ -68,14 +70,16 @@
     "audioAnalysis": "Análisis de audio...",
     "loadingHint": "Esto puede tardar 2 minutos\nNo cierres la aplicación",
     "chooseTrack": "Elegir una música",
-    "importMp3": "📂  Importar un MP3",
+    "importMp3": "Importar un MP3",
     "importedFile": "Archivo importado",
     "orChooseFrom": "o elegir entre",
     "importError": "Error de importación: ",
     "durationTooLong": "Este archivo dura {{duration}}. La duración máxima permitida es {{max}}.",
     "cancel": "Cancelar",
     "eventPlaced": "{{count}} evento colocado",
-    "eventsPlaced": "{{count}} eventos colocados"
+    "eventsPlaced": "{{count}} eventos colocados",
+    "addMusic": "Solo música",
+    "addMusicWithShow": "Música + Demo"
   },
   "parts": {
     "selectHint": "Selecciona una pieza en el vehículo",
@@ -101,7 +105,7 @@
     "flapRainbow": "Luz arcoíris",
     "closureUsage": "{{used}}/{{max}} usos",
     "closureMaxReached": "Número máximo de acciones alcanzado para este show",
-    "deleteEvent": "🗑  Eliminar evento",
+    "deleteEvent": "Eliminar evento",
     "durationSeconds": "Duración (segundos)",
     "window_left_front": "Ventana delantera izquierda",
     "window_right_front": "Ventana delantera derecha",
@@ -178,7 +182,8 @@
   "flash": {
     "trunkDanceNeedsOpen": "Coloca primero un evento \"Abrir\" en el maletero. Tarda ~{{seconds}}s en abrirse antes de poder bailar.",
     "closureLimitReached": "Límite alcanzado para {{part}} (máx {{limit}} comandos por show)",
-    "eventPlaced": "Evento colocado"
+    "eventPlaced": "Evento colocado",
+    "maxEventsReached": "Máximo {{max}} eventos por show (límite de rendimiento iOS)"
   },
   "load": {
     "title": "Cargar un Light Show",

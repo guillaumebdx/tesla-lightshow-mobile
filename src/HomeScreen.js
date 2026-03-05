@@ -5,9 +5,10 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { setAppLanguage } from './i18n';
-import { listShows, deleteShow, duplicateShow } from './storage';
+import { listShows, deleteShow, duplicateShow, createDemoShow } from './storage';
 import { MP3_TRACKS } from '../assets/mp3/index';
 import DemoViewer from './DemoViewer';
+import { Ionicons } from '@expo/vector-icons';
 
 const LANGUAGES = [
   { code: 'fr', flag: '🇫🇷', label: 'Français' },
@@ -89,6 +90,16 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
     }
   };
 
+  const handleCreateDemo = async () => {
+    try {
+      const show = await createDemoShow('star_wars_battle', 'Star Wars Demo');
+      setSettingsVisible(false);
+      onOpenShow(show.id);
+    } catch (e) {
+      Alert.alert(t('home.error'), e.message);
+    }
+  };
+
   const renderShow = ({ item }) => (
     <TouchableOpacity
       style={styles.card}
@@ -111,7 +122,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
         <Text style={styles.cardModel}>{CAR_MODEL_LABELS[item.carModel] || item.carModel}</Text>
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.cardTrack}>🎵  {getTrackName(item) || t('home.noMusic')}</Text>
+        <Text style={styles.cardTrack}><Ionicons name="musical-note" size={14} color="#8888aa" />  {getTrackName(item) || t('home.noMusic')}</Text>
         <Text style={styles.cardEvents}>{item.eventCount || 0} {(item.eventCount || 0) > 1 ? t('home.events') : t('home.event')}</Text>
       </View>
       <Text style={styles.cardDate}>{formatDate(item.updatedAt)}</Text>
@@ -126,7 +137,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
           <Text style={styles.subtitle}>{t('app.subtitle')}</Text>
         </View>
         <TouchableOpacity style={styles.settingsBtn} onPress={() => setSettingsVisible(true)}>
-          <Text style={styles.settingsBtnIcon}>⚙️</Text>
+          <Ionicons name="settings-outline" size={22} color="#8888aa" />
         </TouchableOpacity>
       </View>
 
@@ -140,6 +151,10 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
           <Text style={styles.emptyText}>{t('home.noShows')}</Text>
           <TouchableOpacity onPress={onNewShow}>
             <Text style={styles.emptyHint}>{t('home.noShowsHint')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.demoButton} onPress={handleCreateDemo}>
+            <Ionicons name="play-circle-outline" size={20} color="#e94560" />
+            <Text style={styles.demoButtonText}>{t('home.demoShow')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -166,8 +181,15 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* About */}
               <TouchableOpacity style={styles.settingsItem} onPress={() => { setSettingsVisible(false); setTimeout(() => setAboutVisible(true), 300); }}>
-                <Text style={styles.settingsItemIcon}>ℹ️</Text>
+                <Ionicons name="information-circle-outline" size={18} color="#8888aa" />
                 <Text style={styles.settingsItemText}>{t('settings.about')}</Text>
+                <Text style={styles.settingsItemArrow}>›</Text>
+              </TouchableOpacity>
+
+              {/* Demo show */}
+              <TouchableOpacity style={styles.settingsItem} onPress={handleCreateDemo}>
+                <Ionicons name="play-circle-outline" size={18} color="#e94560" />
+                <Text style={styles.settingsItemText}>{t('home.createDemo')}</Text>
                 <Text style={styles.settingsItemArrow}>›</Text>
               </TouchableOpacity>
 
@@ -208,7 +230,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
               style={styles.aboutMailBtn}
               onPress={() => Linking.openURL('mailto:guillaumeharari@hotmail.com?subject=Light%20Studio%20-%20Suggestion')}
             >
-              <Text style={styles.aboutMailIcon}>✉️</Text>
+              <Ionicons name="mail-outline" size={18} color="#44aaff" />
               <Text style={styles.aboutMailText}>guillaumeharari@hotmail.com</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.aboutCloseBtn} onPress={() => { setAboutVisible(false); setTimeout(() => setSettingsVisible(true), 300); }}>
@@ -333,6 +355,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
   },
+  demoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: 'rgba(233, 69, 96, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(233, 69, 96, 0.25)',
+    gap: 10,
+  },
+  demoButtonText: {
+    color: '#e94560',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   newButton: {
     marginHorizontal: 16,
     marginBottom: 16,
@@ -403,6 +442,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#1e1e3a',
+    gap: 14,
   },
   settingsItemIcon: {
     fontSize: 18,

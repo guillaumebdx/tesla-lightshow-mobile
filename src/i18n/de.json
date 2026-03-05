@@ -15,7 +15,9 @@
     "cancel": "Abbrechen",
     "open": "Öffnen",
     "duplicate": "Duplizieren",
-    "error": "Fehler"
+    "error": "Fehler",
+    "demoShow": "Demo Light Show ansehen",
+    "createDemo": "Demo-Show erstellen"
   },
   "settings": {
     "title": "Einstellungen",
@@ -46,21 +48,21 @@
     "delete": "Löschen",
     "cancel": "Abbrechen",
     "export": "Exportieren",
-    "projectName": "✏️  Projektname",
+    "projectName": "Projektname",
     "projectNamePlaceholder": "Projektname",
-    "bodyColor": "🎨  Karosseriefarbe",
-    "cursorOffset": "⏱  Cursor-Versatz",
+    "bodyColor": "Karosseriefarbe",
+    "cursorOffset": "Cursor-Offset",
     "exportError": "Exportfehler: ",
     "mp3ExportError": "MP3-Exportfehler: ",
     "trackNotFound": "Titel nicht gefunden",
-    "playbackSpeed": "🎵  Wiedergabegeschwindigkeit",
-    "timelineHeight": "📏  Timeline-Höhe",
-    "brightMode": "💡  Beleuchtung erhöhen",
+    "playbackSpeed": "Wiedergabegeschwindigkeit",
+    "timelineHeight": "Timeline-Höhe",
+    "brightMode": "Beleuchtung erhöhen",
     "contactDev": "Brauchst du mehr Funktionen?",
     "contactDevSub": "Frag den Entwickler!",
-    "community": "🌐  Community",
-    "share": "📤  Light Show teilen",
-    "load": "📥  Light Show laden"
+    "community": "Community",
+    "share": "Light Show teilen",
+    "load": "Light Show laden"
   },
   "timeline": {
     "loadingMusic": "Musik wird geladen...",
@@ -68,14 +70,16 @@
     "audioAnalysis": "Audioanalyse...",
     "loadingHint": "Dies kann 2 Minuten dauern\nApp nicht schließen",
     "chooseTrack": "Musik auswählen",
-    "importMp3": "📂  MP3 importieren",
+    "importMp3": "MP3 importieren",
     "importedFile": "Importierte Datei",
     "orChooseFrom": "oder wähle aus",
     "importError": "Importfehler: ",
     "durationTooLong": "Diese Datei dauert {{duration}}. Die erlaubte Maximaldauer beträgt {{max}}.",
     "cancel": "Abbrechen",
     "eventPlaced": "{{count}} Ereignis platziert",
-    "eventsPlaced": "{{count}} Ereignisse platziert"
+    "eventsPlaced": "{{count}} Ereignisse platziert",
+    "addMusic": "Nur Musik",
+    "addMusicWithShow": "Musik + Demo"
   },
   "parts": {
     "selectHint": "Wähle ein Teil am Fahrzeug aus",
@@ -101,7 +105,7 @@
     "flapRainbow": "Regenbogenlicht",
     "closureUsage": "{{used}}/{{max}} Nutzungen",
     "closureMaxReached": "Maximale Anzahl an Aktionen für diese Show erreicht",
-    "deleteEvent": "🗑  Ereignis löschen",
+    "deleteEvent": "Ereignis löschen",
     "durationSeconds": "Dauer (Sekunden)",
     "window_left_front": "Fenster vorne links",
     "window_right_front": "Fenster vorne rechts",
@@ -178,7 +182,8 @@
   "flash": {
     "trunkDanceNeedsOpen": "Platziere zuerst ein \"Öffnen\"-Ereignis für den Kofferraum. Er braucht ~{{seconds}}s zum Öffnen, bevor er tanzen kann.",
     "closureLimitReached": "Limit erreicht für {{part}} (max {{limit}} Befehle pro Show)",
-    "eventPlaced": "Ereignis platziert"
+    "eventPlaced": "Ereignis platziert",
+    "maxEventsReached": "Maximal {{max}} Ereignisse pro Show (iOS-Leistungsgrenze)"
   },
   "load": {
     "title": "Light Show laden",
