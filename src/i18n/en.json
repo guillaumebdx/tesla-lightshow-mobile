@@ -185,6 +185,16 @@
     "eventPlaced": "Event placed",
     "maxEventsReached": "Maximum {{max}} events per show (iOS performance limit)"
   },
+  "tutorial": {
+    "step1": "Tap a white dot to select a vehicle part",
+    "step2": "You can adjust the element's parameters here (duration, effect, power...)",
+    "step3": "Tap on the timeline to place the element where you want",
+    "step3b": "Long-press an event to drag and move it on the timeline",
+    "step4": "When your show is ready, export the .fseq file to a USB drive to play it in your vehicle",
+    "skip": "Skip",
+    "next": "Next",
+    "done": "Let's go!"
+  },
   "load": {
     "title": "Load a Light Show",
     "description": "You can load a Light Show created by a friend who has LightShow Studio. The events will be added to your timeline.",

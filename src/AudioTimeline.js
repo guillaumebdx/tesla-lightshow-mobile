@@ -140,7 +140,7 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbackSpeed = 1, timelineScale = 1, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, isLoadingShow = false, flashRef }, ref) {
+function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbackSpeed = 1, timelineScale = 1, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, onTrackSelected, isLoadingShow = false, flashRef }, ref) {
   const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
@@ -191,6 +191,10 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
       cursorAnim.setValue(0);
       if (onPlayingChange) onPlayingChange(false);
       if (onPositionChange) onPositionChange(0, duration);
+    },
+    // Set events directly (for undo/redo) — does NOT call onEventsChange
+    setEventsDirectly: (newEvents) => {
+      setEvents(newEvents);
     },
     // Load saved events into the timeline (without clearing the track)
     loadEvents: (savedEvents) => {
@@ -247,6 +251,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
     }
 
     setSelectedTrack(track);
+    if (!keepEvents && onTrackSelected) onTrackSelected(!!(demoEvents && demoEvents.length > 0));
     // Waveform: builtin tracks have .waveform.bars, imported tracks have .waveform.bars directly
     const bars = track.waveform?.bars || [];
     setWaveform(bars);

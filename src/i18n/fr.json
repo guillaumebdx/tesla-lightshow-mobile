@@ -185,6 +185,16 @@
     "eventPlaced": "Événement placé",
     "maxEventsReached": "Maximum {{max}} événements par show (limite de performance iOS)"
   },
+  "tutorial": {
+    "step1": "Appuie sur un point blanc pour sélectionner un élément du véhicule",
+    "step2": "Tu peux modifier les paramètres de l'élément ici (durée, effet, puissance...)",
+    "step3": "Clique sur la timeline pour déposer l'élément à l'endroit souhaité",
+    "step3b": "Maintiens appuyé sur un événement pour le déplacer sur la timeline",
+    "step4": "Quand ton show est prêt, exporte le fichier .fseq sur une clé USB pour le lancer dans ton véhicule",
+    "skip": "Passer",
+    "next": "Suivant",
+    "done": "C'est parti !"
+  },
   "load": {
     "title": "Charger un Light Show",
     "description": "Tu peux charger un Light Show créé par un ami qui a LightShow Studio. Les événements seront ajoutés à ta timeline.",

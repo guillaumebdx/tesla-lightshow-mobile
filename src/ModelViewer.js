@@ -23,6 +23,7 @@ import { exportFseq } from './fseqExport';
 import { loadShow, saveShow } from './storage';
 import ExportModal from './ExportModal';
 import FlashMessage from './FlashMessage';
+import TutorialOverlay from './TutorialOverlay';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function ModelViewer({ showId, onGoHome }) {
@@ -32,6 +33,11 @@ export default function ModelViewer({ showId, onGoHome }) {
   const [error, setError] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
   const eventsRef = useRef([]);
+  const undoStackRef = useRef([]);   // Array of event snapshots
+  const redoStackRef = useRef([]);
+  const MAX_UNDO = 50;
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const lastEventsIdentityRef = useRef(null);
   const sortedEventsRef = useRef([]);
   const playbackPositionRef = useRef(0);
@@ -90,6 +96,43 @@ export default function ModelViewer({ showId, onGoHome }) {
   const saveTimerRef = useRef(null);
   const showLoadedRef = useRef(false);
   const [isLoadingShow, setIsLoadingShow] = useState(!!showId);
+
+  // Tutorial state
+  const [tutorialStep, setTutorialStep] = useState(null); // null = hidden, 0-3 = step
+
+  const handleTutorialNext = useCallback(() => {
+    setTutorialStep((prev) => {
+      if (prev === null) return null;
+      if (prev >= 4) {
+        // Done — close drawer opened at step 4
+        closeDrawer();
+        return null;
+      }
+      const next = prev + 1;
+      // Moving to step 1 (options) — auto-select a headlight if nothing selected
+      if (next === 1 && !selectedPart) {
+        selectPart('light_left_front');
+      }
+      // Step 4: open the burger menu
+      if (next === 4) {
+        openDrawer();
+      }
+      return next;
+    });
+  }, [openDrawer, closeDrawer, selectedPart, selectPart]);
+
+  const handleTutorialSkip = useCallback(() => {
+    setTutorialStep(null);
+    // Close drawer if open from step 4
+    if (menuVisible) closeDrawer();
+  }, [menuVisible, closeDrawer]);
+
+  const handleTrackSelected = useCallback((hasDemo) => {
+    // Skip tutorial if user chose "Music + Demo" or if events already exist
+    if (hasDemo || eventsRef.current.length > 0) return;
+    setTimeout(() => setTutorialStep(0), 600);
+  }, []);
+
   // Debounced auto-save (1.5s after last change)
   const scheduleSave = useCallback(() => {
     if (!showDataRef.current) return;
@@ -113,6 +156,42 @@ export default function ModelViewer({ showId, onGoHome }) {
       showDataRef.current = data;
     }, 1500);
   }, []);
+
+  // Undo/redo helpers
+  const pushUndo = useCallback((snapshot) => {
+    if (!snapshot) snapshot = [...eventsRef.current];
+    undoStackRef.current = [...undoStackRef.current.slice(-(MAX_UNDO - 1)), snapshot];
+    redoStackRef.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }, []);
+
+  const applyEvents = useCallback((newEvents) => {
+    eventsRef.current = newEvents;
+    audioTimelineRef.current?.setEventsDirectly(newEvents);
+    setSelectedEvent(null);
+    scheduleSave();
+  }, [scheduleSave]);
+
+  const handleUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0) return;
+    const current = [...eventsRef.current];
+    redoStackRef.current = [...redoStackRef.current, current];
+    const prev = undoStackRef.current.pop();
+    applyEvents(prev);
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(true);
+  }, [applyEvents]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0) return;
+    const current = [...eventsRef.current];
+    undoStackRef.current = [...undoStackRef.current, current];
+    const next = redoStackRef.current.pop();
+    applyEvents(next);
+    setCanUndo(true);
+    setCanRedo(redoStackRef.current.length > 0);
+  }, [applyEvents]);
 
   // Load saved show on mount
   useEffect(() => {
@@ -159,6 +238,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
   const handleDeleteEvent = () => {
     if (!selectedEvent) return;
+    pushUndo();
     eventsRef.current = eventsRef.current.filter((e) => e.id !== selectedEvent.id);
     audioTimelineRef.current?.deleteEvent(selectedEvent.id);
     setSelectedEvent(null);
@@ -1363,7 +1443,16 @@ export default function ModelViewer({ showId, onGoHome }) {
             isLoadingShow={isLoadingShow}
             selectedEventId={selectedEvent?.id || null}
             flashRef={flashRef}
-            onEventsChange={(evts) => { eventsRef.current = evts; scheduleSave(); }}
+            onTrackSelected={handleTrackSelected}
+            onEventsChange={(evts) => {
+              // Push undo snapshot before applying the new events
+              const prev = eventsRef.current;
+              if (prev.length !== evts.length || prev !== evts) {
+                pushUndo([...prev]);
+              }
+              eventsRef.current = evts;
+              scheduleSave();
+            }}
             onPlayingChange={(playing) => { isPlayingRef.current = playing; }}
             onPositionChange={(pos, dur) => {
               playbackPositionRef.current = pos;
@@ -1423,6 +1512,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               }
               setEventOptions(newOpts);
               if (selectedEvent) {
+                pushUndo();
                 // Update the selected event in the timeline
                 const updatedEvt = {
                   ...selectedEvent,
@@ -1450,6 +1540,28 @@ export default function ModelViewer({ showId, onGoHome }) {
           />
         </View>
       </ScrollView>
+
+      {/* Undo / Redo buttons — top-left, symmetric to burger */}
+      {(canUndo || canRedo) && (
+        <View style={[styles.undoRedoRow, { top: insets.top + 8 }]}>
+          <TouchableOpacity
+            style={[styles.undoRedoBtn, !canUndo && styles.undoRedoBtnDisabled]}
+            onPress={handleUndo}
+            disabled={!canUndo}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-undo" size={18} color={canUndo ? '#ccccee' : '#444466'} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.undoRedoBtn, !canRedo && styles.undoRedoBtnDisabled]}
+            onPress={handleRedo}
+            disabled={!canRedo}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-redo" size={18} color={canRedo ? '#ccccee' : '#444466'} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Burger menu button — native 3-bar icon */}
       <TouchableOpacity
@@ -1510,6 +1622,7 @@ export default function ModelViewer({ showId, onGoHome }) {
                       style: 'destructive',
                       onPress: () => {
                         closeDrawer(() => {
+                          pushUndo();
                           setSelectedEvent(null);
                           audioTimelineRef.current?.clearAllEvents();
                           eventsRef.current = [];
@@ -1805,6 +1918,7 @@ export default function ModelViewer({ showId, onGoHome }) {
                         alert(t('export.loadNoEvents'));
                         return;
                       }
+                      pushUndo();
                       audioTimelineRef.current?.loadEvents(data.events);
                       eventsRef.current = data.events;
                       scheduleSave();
@@ -1856,6 +1970,12 @@ export default function ModelViewer({ showId, onGoHome }) {
         }}
       />
       <FlashMessage ref={flashRef} />
+      <TutorialOverlay
+        step={tutorialStep}
+        insets={insets}
+        onNext={handleTutorialNext}
+        onSkip={handleTutorialSkip}
+      />
     </GestureHandlerRootView>
   );
 }
@@ -1994,6 +2114,24 @@ const styles = StyleSheet.create({
     height: 2,
     borderRadius: 1,
     backgroundColor: '#ccccee',
+  },
+  undoRedoRow: {
+    position: 'absolute',
+    left: 14,
+    flexDirection: 'row',
+    gap: 6,
+    zIndex: 10,
+  },
+  undoRedoBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(20, 20, 40, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  undoRedoBtnDisabled: {
+    opacity: 0.4,
   },
   drawerOverlay: {
     ...StyleSheet.absoluteFillObject,
