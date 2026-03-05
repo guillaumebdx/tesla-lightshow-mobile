@@ -123,7 +123,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
     scene.add(backLowLight);
 
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_windshield_geo.glb'));
+      const asset = Asset.fromModule(require('../assets/models/tesla_20260303_geo.glb'));
       await asset.downloadAsync();
       const loader = new GLTFLoader();
       const gltf = await new Promise((resolve, reject) => {
@@ -139,43 +139,43 @@ export default function NewShowScreen({ onBack, onCreated }) {
       model.scale.set(s, s, s);
       model.position.set(-center.x * s, -center.y * s, -center.z * s);
 
-      const bodyMat = new THREE.MeshStandardMaterial({
-        color: 0x222222,
-        metalness: 0.7,
-        roughness: 0.2,
-      });
-      const windowMat = new THREE.MeshStandardMaterial({
-        color: 0x445566,
-        metalness: 0.7,
-        roughness: 0.1,
-        opacity: 0.75,
-        transparent: true,
-      });
-      const litHeadMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        metalness: 0.2,
-        roughness: 0.05,
-        emissive: 0xffffff,
-        emissiveIntensity: 1.5,
-      });
-      const litTailMat = new THREE.MeshStandardMaterial({
-        color: 0xff0000,
-        metalness: 0.3,
-        roughness: 0.1,
-        emissive: 0xff2200,
-        emissiveIntensity: 1.2,
-      });
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.7, roughness: 0.2 });
+      const windowMat = new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.7, roughness: 0.1, opacity: 0.75, transparent: true });
+      const headOn = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.2, roughness: 0.05, emissive: 0xffffff, emissiveIntensity: 1.5 });
+      const tailOn = new THREE.MeshStandardMaterial({ color: 0xff0000, metalness: 0.2, roughness: 0.05, emissive: 0xff0000, emissiveIntensity: 1.5 });
+      const blinkOn = new THREE.MeshStandardMaterial({ color: 0xffaa00, metalness: 0.2, roughness: 0.05, emissive: 0xffaa00, emissiveIntensity: 1.5 });
+
+      // All lights ON permanently
       const partMats = {
         window_left_front: windowMat, window_right_front: windowMat,
         window_left_back: windowMat, window_right_back: windowMat,
         windshield_front: windowMat, windshield_back: windowMat,
-        light_left_front: litHeadMat, light_right_front: litHeadMat,
-        light_left_back: litTailMat, light_right_back: litTailMat,
+        light_left_front: headOn, light_right_front: headOn,
+        light_left_back: tailOn, light_right_back: tailOn,
+        blink_front_left: blinkOn, blink_front_right: blinkOn,
+        blink_back_left: blinkOn, blink_back_right: blinkOn,
+        license_plate: headOn,
+        brake_lights: tailOn,
+        rear_fog: tailOn,
+        side_repeater_left: blinkOn,
+        side_repeater_right: blinkOn,
+      };
+      const nodeNameMap = {
+        'blink_front_left002': 'blink_front_left',
+        'blink_front_left.002': 'blink_front_left',
+        'blin_back_right': 'blink_back_right',
+        'plaque': 'license_plate',
+        'stop_light': 'brake_lights',
+        'anti_fog_back_left': 'rear_fog',
+        'anti_fog_back_right': 'rear_fog',
+        'side_clignoant_left': 'side_repeater_left',
+        'side_clignotant_right': 'side_repeater_right',
       };
       const getPartName = (mesh) => {
         let node = mesh;
         while (node) {
-          if (partMats[node.name]) return node.name;
+          const mapped = nodeNameMap[node.name] || node.name;
+          if (partMats[mapped]) return mapped;
           node = node.parent;
         }
         return null;

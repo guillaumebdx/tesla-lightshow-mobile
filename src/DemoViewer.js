@@ -29,7 +29,8 @@ const TAIL_PARTS = ['light_left_back', 'light_right_back'];
 const BLINK_PARTS = ['blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right'];
 const EXTRA_LIGHT_PARTS = ['license_plate', 'brake_lights', 'rear_fog'];
 const REPEATER_PARTS = ['side_repeater_left', 'side_repeater_right'];
-const ALL_ANIM_PARTS = [...WINDOW_PARTS, ...HEAD_PARTS, ...TAIL_PARTS, ...BLINK_PARTS, ...EXTRA_LIGHT_PARTS, ...REPEATER_PARTS];
+const LIGHT_PARTS = [...HEAD_PARTS, ...TAIL_PARTS, ...BLINK_PARTS, ...EXTRA_LIGHT_PARTS, ...REPEATER_PARTS];
+const ALL_KNOWN_PARTS = [...LIGHT_PARTS, ...WINDOW_PARTS, 'trunk'];
 
 export default function DemoViewer({ style }) {
   const frameIdRef = useRef(null);
@@ -86,15 +87,9 @@ export default function DemoViewer({ style }) {
       model.scale.set(s, s, s);
       model.position.set(-center.x * s, -center.y * s, -center.z * s);
 
-      // Each animated window gets its own material clone so opacity changes are independent
-      const windowMats = {};
-      WINDOW_PARTS.forEach((p) => { windowMats[p] = mats.window.clone(); });
-
       const fixedMats = {
-        window_left_front: windowMats.window_left_front,
-        window_right_front: windowMats.window_right_front,
-        window_left_back: windowMats.window_left_back,
-        window_right_back: windowMats.window_right_back,
+        window_left_front: mats.window, window_right_front: mats.window,
+        window_left_back: mats.window, window_right_back: mats.window,
         windshield_front: mats.window, windshield_back: mats.window,
         light_left_front: mats.headOff, light_right_front: mats.headOff,
         light_left_back: mats.tailOff, light_right_back: mats.tailOff,
@@ -105,6 +100,7 @@ export default function DemoViewer({ style }) {
         rear_fog: mats.tailOff,
         side_repeater_left: mats.blinkOff,
         side_repeater_right: mats.blinkOff,
+        trunk: mats.body,
       };
       const nodeNameMap = {
         'blink_front_left002': 'blink_front_left',
@@ -130,7 +126,7 @@ export default function DemoViewer({ style }) {
         if (child.isMesh) {
           const pn = getPartName(child);
           child.material = (pn && fixedMats[pn]) || mats.body;
-          if (pn && ALL_ANIM_PARTS.includes(pn)) {
+          if (pn && ALL_KNOWN_PARTS.includes(pn)) {
             partMeshes[pn] = child;
           }
         }
@@ -138,35 +134,36 @@ export default function DemoViewer({ style }) {
 
       scene.add(model);
 
-      // Store each window mesh's init matrix and travelZ (same as editor)
+      // Setup window dance data (Z-axis slide like ModelViewer)
       const windowData = {};
       WINDOW_PARTS.forEach((p) => {
         const mesh = partMeshes[p];
         if (!mesh) return;
         mesh.geometry.computeBoundingBox();
-        const geoBBox = mesh.geometry.boundingBox;
-        const travelZ = geoBBox.max.z - geoBBox.min.z;
-        windowData[p] = {
-          mesh,
-          initMatrix: mesh.matrix.clone(),
-          travelZ,
-        };
+        const travelZ = mesh.geometry.boundingBox.max.z - mesh.geometry.boundingBox.min.z;
+        windowData[p] = { mesh, initMatrix: mesh.matrix.clone(), travelZ };
         mesh.matrixAutoUpdate = false;
       });
 
-      // Random phase offsets per part for chaotic feel
-      const headPhase = HEAD_PARTS.map(() => Math.random() * Math.PI * 2);
-      const headSpeed = HEAD_PARTS.map(() => 12 + Math.random() * 10);
-      const tailPhase = TAIL_PARTS.map(() => Math.random() * Math.PI * 2);
-      const tailSpeed = TAIL_PARTS.map(() => 10 + Math.random() * 12);
-      const blinkPhase = BLINK_PARTS.map(() => Math.random() * Math.PI * 2);
-      const blinkSpeed = BLINK_PARTS.map(() => 8 + Math.random() * 8);
-      const extraPhase = EXTRA_LIGHT_PARTS.map(() => Math.random() * Math.PI * 2);
-      const extraSpeed = EXTRA_LIGHT_PARTS.map(() => 10 + Math.random() * 10);
-      const repPhase = REPEATER_PARTS.map(() => Math.random() * Math.PI * 2);
-      const repSpeed = REPEATER_PARTS.map(() => 8 + Math.random() * 8);
+      // Setup trunk data (Y-axis pivot rotation like ModelViewer)
+      let trunkData = null;
+      const trunkMesh = partMeshes['trunk'];
+      if (trunkMesh) {
+        trunkMesh.geometry.computeBoundingBox();
+        const bb = trunkMesh.geometry.boundingBox;
+        const pivotLocal = new THREE.Vector3(bb.min.x, (bb.min.y + bb.max.y) / 2, bb.max.z);
+        trunkData = { mesh: trunkMesh, initMatrix: trunkMesh.matrix.clone(), pivotLocal };
+        trunkMesh.matrixAutoUpdate = false;
+      }
+      const TRUNK_OPEN_ANGLE = -Math.PI / 4;
+      const TRUNK_CYCLE_S = 8; // 8s full cycle: 2s open, 4s hold, 2s close
+      const _yAxis = new THREE.Vector3(0, 1, 0);
+
+      // Random phase/speed per light part for chaotic blink
+      const lightPhase = LIGHT_PARTS.map(() => Math.random() * Math.PI * 2);
+      const lightSpeed = LIGHT_PARTS.map(() => 8 + Math.random() * 12);
+      // Window dance phase offsets
       const winPhase = WINDOW_PARTS.map(() => Math.random() * Math.PI * 2);
-      const winSpeed = WINDOW_PARTS.map(() => 3 + Math.random() * 2);
       const DANCE_CYCLE_MS = 3500;
 
       let rotation = 0;
@@ -180,43 +177,22 @@ export default function DemoViewer({ style }) {
         rotation += 0.008;
         model.rotation.y = rotation;
 
-        // Headlights — fast chaotic blink, always on
-        HEAD_PARTS.forEach((p, i) => {
+        // Chaotic blink on all light parts
+        LIGHT_PARTS.forEach((p, i) => {
           if (!partMeshes[p]) return;
-          const on = Math.sin(time * headSpeed[i] + headPhase[i]) > 0;
-          partMeshes[p].material = on ? mats.headOn : mats.headOff;
+          const on = Math.sin(time * lightSpeed[i] + lightPhase[i]) > 0;
+          const isHead = HEAD_PARTS.includes(p) || p === 'license_plate';
+          const isTail = TAIL_PARTS.includes(p) || p === 'brake_lights' || p === 'rear_fog';
+          if (isHead) {
+            partMeshes[p].material = on ? mats.headOn : mats.headOff;
+          } else if (isTail) {
+            partMeshes[p].material = on ? mats.tailOn : mats.tailOff;
+          } else {
+            partMeshes[p].material = on ? mats.blinkOn : mats.blinkOff;
+          }
         });
 
-        // Taillights — fast chaotic blink, always on
-        TAIL_PARTS.forEach((p, i) => {
-          if (!partMeshes[p]) return;
-          const on = Math.sin(time * tailSpeed[i] + tailPhase[i]) > 0;
-          partMeshes[p].material = on ? mats.tailOn : mats.tailOff;
-        });
-
-        // Blinkers — amber chaotic blink
-        BLINK_PARTS.forEach((p, i) => {
-          if (!partMeshes[p]) return;
-          const on = Math.sin(time * blinkSpeed[i] + blinkPhase[i]) > 0;
-          partMeshes[p].material = on ? mats.blinkOn : mats.blinkOff;
-        });
-
-        // Extra lights — brake/license/rear_fog
-        EXTRA_LIGHT_PARTS.forEach((p, i) => {
-          if (!partMeshes[p]) return;
-          const on = Math.sin(time * extraSpeed[i] + extraPhase[i]) > 0;
-          const isWhite = p === 'license_plate';
-          partMeshes[p].material = on ? (isWhite ? mats.headOn : mats.tailOn) : (isWhite ? mats.headOff : mats.tailOff);
-        });
-
-        // Side repeaters — amber chaotic blink
-        REPEATER_PARTS.forEach((p, i) => {
-          if (!partMeshes[p]) return;
-          const on = Math.sin(time * repSpeed[i] + repPhase[i]) > 0;
-          partMeshes[p].material = on ? mats.blinkOn : mats.blinkOff;
-        });
-
-        // Windows dance — Z-axis slide (same as editor)
+        // Window dance — Z-axis slide oscillation
         WINDOW_PARTS.forEach((p, i) => {
           const wd = windowData[p];
           if (!wd) return;
@@ -226,9 +202,36 @@ export default function DemoViewer({ style }) {
           const wave = danceRange * (0.5 - 0.5 * Math.cos(phase));
           const progress = REST_OPEN - wave;
           const slideDown = new THREE.Matrix4().makeTranslation(0, 0, -wd.travelZ * progress);
-          const combined = wd.initMatrix.clone().multiply(slideDown);
-          wd.mesh.matrix.copy(combined);
+          wd.mesh.matrix.copy(wd.initMatrix.clone().multiply(slideDown));
         });
+
+        // Trunk open/close cycle
+        if (trunkData) {
+          const cycleT = (time % TRUNK_CYCLE_S) / TRUNK_CYCLE_S; // 0..1
+          let progress;
+          if (cycleT < 0.25) {
+            // Opening (0-25%)
+            progress = Math.sin((cycleT / 0.25) * Math.PI / 2);
+          } else if (cycleT < 0.75) {
+            // Holding open (25-75%)
+            progress = 1;
+          } else {
+            // Closing (75-100%)
+            progress = Math.cos(((cycleT - 0.75) / 0.25) * Math.PI / 2);
+          }
+
+          if (progress < 0.001) {
+            trunkData.mesh.matrix.copy(trunkData.initMatrix);
+          } else {
+            const p = trunkData.pivotLocal;
+            const toOrigin = new THREE.Matrix4().makeTranslation(-p.x, -p.y, -p.z);
+            const rot = new THREE.Matrix4().makeRotationAxis(_yAxis, TRUNK_OPEN_ANGLE * progress);
+            const fromOrigin = new THREE.Matrix4().makeTranslation(p.x, p.y, p.z);
+            trunkData.mesh.matrix.copy(
+              trunkData.initMatrix.clone().multiply(fromOrigin).multiply(rot).multiply(toOrigin)
+            );
+          }
+        }
 
         renderer.render(scene, camera);
         gl.endFrameEXP();

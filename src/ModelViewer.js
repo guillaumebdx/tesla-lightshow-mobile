@@ -872,42 +872,6 @@ export default function ModelViewer({ showId, onGoHome }) {
           'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
           'license_plate', 'brake_lights', 'rear_fog', 'side_repeater_left', 'side_repeater_right'];
 
-        // Idle light animation when no events exist
-        if (events.length === 0 && modelRef.current) {
-          const t = Date.now() / 1000;
-          for (let li = 0; li < lightParts.length; li++) {
-            const pn = lightParts[li];
-            const phase = li * 1.7;
-            const speed = 10 + (li % 5) * 2.5;
-            const on = Math.sin(t * speed + phase) > 0;
-            const spot = spotLightsRef.current[pn];
-            if (spot) spot.intensity = on ? 5 : 0;
-          }
-          modelRef.current.traverse((child) => {
-            if (!child.isMesh) return;
-            const pn = child.userData.interactiveName;
-            if (!pn || !lightParts.includes(pn)) return;
-            if (selectedMeshRef.current && selectedMeshRef.current.userData.interactiveName === pn) return;
-            const li = lightParts.indexOf(pn);
-            const phase = li * 1.7;
-            const speed = 10 + (li % 5) * 2.5;
-            const on = Math.sin(t * speed + phase) > 0;
-            if (on) {
-              const isBlink_ = isBlinker(pn);
-              const litMat = isBlink_ ? litBlinkerMatRef.current
-                           : (pn.includes('front') || pn === 'license_plate') ? litHeadlightMatRef.current
-                           : litTaillightMatRef.current;
-              if (litMat) child.material = litMat;
-            } else {
-              const origMat = meshMaterialsRef.current.get(pn);
-              if (origMat) child.material = origMat;
-            }
-          });
-          rendererRef.current.render(sceneRef.current, cameraRef.current);
-          gl.endFrameEXP();
-          return;
-        }
-
         // Cache sorted events — only re-sort when events array identity changes
         if (events !== lastEventsIdentityRef.current) {
           lastEventsIdentityRef.current = events;
