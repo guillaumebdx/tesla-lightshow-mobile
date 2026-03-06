@@ -26,7 +26,7 @@ const SELECT_MS = 300;
 const SHAKE_AMPLITUDE = 2;
 const SHAKE_PERIOD = 30;
 
-function DraggableEvent({ evt, color, isSelected, laneTop, laneHeight, leftPx, widthPx, isPlacementMode, onTap, onQuickTap, onDragEnd, totalWaveWidth, duration, onDragStart, onDragStop, onTouchCapture }) {
+const DraggableEvent = React.memo(function DraggableEvent({ evt, color, isSelected, laneTop, laneHeight, leftPx, widthPx, isPlacementMode, onTap, onQuickTap, onDragEnd, totalWaveWidth, duration, onDragStart, onDragStop, onTouchCapture }) {
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const dragOffsetX = useRef(new Animated.Value(0)).current;
   const isDragging = useRef(false);
@@ -126,7 +126,19 @@ function DraggableEvent({ evt, color, isSelected, laneTop, laneHeight, leftPx, w
       )}
     </Animated.View>
   );
-}
+}, (prev, next) => {
+  // Custom comparator: only re-render when visual-affecting props change
+  return prev.evt === next.evt
+    && prev.isSelected === next.isSelected
+    && prev.leftPx === next.leftPx
+    && prev.widthPx === next.widthPx
+    && prev.laneTop === next.laneTop
+    && prev.laneHeight === next.laneHeight
+    && prev.color === next.color
+    && prev.isPlacementMode === next.isPlacementMode
+    && prev.totalWaveWidth === next.totalWaveWidth
+    && prev.duration === next.duration;
+});
 
 const BAR_GAP = 1;
 const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 2, 4, 8, 16, 32, 64];
@@ -160,6 +172,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
   const touchStartRef = useRef({ x: 0, time: 0 });
   const eventTappedRef = useRef(false);
   const pinchRef = useRef({ active: false, startDist: 0, startZoomIndex: 3, centerX: 0 });
+  const lastPositionUpdateRef = useRef(0); // throttle setPosition during playback
 
   useImperativeHandle(ref, () => ({
     openTrackPicker: () => setModalVisible(true),
@@ -295,12 +308,17 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
       const offset = cursorOffsetMsRef.current || 0;
       const offsetPos = Math.max(0, Math.min(newPos + offset, dur));
 
-      setPosition(offsetPos);
+      // Throttle React state updates to reduce re-renders during playback
+      const now = Date.now();
+      if (!status.isPlaying || now - lastPositionUpdateRef.current >= 500) {
+        setPosition(offsetPos);
+        lastPositionUpdateRef.current = now;
+      }
       if (status.durationMillis) {
         setDuration(dur);
       }
 
-      // Report offset position to parent (for lights sync)
+      // Report offset position to parent (for lights sync) — always, no throttle
       if (onPositionChange) {
         onPositionChange(offsetPos, dur);
       }
@@ -405,26 +423,28 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
 
   const totalLanes = Math.max(1, partLaneMap.size);
 
-  // For each event, compute how many distinct part-lanes overlap at its time range
-  // so heights adapt dynamically when events are moved apart.
-  const eventLanes = new Map();
-  let maxLanes = 1;
-  for (const evt of events) {
-    const lane = partLaneMap.get(evt.part) ?? 0;
-    // Collect sorted distinct part-lanes that overlap this event's time range
-    const overlappingLanes = new Set();
-    overlappingLanes.add(lane);
-    for (const other of events) {
-      if (other.startMs < evt.endMs && other.endMs > evt.startMs) {
-        overlappingLanes.add(partLaneMap.get(other.part) ?? 0);
+  // Memoize O(n²) lane computation — only recompute when events or lane map change
+  const { eventLanes, maxLanes } = useMemo(() => {
+    const lanes = new Map();
+    let max = 1;
+    for (const evt of events) {
+      const lane = partLaneMap.get(evt.part) ?? 0;
+      const overlappingLanes = new Set();
+      overlappingLanes.add(lane);
+      for (const other of events) {
+        if (other.startMs < evt.endMs && other.endMs > evt.startMs) {
+          overlappingLanes.add(partLaneMap.get(other.part) ?? 0);
+        }
       }
+      const sorted = [...overlappingLanes].sort((a, b) => a - b);
+      const lanesHere = sorted.length;
+      const relativeLane = sorted.indexOf(lane);
+      if (lanesHere > max) max = lanesHere;
+      lanes.set(evt.id, { lane: relativeLane, lanesHere });
     }
-    const sorted = [...overlappingLanes].sort((a, b) => a - b);
-    const lanesHere = sorted.length;
-    const relativeLane = sorted.indexOf(lane);
-    if (lanesHere > maxLanes) maxLanes = lanesHere;
-    eventLanes.set(evt.id, { lane: relativeLane, lanesHere });
-  }
+    return { eventLanes: lanes, maxLanes: max };
+  }, [events, partLaneMap]);
+
   const BASE_HEIGHT = 80 * timelineScale;
   const timelineHeight = Math.min(BASE_HEIGHT * 1.5, BASE_HEIGHT * (maxLanes > 1 ? 1 + (maxLanes - 1) * 0.25 : 1));
 

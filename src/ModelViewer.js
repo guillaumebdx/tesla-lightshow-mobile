@@ -910,6 +910,52 @@ export default function ModelViewer({ showId, onGoHome }) {
       setLoading(false);
     }
 
+    // --- Pre-allocate reusable objects (zero per-frame GC pressure) ---
+    const _dotWorldPos = new THREE.Vector3();
+    const _toCam = new THREE.Vector3();
+    const _toCenter = new THREE.Vector3();
+    const _zAxis = new THREE.Vector3(0, 0, 1);
+    const _yAxis = new THREE.Vector3(0, 1, 0);
+    const _xAxis = new THREE.Vector3(1, 0, 0);
+    const _tmpMat4a = new THREE.Matrix4();
+    const _tmpMat4b = new THREE.Matrix4();
+    const _tmpMat4c = new THREE.Matrix4();
+    const _tmpMat4d = new THREE.Matrix4();
+    const _tmpMat4e = new THREE.Matrix4(); // for combined result
+    const _tmpColor = new THREE.Color();
+    const RAINBOW_COLORS = [
+      new THREE.Color(0xff0000),
+      new THREE.Color(0x00ff00),
+      new THREE.Color(0x0000ff),
+      new THREE.Color(0xff8800),
+      new THREE.Color(0xaa00ff),
+    ];
+    const RETRO_FOLD_ANGLE = Math.PI / 3;
+    const RETRO_SLIDE = 0.15;
+    const TRUNK_OPEN_ANGLE = -Math.PI / 4;
+    const FLAP_OPEN_ANGLE = -Math.PI / 3;
+    const RAINBOW_CYCLE_MS = 2500;
+    const WINDOW_DANCE_CYCLE_MS = 3500;
+    const WINDOW_REST_OPEN = 0.7;
+    const retroPartNames = ['retro_left', 'retro_right'];
+    const windowPartNames = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
+    const lightPartNames = ['light_left_front', 'light_right_front', 'light_left_back', 'light_right_back',
+      'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
+      'license_plate', 'brake_lights', 'rear_fog', 'side_repeater_left', 'side_repeater_right'];
+    const _activeMap = new Map();
+
+    // Build a direct-lookup map: partName → [mesh, ...] (avoids model.traverse every frame)
+    const interactiveMeshMap = new Map();
+    if (modelRef.current) {
+      modelRef.current.traverse((child) => {
+        if (child.isMesh && child.userData.interactiveName) {
+          const name = child.userData.interactiveName;
+          if (!interactiveMeshMap.has(name)) interactiveMeshMap.set(name, []);
+          interactiveMeshMap.get(name).push(child);
+        }
+      });
+    }
+
     // Animation loop — reads events directly, no setTimeout
     const animate = () => {
       frameIdRef.current = requestAnimationFrame(animate);
@@ -930,17 +976,11 @@ export default function ModelViewer({ showId, onGoHome }) {
         } else {
           const camPos = cameraRef.current.position;
           const modelPos = modelRef.current.position;
-          const dotWorldPos = new THREE.Vector3();
-          const toCam = new THREE.Vector3();
-          const toCenter = new THREE.Vector3();
           for (const dot of dotSpritesRef.current) {
-            dot.getWorldPosition(dotWorldPos);
-            // Vector from model center to dot
-            toCenter.subVectors(dotWorldPos, modelPos);
-            // Vector from dot to camera
-            toCam.subVectors(camPos, dotWorldPos);
-            // If dot faces camera (same hemisphere), show it
-            dot.visible = toCenter.dot(toCam) > 0;
+            dot.getWorldPosition(_dotWorldPos);
+            _toCenter.subVectors(_dotWorldPos, modelPos);
+            _toCam.subVectors(camPos, _dotWorldPos);
+            dot.visible = _toCenter.dot(_toCam) > 0;
           }
         }
 
@@ -962,11 +1002,8 @@ export default function ModelViewer({ showId, onGoHome }) {
         const pos = playbackPositionRef.current;
         const events = eventsRef.current;
 
-        // Build a map: partName -> { event, intensity }
-        const activeMap = new Map();
-        const lightParts = ['light_left_front', 'light_right_front', 'light_left_back', 'light_right_back',
-          'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
-          'license_plate', 'brake_lights', 'rear_fog', 'side_repeater_left', 'side_repeater_right'];
+        // Reuse pre-allocated map (clear instead of new Map())
+        _activeMap.clear();
 
         // Cache sorted events — only re-sort when events array identity changes
         if (events !== lastEventsIdentityRef.current) {
@@ -978,8 +1015,8 @@ export default function ModelViewer({ showId, onGoHome }) {
         // Scan only relevant events (sorted by startMs, early-break)
         for (let i = 0; i < sorted.length; i++) {
           const evt = sorted[i];
-          if (evt.startMs > pos) break;   // no more can be active
-          if (evt.endMs <= pos) continue;  // already ended
+          if (evt.startMs > pos) break;
+          if (evt.endMs <= pos) continue;
           let intensity = (evt.power ?? 100) / 100;
           const evtDuration = evt.endMs - evt.startMs;
           const elapsed = pos - evt.startMs;
@@ -1000,15 +1037,16 @@ export default function ModelViewer({ showId, onGoHome }) {
             blinkOff = (Math.floor(elapsed / (periodMs / 2)) % 2) !== 0;
           }
 
-          activeMap.set(evt.part, { evt, intensity, blinkOff });
+          _activeMap.set(evt.part, { evt, intensity, blinkOff });
         }
 
         // Update SpotLight intensities
         const MAX_SPOT_INTENSITY = 5;
-        for (const partName of lightParts) {
+        for (let i = 0; i < lightPartNames.length; i++) {
+          const partName = lightPartNames[i];
           const spot = spotLightsRef.current[partName];
           if (!spot) continue;
-          const active = activeMap.get(partName);
+          const active = _activeMap.get(partName);
           if (active && !active.blinkOff) {
             spot.intensity = active.intensity * MAX_SPOT_INTENSITY;
           } else {
@@ -1016,82 +1054,75 @@ export default function ModelViewer({ showId, onGoHome }) {
           }
         }
 
-        // Apply materials based on active events
-        modelRef.current.traverse((child) => {
-          if (!child.isMesh) return;
-          const partName = child.userData.interactiveName;
-          if (!partName) return;
-          if (selectedMeshRef.current && selectedMeshRef.current.userData.interactiveName === partName) return;
+        // Apply materials using cached mesh lookup (no traverse)
+        const selectedPartName = selectedMeshRef.current?.userData?.interactiveName;
+        for (const [partName, meshes] of interactiveMeshMap) {
+          if (partName === selectedPartName) continue;
 
-          const active = activeMap.get(partName);
-          if (active) {
-            const isLightPart = isLight(partName);
-            const isBlink = isBlinker(partName);
-            if (!isLightPart && !isBlink) return;
+          const active = _activeMap.get(partName);
+          for (let mi = 0; mi < meshes.length; mi++) {
+            const child = meshes[mi];
+            if (active) {
+              const isLightPart = isLight(partName);
+              const isBlink = isBlinker(partName);
+              if (!isLightPart && !isBlink) continue;
 
-            if (active.blinkOff) {
+              if (active.blinkOff) {
+                const originalMat = meshMaterialsRef.current.get(partName);
+                if (originalMat) child.material = originalMat;
+                continue;
+              }
+
+              const litMat = isBlink ? litBlinkerMatRef.current
+                           : (partName.includes('front') || partName === 'license_plate') ? litHeadlightMatRef.current
+                           : litTaillightMatRef.current;
+              if (!litMat) continue;
               const originalMat = meshMaterialsRef.current.get(partName);
-              if (originalMat) child.material = originalMat;
-              return;
-            }
+              if (!originalMat) continue;
 
-            // Determine lit material: blinkers/repeaters=amber, front lights + license plate=white, rest=red
-            const litMat = isBlink ? litBlinkerMatRef.current
-                         : (partName.includes('front') || partName === 'license_plate') ? litHeadlightMatRef.current
-                         : litTaillightMatRef.current;
-            if (!litMat) return;
-            const originalMat = meshMaterialsRef.current.get(partName);
-            if (!originalMat) return;
-
-            const intensity = active.intensity;
-            if (!child.userData._dynamicMat) {
-              child.userData._dynamicMat = litMat.clone();
-            }
-            const mat = child.userData._dynamicMat;
-            const litColor = litMat.color;
-            const offColor = originalMat.color;
-            mat.color.r = offColor.r + (litColor.r - offColor.r) * intensity;
-            mat.color.g = offColor.g + (litColor.g - offColor.g) * intensity;
-            mat.color.b = offColor.b + (litColor.b - offColor.b) * intensity;
-            mat.emissive.r = litMat.emissive.r * intensity;
-            mat.emissive.g = litMat.emissive.g * intensity;
-            mat.emissive.b = litMat.emissive.b * intensity;
-            mat.emissiveIntensity = litMat.emissiveIntensity * intensity;
-            child.material = mat;
-          } else {
-            const originalMat = meshMaterialsRef.current.get(partName);
-            if (originalMat && child.material !== originalMat) {
-              child.material = originalMat;
-              if (child.userData._dynamicMat) {
-                child.userData._dynamicMat = null;
+              const intensity = active.intensity;
+              if (!child.userData._dynamicMat) {
+                child.userData._dynamicMat = litMat.clone();
+              }
+              const mat = child.userData._dynamicMat;
+              const litColor = litMat.color;
+              const offColor = originalMat.color;
+              mat.color.r = offColor.r + (litColor.r - offColor.r) * intensity;
+              mat.color.g = offColor.g + (litColor.g - offColor.g) * intensity;
+              mat.color.b = offColor.b + (litColor.b - offColor.b) * intensity;
+              mat.emissive.r = litMat.emissive.r * intensity;
+              mat.emissive.g = litMat.emissive.g * intensity;
+              mat.emissive.b = litMat.emissive.b * intensity;
+              mat.emissiveIntensity = litMat.emissiveIntensity * intensity;
+              child.material = mat;
+            } else {
+              const originalMat = meshMaterialsRef.current.get(partName);
+              if (originalMat && child.material !== originalMat) {
+                child.material = originalMat;
+                if (child.userData._dynamicMat) {
+                  child.userData._dynamicMat = null;
+                }
               }
             }
           }
-        });
+        }
 
-        // Animate retro mirrors based on retroMode: close, open, roundtrip
-        // "close" leaves the retro folded after the event until an "open" event
-        const RETRO_FOLD_ANGLE = Math.PI / 3; // 60° fold
-        const retroParts = ['retro_left', 'retro_right'];
-        const _zAxis = new THREE.Vector3(0, 0, 1);
-        for (const partName of retroParts) {
+        // Animate retro mirrors
+        for (let ri = 0; ri < retroPartNames.length; ri++) {
+          const partName = retroPartNames[ri];
           const retroData = retroNodesRef.current[partName];
           if (!retroData || !retroData.mesh) continue;
           const mesh = retroData.mesh;
-          const active = activeMap.get(partName);
+          const active = _activeMap.get(partName);
 
-          // Determine the retro state: find the last retro event that ended before pos
-          // to know if the retro should be closed or open at rest
           let restClosed = false;
           for (let i = 0; i < sorted.length; i++) {
             const evt = sorted[i];
-            if (evt.startMs > pos) break; // no future events can have ended
+            if (evt.startMs > pos) break;
             if (evt.part !== partName) continue;
             if (evt.endMs <= pos) {
-              // This event has finished — check its final state
               if (evt.retroMode === 'close') restClosed = true;
               else if (evt.retroMode === 'open') restClosed = false;
-              // roundtrip ends open
             }
           }
 
@@ -1104,13 +1135,10 @@ export default function ModelViewer({ showId, onGoHome }) {
             const mode = active.evt.retroMode || 'roundtrip';
 
             if (mode === 'close') {
-              // 0→1 over duration (fold in)
               progress = Math.sin(t * Math.PI / 2);
             } else if (mode === 'open') {
-              // 1→0 over duration (fold out)
               progress = Math.cos(t * Math.PI / 2);
             } else {
-              // roundtrip: 0→1→0
               const pingPong = t <= 0.5 ? t * 2 : (1 - t) * 2;
               progress = Math.sin(pingPong * Math.PI / 2);
             }
@@ -1118,81 +1146,69 @@ export default function ModelViewer({ showId, onGoHome }) {
 
           const sign = partName === 'retro_left' ? 1 : -1;
           const angle = sign * RETRO_FOLD_ANGLE * progress;
-          // Slide retro toward car body as it folds (left: +X, right: -X)
-          const RETRO_SLIDE = 0.15; // units toward body
           const slideX = -sign * RETRO_SLIDE * progress;
 
           if (progress === 0) {
             mesh.matrix.copy(retroData.initMatrix);
           } else {
             const c = retroData.geoCenter;
-            const toOrigin = new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z);
-            const rot = new THREE.Matrix4().makeRotationAxis(_zAxis, angle);
-            const fromOrigin = new THREE.Matrix4().makeTranslation(c.x, c.y, c.z);
-            const slide = new THREE.Matrix4().makeTranslation(slideX, 0, 0);
-            const combined = retroData.initMatrix.clone()
-              .multiply(slide)
-              .multiply(fromOrigin)
-              .multiply(rot)
-              .multiply(toOrigin);
-            mesh.matrix.copy(combined);
+            _tmpMat4a.makeTranslation(-c.x, -c.y, -c.z);
+            _tmpMat4b.makeRotationAxis(_zAxis, angle);
+            _tmpMat4c.makeTranslation(c.x, c.y, c.z);
+            _tmpMat4d.makeTranslation(slideX, 0, 0);
+            _tmpMat4e.copy(retroData.initMatrix)
+              .multiply(_tmpMat4d)
+              .multiply(_tmpMat4c)
+              .multiply(_tmpMat4b)
+              .multiply(_tmpMat4a);
+            mesh.matrix.copy(_tmpMat4e);
           }
           mesh.matrixAutoUpdate = false;
         }
 
-        // Animate windows: dance mode (oscillation haut/bas)
-        // The window oscillates between up and ~60% down with a smooth sine wave
-        const DANCE_CYCLE_MS = 3500; // one full oscillation = 3.5s (1.75s down + 1.75s up)
-        const DANCE_AMPLITUDE = 1.0; // 100% of full travel
-        const windowParts = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
-        for (const partName of windowParts) {
+        // Animate windows
+        for (let wi = 0; wi < windowPartNames.length; wi++) {
+          const partName = windowPartNames[wi];
           const winData = windowNodesRef.current[partName];
           if (!winData || !winData.mesh) continue;
           const mesh = winData.mesh;
-          const active = activeMap.get(partName);
+          const active = _activeMap.get(partName);
 
-          const REST_OPEN = 0.7; // windows start 20% open at show start
-          let progress = REST_OPEN;
+          let progress = WINDOW_REST_OPEN;
 
           if (active) {
             const elapsed = pos - active.evt.startMs;
             const evtDuration = active.evt.endMs - active.evt.startMs;
-            // Smooth sine oscillation starting from REST_OPEN, going further down, then back
-            const phase = (elapsed / DANCE_CYCLE_MS) * Math.PI * 2;
-            // Oscillates between REST_OPEN (0.7) and 0.3 (more closed)
-            const danceRange = REST_OPEN - 0.3;
+            const phase = (elapsed / WINDOW_DANCE_CYCLE_MS) * Math.PI * 2;
+            const danceRange = WINDOW_REST_OPEN - 0.3;
             const wave = danceRange * (0.5 - 0.5 * Math.cos(phase));
-            progress = REST_OPEN - wave;
-            // Ease in at start, ease out back to REST_OPEN at end
+            progress = WINDOW_REST_OPEN - wave;
             const fadeIn = Math.min(elapsed / 400, 1);
             const fadeOut = Math.min((evtDuration - elapsed) / 400, 1);
             const fade = fadeIn * Math.max(fadeOut, 0);
-            progress = REST_OPEN + (progress - REST_OPEN) * fade;
+            progress = WINDOW_REST_OPEN + (progress - WINDOW_REST_OPEN) * fade;
           }
 
           if (progress === 0) {
             mesh.matrix.copy(winData.initMatrix);
           } else {
-            const slideDown = new THREE.Matrix4().makeTranslation(0, 0, -winData.travelZ * progress);
-            const combined = winData.initMatrix.clone().multiply(slideDown);
-            mesh.matrix.copy(combined);
+            _tmpMat4a.makeTranslation(0, 0, -winData.travelZ * progress);
+            _tmpMat4e.copy(winData.initMatrix).multiply(_tmpMat4a);
+            mesh.matrix.copy(_tmpMat4e);
           }
           mesh.matrixAutoUpdate = false;
         }
 
-        // Animate trunk (liftgate) — matrix pivot rotation around Y axis
-        // Geo space: X=front-back (min=roof), Y=left-right, Z=up-down (max=top)
-        // Rotation around Y axis at pivot (minX, centerY, maxZ) lifts the trunk upward
-        const TRUNK_OPEN_ANGLE = -Math.PI / 4; // -45° : rear edge (maxX) lifts up
-        const _yAxis = new THREE.Vector3(0, 1, 0);
+        // Animate trunk (liftgate)
         const trunkData = trunkNodeRef.current;
         if (trunkData && trunkData.mesh) {
           const mesh = trunkData.mesh;
-          const active = activeMap.get('trunk');
+          const active = _activeMap.get('trunk');
 
-          // Determine rest state from past events
           let restOpen = false;
-          for (const evt of events) {
+          for (let i = 0; i < sorted.length; i++) {
+            const evt = sorted[i];
+            if (evt.startMs > pos) break;
             if (evt.part !== 'trunk') continue;
             if (evt.endMs <= pos) {
               if (evt.trunkMode === 'trunk_open' || evt.trunkMode === 'trunk_dance') restOpen = true;
@@ -1200,7 +1216,7 @@ export default function ModelViewer({ showId, onGoHome }) {
             }
           }
 
-          let progress = restOpen ? 1 : 0; // 0=closed, 1=fully open
+          let progress = restOpen ? 1 : 0;
 
           if (active) {
             const elapsed = pos - active.evt.startMs;
@@ -1213,16 +1229,13 @@ export default function ModelViewer({ showId, onGoHome }) {
             } else if (mode === 'trunk_close') {
               progress = Math.cos(t * Math.PI / 2);
             } else if (mode === 'trunk_dance') {
-              // Dance: if already open, oscillate immediately; if closed, open first then oscillate
               const OPEN_PHASE_MS = restOpen ? 0 : 1000;
-              const DANCE_CYCLE_MS = 2000; // 1s down + 1s up
+              const TRUNK_DANCE_CYCLE = 2000;
               if (elapsed < OPEN_PHASE_MS) {
-                // Opening phase (only if trunk was closed)
                 progress = Math.sin((elapsed / OPEN_PHASE_MS) * Math.PI / 2);
               } else {
-                // Oscillation phase: between 1.0 (fully open) and 0.5 (half open)
                 const danceElapsed = elapsed - OPEN_PHASE_MS;
-                const phase = (danceElapsed / DANCE_CYCLE_MS) * Math.PI * 2;
+                const phase = (danceElapsed / TRUNK_DANCE_CYCLE) * Math.PI * 2;
                 progress = 0.75 + 0.25 * Math.cos(phase);
               }
             }
@@ -1232,30 +1245,28 @@ export default function ModelViewer({ showId, onGoHome }) {
             mesh.matrix.copy(trunkData.initMatrix);
           } else {
             const p = trunkData.pivotLocal;
-            const toOrigin = new THREE.Matrix4().makeTranslation(-p.x, -p.y, -p.z);
-            const rot = new THREE.Matrix4().makeRotationAxis(_yAxis, TRUNK_OPEN_ANGLE * progress);
-            const fromOrigin = new THREE.Matrix4().makeTranslation(p.x, p.y, p.z);
-            const combined = trunkData.initMatrix.clone()
-              .multiply(fromOrigin)
-              .multiply(rot)
-              .multiply(toOrigin);
-            mesh.matrix.copy(combined);
+            _tmpMat4a.makeTranslation(-p.x, -p.y, -p.z);
+            _tmpMat4b.makeRotationAxis(_yAxis, TRUNK_OPEN_ANGLE * progress);
+            _tmpMat4c.makeTranslation(p.x, p.y, p.z);
+            _tmpMat4e.copy(trunkData.initMatrix)
+              .multiply(_tmpMat4c)
+              .multiply(_tmpMat4b)
+              .multiply(_tmpMat4a);
+            mesh.matrix.copy(_tmpMat4e);
           }
           mesh.matrixAutoUpdate = false;
         }
 
-        // Animate flap (charge port) — same pivot rotation as trunk but around Y axis
-        // Flap bbox: X=1757..1993, Y=-805..-760, Z=888..1009
-        // Hinge at max X (rear), opens by rotating rear edge upward
-        const FLAP_OPEN_ANGLE = -Math.PI / 3; // ~60° open — bottom swings outward (negative X = away from car)
+        // Animate flap (charge port)
         const flapData = flapNodeRef.current;
         if (flapData && flapData.mesh) {
           const flapMesh = flapData.mesh;
-          const flapActive = activeMap.get('flap');
+          const flapActive = _activeMap.get('flap');
 
-          // Determine rest state from past events
           let flapRestOpen = false;
-          for (const evt of events) {
+          for (let i = 0; i < sorted.length; i++) {
+            const evt = sorted[i];
+            if (evt.startMs > pos) break;
             if (evt.part !== 'flap') continue;
             if (evt.endMs <= pos) {
               if (evt.flapMode === 'flap_open' || evt.flapMode === 'flap_rainbow') flapRestOpen = true;
@@ -1276,9 +1287,8 @@ export default function ModelViewer({ showId, onGoHome }) {
             } else if (mode === 'flap_close') {
               flapProgress = Math.cos(t * Math.PI / 2);
             } else if (mode === 'flap_rainbow') {
-              // Rainbow: just open quickly and stay open (light effect handled separately)
               if (!flapRestOpen) {
-                const openT = Math.min(elapsed / 500, 1); // 0.5s open
+                const openT = Math.min(elapsed / 500, 1);
                 flapProgress = Math.sin(openT * Math.PI / 2);
               } else {
                 flapProgress = 1;
@@ -1290,27 +1300,18 @@ export default function ModelViewer({ showId, onGoHome }) {
             flapMesh.matrix.copy(flapData.initMatrix);
           } else {
             const p = flapData.pivotLocal;
-            const toOrigin = new THREE.Matrix4().makeTranslation(-p.x, -p.y, -p.z);
-            const _xAxisFlap = new THREE.Vector3(1, 0, 0);
-            const rot = new THREE.Matrix4().makeRotationAxis(_xAxisFlap, FLAP_OPEN_ANGLE * flapProgress);
-            const fromOrigin = new THREE.Matrix4().makeTranslation(p.x, p.y, p.z);
-            const combined = flapData.initMatrix.clone()
-              .multiply(fromOrigin)
-              .multiply(rot)
-              .multiply(toOrigin);
-            flapMesh.matrix.copy(combined);
+            _tmpMat4a.makeTranslation(-p.x, -p.y, -p.z);
+            _tmpMat4b.makeRotationAxis(_xAxis, FLAP_OPEN_ANGLE * flapProgress);
+            _tmpMat4c.makeTranslation(p.x, p.y, p.z);
+            _tmpMat4e.copy(flapData.initMatrix)
+              .multiply(_tmpMat4c)
+              .multiply(_tmpMat4b)
+              .multiply(_tmpMat4a);
+            flapMesh.matrix.copy(_tmpMat4e);
           }
           flapMesh.matrixAutoUpdate = false;
 
-          // Rainbow plane effect: cycle through 5 colors when flap_rainbow is active
-          const RAINBOW_COLORS = [
-            new THREE.Color(0xff0000), // red
-            new THREE.Color(0x00ff00), // green
-            new THREE.Color(0x0000ff), // blue
-            new THREE.Color(0xff8800), // orange
-            new THREE.Color(0xaa00ff), // purple
-          ];
-          const RAINBOW_CYCLE_MS = 2500; // full cycle through all 5 colors = 2.5s (0.5s per color)
+          // Rainbow plane effect
           if (flapData.rainbowMat) {
             const isRainbow = flapActive && flapActive.evt.flapMode === 'flap_rainbow';
             if (isRainbow) {
@@ -1323,8 +1324,8 @@ export default function ModelViewer({ showId, onGoHome }) {
                 const i0 = Math.floor(idx) % RAINBOW_COLORS.length;
                 const i1 = (i0 + 1) % RAINBOW_COLORS.length;
                 const blend = idx - Math.floor(idx);
-                const color = RAINBOW_COLORS[i0].clone().lerp(RAINBOW_COLORS[i1], blend);
-                flapData.rainbowMat.color.copy(color);
+                _tmpColor.copy(RAINBOW_COLORS[i0]).lerp(RAINBOW_COLORS[i1], blend);
+                flapData.rainbowMat.color.copy(_tmpColor);
                 flapData.rainbowMat.opacity = 0.9;
               } else {
                 flapData.rainbowMat.opacity = 0;
