@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "391253868054",
+    "project_id": "light-studio-app",
+    "storage_bucket": "light-studio-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:391253868054:android:239fd11bc492f8e0563f37",
+        "android_client_info": {
+          "package_name": "com.guillaumebdx.tesla3dviewer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYnvZ-bvuC4Bq9pk5FrAAWPIBF8XT6ETQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

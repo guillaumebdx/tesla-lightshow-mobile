@@ -13,6 +13,7 @@
       "backgroundColor": "#0a0a1a"
     },
     "ios": {
+      "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": false,
       "bundleIdentifier": "com.guillaumebdx.lightstudiofortesla",
       "buildNumber": "1",
@@ -21,6 +22,7 @@
       }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo-ls.png",
         "backgroundColor": "#0a0a1a"
@@ -32,7 +34,9 @@
       "favicon": "./assets/logo-ls.png"
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "@react-native-firebase/app",
+      "@react-native-firebase/app-check"
     ],
     "extra": {
       "eas": {

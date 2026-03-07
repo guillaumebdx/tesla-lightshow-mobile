@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import './src/i18n'; // Initialize i18n
+import { initAppCheck } from './src/firebase';
 import HomeScreen from './src/HomeScreen';
 import NewShowScreen from './src/NewShowScreen';
 import ModelViewer from './src/ModelViewer';
 
 export default function App() {
+  useEffect(() => {
+    initAppCheck();
+  }, []);
+
   // Simple state-based navigation: 'home' | 'new' | 'editor'
   const [screen, setScreen] = useState('home');
   const [currentShowId, setCurrentShowId] = useState(null);
