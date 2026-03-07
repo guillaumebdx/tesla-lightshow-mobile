@@ -62,7 +62,14 @@
     "contactDevSub": "Frag den Entwickler!",
     "community": "Community",
     "share": "Light Show teilen",
-    "load": "Light Show laden"
+    "load": "Light Show laden",
+    "aiGenerate": "KI-Generierung",
+    "aiGenerating": "KI erstellt deine Show...",
+    "aiNoTrack": "Wähle zuerst einen Musiktitel aus",
+    "aiConfirm": "Dies ersetzt alle aktuellen Ereignisse. Fortfahren?",
+    "aiConfirmReplace": "Ersetzen",
+    "aiSuccess": "{{count}} Ereignisse von KI generiert",
+    "aiError": "KI-Generierung fehlgeschlagen: {{error}}"
   },
   "timeline": {
     "loadingMusic": "Musik wird geladen...",

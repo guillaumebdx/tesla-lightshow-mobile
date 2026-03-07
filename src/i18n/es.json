@@ -62,7 +62,14 @@
     "contactDevSub": "¡Pregúntale al desarrollador!",
     "community": "Comunidad",
     "share": "Compartir el Light Show",
-    "load": "Cargar un Light Show"
+    "load": "Cargar un Light Show",
+    "aiGenerate": "Generar con IA",
+    "aiGenerating": "La IA está creando tu show...",
+    "aiNoTrack": "Selecciona primero una pista de música",
+    "aiConfirm": "Esto reemplazará todos los eventos actuales. ¿Continuar?",
+    "aiConfirmReplace": "Reemplazar",
+    "aiSuccess": "{{count}} eventos generados por IA",
+    "aiError": "Error en la generación IA: {{error}}"
   },
   "timeline": {
     "loadingMusic": "Cargando música...",

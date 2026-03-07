@@ -62,7 +62,14 @@
     "contactDevSub": "Demandez au développeur !",
     "community": "Communauté",
     "share": "Partager le Light Show",
-    "load": "Charger un Light Show"
+    "load": "Charger un Light Show",
+    "aiGenerate": "Générer par IA",
+    "aiGenerating": "L'IA crée votre show...",
+    "aiNoTrack": "Sélectionnez d'abord une musique",
+    "aiConfirm": "Cela remplacera tous les événements actuels. Continuer ?",
+    "aiConfirmReplace": "Remplacer",
+    "aiSuccess": "{{count}} événements générés par l'IA",
+    "aiError": "Échec de la génération IA : {{error}}"
   },
   "timeline": {
     "loadingMusic": "Chargement de la musique...",

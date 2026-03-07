@@ -25,6 +25,7 @@ import ExportModal from './ExportModal';
 import FlashMessage from './FlashMessage';
 import TutorialOverlay from './TutorialOverlay';
 import { Ionicons } from '@expo/vector-icons';
+import { generateAIShow } from './aiService';
 
 export default function ModelViewer({ showId, onGoHome }) {
   const { t } = useTranslation();
@@ -132,6 +133,67 @@ export default function ModelViewer({ showId, onGoHome }) {
     if (hasDemo || eventsRef.current.length > 0) return;
     setTimeout(() => setTutorialStep(0), 600);
   }, []);
+
+  // AI light show generation
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const handleAIGenerate = useCallback(() => {
+    const trackInfo = audioTimelineRef.current?.getTrackInfo();
+    if (!trackInfo) {
+      Alert.alert(t('editor.aiGenerate'), t('editor.aiNoTrack'));
+      return;
+    }
+
+    const doGenerate = async () => {
+      closeDrawer();
+      setAiGenerating(true);
+      try {
+        // Get waveform data from the selected track
+        let waveformData;
+        if (trackInfo.isBuiltin) {
+          const track = MP3_TRACKS.find(tr => tr.id === trackInfo.id);
+          if (track?.waveform) {
+            const wf = typeof track.waveform === 'function' ? track.waveform : track.waveform;
+            waveformData = wf.bars || wf;
+          }
+        }
+        if (!waveformData) waveformData = [];
+
+        const durationMs = Math.round((playbackDurationRef.current || 60) * 1000);
+        const events = await generateAIShow({
+          waveform: waveformData,
+          durationMs,
+          trackTitle: trackInfo.title || 'Unknown',
+        });
+
+        // Replace current events with AI-generated ones
+        pushUndo();
+        setSelectedEvent(null);
+        audioTimelineRef.current?.loadEvents(events);
+        eventsRef.current = events;
+        scheduleSave();
+        flashRef.current?.show(t('editor.aiSuccess', { count: events.length }));
+      } catch (err) {
+        console.error('[AI Generate]', err);
+        Alert.alert(t('editor.aiGenerate'), t('editor.aiError', { error: err.message }));
+      } finally {
+        setAiGenerating(false);
+      }
+    };
+
+    // Confirm replacement if events already exist
+    if (eventsRef.current.length > 0) {
+      Alert.alert(
+        t('editor.aiGenerate'),
+        t('editor.aiConfirm'),
+        [
+          { text: t('editor.cancel'), style: 'cancel' },
+          { text: t('editor.aiConfirmReplace'), style: 'destructive', onPress: doGenerate },
+        ]
+      );
+    } else {
+      doGenerate();
+    }
+  }, [t, closeDrawer, scheduleSave, pushUndo]);
 
   // Debounced auto-save (1.5s after last change)
   const scheduleSave = useCallback(() => {
@@ -1431,6 +1493,13 @@ export default function ModelViewer({ showId, onGoHome }) {
               </View>
             )}
 
+            {aiGenerating && (
+              <View style={styles.aiLoadingOverlay}>
+                <ActivityIndicator size="large" color="#a855f7" />
+                <Text style={styles.aiLoadingText}>{t('editor.aiGenerating')}</Text>
+              </View>
+            )}
+
             {error && (
               <View style={styles.loadingOverlay}>
                 <Text style={styles.errorText}>{error}</Text>
@@ -1656,6 +1725,16 @@ export default function ModelViewer({ showId, onGoHome }) {
             >
               <Ionicons name="trash-outline" size={20} color="#e94560" />
               <Text style={styles.menuItemText}>{t('editor.resetEvents')}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleAIGenerate}
+            >
+              <Ionicons name="sparkles" size={20} color="#a855f7" />
+              <Text style={[styles.menuItemText, { color: '#a855f7' }]}>{t('editor.aiGenerate')}</Text>
             </TouchableOpacity>
 
             <View style={styles.menuDivider} />
@@ -2069,6 +2148,19 @@ const styles = StyleSheet.create({
     color: '#8888aa',
     marginTop: 12,
     fontSize: 16,
+  },
+  aiLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 15, 35, 0.9)',
+    zIndex: 100,
+  },
+  aiLoadingText: {
+    color: '#a855f7',
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '600',
   },
   errorText: {
     color: '#e94560',
