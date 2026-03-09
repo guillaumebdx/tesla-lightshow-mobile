@@ -46,15 +46,23 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_generations_status ON generations(status);
 `);
 
+// Migration: add device_id column if it doesn't exist
+try {
+  db.prepare(`SELECT device_id FROM generations LIMIT 1`).get();
+} catch {
+  db.exec(`ALTER TABLE generations ADD COLUMN device_id TEXT DEFAULT ''`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_generations_device_id ON generations(device_id)`);
+}
+
 /**
  * Insert a new generation record (called at request start).
  */
-function createGeneration({ requestId, trackTitle, durationMs, mood, model, ipAddress }) {
+function createGeneration({ requestId, trackTitle, durationMs, mood, model, ipAddress, deviceId }) {
   const stmt = db.prepare(`
-    INSERT INTO generations (request_id, track_title, duration_ms, mood, model, status, ip_address)
-    VALUES (?, ?, ?, ?, ?, 'processing', ?)
+    INSERT INTO generations (request_id, track_title, duration_ms, mood, model, status, ip_address, device_id)
+    VALUES (?, ?, ?, ?, ?, 'processing', ?, ?)
   `);
-  const result = stmt.run(requestId, trackTitle, durationMs, mood || 'auto', model, ipAddress || '');
+  const result = stmt.run(requestId, trackTitle, durationMs, mood || 'auto', model, ipAddress || '', deviceId || '');
   return result.lastInsertRowid;
 }
 
@@ -97,6 +105,30 @@ function failGeneration(id, errorMessage) {
 function getGenerations({ limit = 50, offset = 0 } = {}) {
   const stmt = db.prepare(`SELECT * FROM generations ORDER BY created_at DESC LIMIT ? OFFSET ?`);
   return stmt.all(limit, offset);
+}
+
+/**
+ * Get total count of generations (for pagination).
+ */
+function getGenerationsCount() {
+  return db.prepare(`SELECT COUNT(*) as count FROM generations`).get().count;
+}
+
+/**
+ * Get top users by generation count.
+ */
+function getTopUsers({ limit = 20 } = {}) {
+  return db.prepare(`
+    SELECT device_id, COUNT(*) as count,
+           COALESCE(SUM(estimated_cost), 0) as total_cost,
+           MAX(created_at) as last_seen,
+           MIN(created_at) as first_seen
+    FROM generations
+    WHERE device_id != ''
+    GROUP BY device_id
+    ORDER BY count DESC
+    LIMIT ?
+  `).all(limit);
 }
 
 /**
@@ -146,5 +178,7 @@ module.exports = {
   completeGeneration,
   failGeneration,
   getGenerations,
+  getGenerationsCount,
+  getTopUsers,
   getStats,
 };

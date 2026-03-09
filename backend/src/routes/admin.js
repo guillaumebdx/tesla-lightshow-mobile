@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
-const { getGenerations, getStats } = require('../services/database');
+const { getGenerations, getGenerationsCount, getTopUsers, getStats } = require('../services/database');
 const { addClient, getRecentLogs } = require('../services/logBroadcaster');
 
 // Serve dashboard UI
@@ -9,18 +9,26 @@ router.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'public', 'dashboard.html'));
 });
 
-// API: Get generations list
+// API: Get generations list (paginated)
 router.get('/api/generations', (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 50, 200);
   const offset = parseInt(req.query.offset) || 0;
   const generations = getGenerations({ limit, offset });
-  res.json({ generations });
+  const total = getGenerationsCount();
+  res.json({ generations, total, limit, offset });
 });
 
 // API: Get stats
 router.get('/api/stats', (req, res) => {
   const stats = getStats();
   res.json(stats);
+});
+
+// API: Get top users by generation count
+router.get('/api/top-users', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+  const users = getTopUsers({ limit });
+  res.json({ users });
 });
 
 // API: Get recent logs (non-streaming)

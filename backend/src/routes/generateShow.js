@@ -30,7 +30,9 @@ router.post('/', async (req, res) => {
     log(`⏱  Duration: ${durationMs}ms (${(durationMs/1000).toFixed(1)}s)`);
     log(`🎭 Mood: ${mood || 'auto'}`);
     log(`📊 Waveform: ${waveform?.length || 0} samples`);
+    const deviceId = req.headers['x-device-id'] || '';
     log(`💬 User prompt: ${userPrompt ? `"${userPrompt}" (${userPrompt.length} chars)` : 'none'}`);
+    log(`👤 Device ID: ${deviceId || 'none'}`);
 
     // Validation
     if (!waveform || !Array.isArray(waveform) || waveform.length === 0) {
@@ -64,6 +66,7 @@ router.post('/', async (req, res) => {
       mood: mood || 'auto',
       model,
       ipAddress: req.ip,
+      deviceId,
     });
     log(`💾 DB record #${dbId} created`);
 

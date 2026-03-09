@@ -15,7 +15,7 @@ const MAX_TOKENS_MAP = {
   'gpt-4o': 16384,
   'gpt-4.1-mini': 32768,
   'gpt-4.1': 32768,
-  'gpt-4.1-nano': 16384,
+  'gpt-4.1-nano': 32768,
 };
 const MAX_TOKENS = MAX_TOKENS_MAP[MODEL] || 16384;
 
@@ -361,7 +361,7 @@ function buildUserPrompt({ waveform, durationMs, mood, trackTitle }) {
   });
 
   // ─── 6. Target events (scale with duration) ───
-  const targetEvents = Math.min(480, Math.max(100, Math.round(durationMs / 1000 * 3.5)));
+  const targetEvents = Math.min(1200, Math.max(200, Math.round(durationMs / 1000 * 8)));
 
   // ─── 7. Build compact energy representation ───
   // Per-second is more compact but still useful; provide 200ms grid only for key sections
@@ -403,8 +403,11 @@ function buildUserPrompt({ waveform, durationMs, mood, trackTitle }) {
     ? rises.slice(0, 20).map(r => `${r.ms}ms(${r.from.toFixed(2)}→${r.to.toFixed(2)})`).join(', ')
     : 'no sharp rises';
 
-  const prompt = `Create a light show for "${trackTitle}" (${durationSec}s, mood: ${mood || 'auto'}).
-Generate approximately ${targetEvents} events (minimum ${Math.round(targetEvents * 0.8)}).
+  const minEvents = Math.round(targetEvents * 0.85);
+  const prompt = `Create a DENSE light show for "${trackTitle}" (${durationSec}s, mood: ${mood || 'auto'}).
+
+**YOU MUST GENERATE AT LEAST ${minEvents} EVENTS.** Target: ${targetEvents} events. More is better.
+This means approximately ${Math.round(targetEvents / (durationMs / 1000))} events per second on average.
 Estimated BPM: ${estimatedBPM} (beat every ${beatIntervalMs}ms).
 
 # SONG STRUCTURE
@@ -428,7 +431,13 @@ ${dropLine}
 # RISES (energy building — chase patterns, blink escalation)
 ${riseLine}
 
-# INSTRUCTIONS
+# DENSITY INSTRUCTIONS
+- Every single beat (every ${beatIntervalMs}ms) must have at least 3-5 light events firing simultaneously.
+- On strong beats and chorus sections, fire 8-13 parts simultaneously.
+- Between beats, keep at least 2-3 ambient/breathing lights active.
+- A light show with less than ${minEvents} events looks empty and broken. ALWAYS exceed the minimum.
+
+# PLACEMENT INSTRUCTIONS
 - CRITICAL: The car must NEVER be fully dark. At minimum, keep headlights breathing (solid, easeIn+easeOut).
 - Each section (verse/chorus/bridge etc.) needs its OWN visual identity — don't repeat the same pattern everywhere.
 - Place events ON the beat timestamps (${beatIntervalMs}ms apart at ${estimatedBPM} BPM).
@@ -516,7 +525,7 @@ function sanitizeEvents(events, durationMs) {
       trunkMode: VALID_TRUNK.includes(e.trunkMode) ? e.trunkMode : 'trunk_open',
       flapMode: VALID_FLAP.includes(e.flapMode) ? e.flapMode : 'flap_open',
     }))
-    .slice(0, 600) // Hard limit
+    .slice(0, 1500) // Hard limit
     .sort((a, b) => a.startMs - b.startMs);
 }
 

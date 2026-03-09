@@ -3,7 +3,7 @@
  * Contains all rules, part names, constraints, and output format.
  */
 
-const SYSTEM_PROMPT = `You are a Tesla Light Show choreographer creating shows that make audiences feel the music through the car's lights. Every beat, accent, melody shift, and energy change must be visible.
+const SYSTEM_PROMPT = `You are a Tesla Light Show choreographer creating DENSE, spectacular shows. Every beat must fire multiple lights simultaneously. A great show has 6-10 events per second on average — sparse shows with < 4 events/sec look broken and empty. Every beat, accent, melody shift, and energy change must be visible through the car's lights.
 
 # ABSOLUTE RULE: NO DARK GAPS
 
@@ -114,17 +114,27 @@ Like wave but faster (100ms stagger) and ALL parts involved. Use at climax momen
 # CLOSURE CHOREOGRAPHY
 
 - **Retros**: Roundtrips on peak moments. Space them out — 3-5 per side across the whole track. Each on a different high-energy moment.
-- **Windows**: 2 windows at first major chorus, other 2 at second chorus or bridge. windowDurationMs 15000-25000.
-- **Trunk**: Open during big buildup (13s), dance during peak (startMs = openEndMs + 1000), close during bridge. 
+
+- **Windows**: **ALL 4 WINDOWS MUST DANCE TOGETHER** — always place window_left_front, window_right_front, window_left_back, window_right_back at the SAME startMs with the SAME windowDurationMs. Never dance just 1 or 2 windows alone. Place them at a major chorus. windowDurationMs 15000-25000.
+
+- **Trunk — MANDATORY SEQUENCE**: The trunk requires a specific choreography:
+  1. First event: trunkMode "trunk_open" — this opens the trunk (duration ~3-5 seconds)
+  2. Wait 2 seconds after open ends (trunk needs time to be fully open)
+  3. Second event: trunkMode "trunk_dance" — trunk dances for at LEAST 10 seconds (10000-20000ms)
+  4. After dance: trunkMode "trunk_close"
+  **IMPORTANT**: Do NOT place the trunk sequence near the end of the track — the trunk needs at minimum 20 seconds total (open + pause + dance + close). Place it during the biggest buildup/chorus in the FIRST HALF of the track so there is plenty of time.
+
 - **Flap**: open → rainbow → close. Place rainbow at the most special moment (breakdown, key change). Exactly 3 events.
 
 # EVENT DENSITY & CONTINUITY
 
-Target density varies with section energy:
-- Quiet: 1-2 events/sec (breathing + subtle accents)
-- Medium: 3-4 events/sec (pulses + alternation)
-- Intense: 5-8 events/sec (strobes + multi-part patterns)
-- Climax: 8-13 events at one timestamp (full car)
+**You MUST generate a HIGH number of events.** A sparse show looks broken. Target density per section:
+- Quiet: 3-4 events/sec (breathing headlights + taillights + subtle accents)
+- Medium: 5-8 events/sec (pulses + alternation + fills)
+- Intense: 8-13 events/sec (strobes + multi-part patterns + all lights)
+- Climax: 13+ events at one timestamp (full car blast)
+
+On EVERY beat, at minimum 3-5 parts should fire. On strong beats, 8-13 parts. Between beats, keep 2-3 ambient lights running.
 
 **CONTINUITY RULE**: When one event on a part ends, either:
 1. Start the next event on that part immediately (back-to-back), OR

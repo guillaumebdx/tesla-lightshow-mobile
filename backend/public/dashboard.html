@@ -383,6 +383,7 @@
   <div class="tabs">
     <button class="tab active" data-tab="overview">Overview</button>
     <button class="tab" data-tab="generations">Generations</button>
+    <button class="tab" data-tab="users">Users</button>
     <button class="tab" data-tab="logs">Live Logs</button>
   </div>
 
@@ -464,8 +465,11 @@
   <div class="section" id="section-generations">
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">📋 All Generations</div>
+        <div class="panel-title">📋 All Generations <span id="genTotalBadge" class="header-badge" style="margin-left:8px"></span></div>
         <div class="panel-actions">
+          <button class="btn" id="genPrevBtn" onclick="genPagePrev()" disabled>← Prev</button>
+          <span id="genPageInfo" style="font-size:12px;color:var(--text-muted);padding:6px 8px"></span>
+          <button class="btn" id="genNextBtn" onclick="genPageNext()">Next →</button>
           <button class="btn" onclick="loadGenerations()">↻ Refresh</button>
         </div>
       </div>
@@ -475,6 +479,7 @@
             <tr>
               <th>#</th>
               <th>Time</th>
+              <th>User</th>
               <th>Track</th>
               <th>Duration</th>
               <th>Mood</th>
@@ -492,7 +497,36 @@
             </tr>
           </thead>
           <tbody id="generationsTableBody">
-            <tr><td colspan="16" class="empty-state"><p>No generations yet</p></td></tr>
+            <tr><td colspan="17" class="empty-state"><p>No generations yet</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Users Section -->
+  <div class="section" id="section-users">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">👤 Top Users (by device)</div>
+        <div class="panel-actions">
+          <button class="btn" onclick="loadTopUsers()">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Device ID</th>
+              <th>Generations</th>
+              <th>Total Cost</th>
+              <th>First Seen</th>
+              <th>Last Seen</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr><td colspan="6" class="empty-state"><p>No users yet</p></td></tr>
           </tbody>
         </table>
       </div>
@@ -519,6 +553,9 @@
   let autoScroll = true;
   let eventSource = null;
   let generations = [];
+  let genTotal = 0;
+  let genPage = 0;
+  const GEN_PAGE_SIZE = 50;
 
   // Tabs
   document.querySelectorAll('.tab').forEach(tab => {
@@ -638,31 +675,60 @@
     }
   }
 
-  // Generations
+  // Generations (paginated)
   async function loadGenerations() {
     try {
-      const res = await fetch('/admin/api/generations?limit=100');
+      const offset = genPage * GEN_PAGE_SIZE;
+      const res = await fetch(`/admin/api/generations?limit=${GEN_PAGE_SIZE}&offset=${offset}`);
       const data = await res.json();
       generations = data.generations;
+      genTotal = data.total || 0;
       renderGenerations();
     } catch (err) {
       console.error('Failed to load generations:', err);
     }
   }
 
+  // Overview: always load latest 10
+  async function loadOverviewGenerations() {
+    try {
+      const res = await fetch('/admin/api/generations?limit=10&offset=0');
+      const data = await res.json();
+      const overviewBody = document.getElementById('overviewTableBody');
+      if (data.generations.length === 0) {
+        overviewBody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:40px">No generations yet</td></tr>';
+        return;
+      }
+      overviewBody.innerHTML = data.generations.map(g => genRow(g, false)).join('');
+    } catch (err) {
+      console.error('Failed to load overview generations:', err);
+    }
+  }
+
   function renderGenerations() {
-    // Overview table (last 10)
-    const overviewBody = document.getElementById('overviewTableBody');
     const fullBody = document.getElementById('generationsTableBody');
+    const totalPages = Math.max(1, Math.ceil(genTotal / GEN_PAGE_SIZE));
+
+    document.getElementById('genTotalBadge').textContent = `${genTotal} total`;
+    document.getElementById('genPageInfo').textContent = `Page ${genPage + 1} / ${totalPages}`;
+    document.getElementById('genPrevBtn').disabled = genPage <= 0;
+    document.getElementById('genNextBtn').disabled = genPage >= totalPages - 1;
 
     if (generations.length === 0) {
-      overviewBody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:40px">No generations yet</td></tr>';
-      fullBody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:var(--text-muted);padding:40px">No generations yet</td></tr>';
+      fullBody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:var(--text-muted);padding:40px">No generations yet</td></tr>';
       return;
     }
 
-    overviewBody.innerHTML = generations.slice(0, 10).map(g => genRow(g, false)).join('');
     fullBody.innerHTML = generations.map(g => genRow(g, true)).join('');
+  }
+
+  function genPagePrev() { if (genPage > 0) { genPage--; loadGenerations(); } }
+  function genPageNext() { const totalPages = Math.ceil(genTotal / GEN_PAGE_SIZE); if (genPage < totalPages - 1) { genPage++; loadGenerations(); } }
+
+  function shortDeviceId(id) {
+    if (!id) return '—';
+    if (id.length <= 12) return id;
+    return id.slice(0, 6) + '…' + id.slice(-4);
   }
 
   function genRow(g, full) {
@@ -679,6 +745,7 @@
       return `<tr>
         <td>${g.id}</td>
         <td>${time}</td>
+        <td title="${escapeHtml(g.device_id || '')}">${shortDeviceId(g.device_id)}</td>
         <td>${escapeHtml(g.track_title || '—')}</td>
         <td>${dur}</td>
         <td>${escapeHtml(g.mood || '—')}</td>
@@ -709,13 +776,42 @@
     </tr>`;
   }
 
+  // Top Users
+  async function loadTopUsers() {
+    try {
+      const res = await fetch('/admin/api/top-users?limit=30');
+      const data = await res.json();
+      const tbody = document.getElementById('usersTableBody');
+      if (!data.users || data.users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:40px">No users yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.users.map((u, i) => {
+        const firstSeen = new Date(u.first_seen + 'Z').toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const lastSeen = new Date(u.last_seen + 'Z').toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+        return `<tr>
+          <td>${i + 1}</td>
+          <td title="${escapeHtml(u.device_id)}" style="font-family:var(--mono);font-size:11px">${escapeHtml(u.device_id)}</td>
+          <td><strong>${u.count}</strong></td>
+          <td>$${u.total_cost.toFixed(4)}</td>
+          <td>${firstSeen}</td>
+          <td>${lastSeen}</td>
+        </tr>`;
+      }).join('');
+    } catch (err) {
+      console.error('Failed to load top users:', err);
+    }
+  }
+
   // Auto-refresh
   function startPolling() {
     loadStats();
+    loadOverviewGenerations();
     loadGenerations();
+    loadTopUsers();
     setInterval(() => {
       loadStats();
-      loadGenerations();
+      loadOverviewGenerations();
     }, 10000);
   }
 
