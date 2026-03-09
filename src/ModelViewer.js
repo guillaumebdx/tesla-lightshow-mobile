@@ -136,6 +136,102 @@ export default function ModelViewer({ showId, onGoHome }) {
 
   // AI light show generation
   const [aiGenerating, setAiGenerating] = useState(false);
+  const aiGeneratingRef = useRef(false);
+  const [aiProgressMsg, setAiProgressMsg] = useState('');
+  const aiTimerRef = useRef(null);
+  const aiFakeIntervalRef = useRef(null);
+
+  // Light parts for random animation during AI generation
+  const AI_LIGHT_PARTS = ['light_left_front', 'light_right_front', 'light_left_back', 'light_right_back',
+    'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
+    'license_plate', 'brake_lights', 'rear_fog', 'side_repeater_left', 'side_repeater_right'];
+
+  const startAiAnimation = useCallback((trackDurationMs) => {
+    aiGeneratingRef.current = true;
+    const startTime = Date.now();
+    let fakeCount = 0;
+
+    // Estimate generation duration: ~30s base + ~10s per minute of track
+    const trackMinutes = (trackDurationMs || 60000) / 60000;
+    const estimatedDurationS = Math.max(30, 30 + trackMinutes * 10);
+
+    // Messages split: first 15% = 5 analysis messages, remaining 85% = adding/refining messages
+    const analysisMessages = [
+      t('editor.aiStep1'), // Analyzing waveform
+      t('editor.aiStep2'), // Detecting beats
+      t('editor.aiStep3'), // Identifying sections
+      t('editor.aiStep4'), // Mapping energy levels
+      t('editor.aiStep5'), // Building show structure
+    ];
+    const buildMessages = [
+      t('editor.aiStep6'),  // Adding light sequences
+      t('editor.aiStep7'),  // Placing blink patterns
+      t('editor.aiStep8'),  // Syncing to beat drops
+      t('editor.aiStep9'),  // Adding transitions
+      t('editor.aiStep10'), // Refining choreography
+      t('editor.aiStep11'), // Polishing final details
+    ];
+
+    const analysisEndS = estimatedDurationS * 0.15;
+    const analysisMsgDurationS = analysisEndS / analysisMessages.length;
+    const buildMsgDurationS = (estimatedDurationS * 0.85) / buildMessages.length;
+
+    let msgIndex = 0;
+    setAiProgressMsg(analysisMessages[0]);
+
+    // Rotate messages based on estimated progress (never loops back)
+    aiTimerRef.current = setInterval(() => {
+      if (!aiGeneratingRef.current) return;
+      const elapsedS = (Date.now() - startTime) / 1000;
+
+      if (elapsedS < analysisEndS) {
+        // Analysis phase (first 15%)
+        const idx = Math.min(Math.floor(elapsedS / analysisMsgDurationS), analysisMessages.length - 1);
+        if (idx !== msgIndex) { msgIndex = idx; setAiProgressMsg(analysisMessages[idx]); }
+      } else {
+        // Build phase (remaining 85%)
+        const buildElapsed = elapsedS - analysisEndS;
+        const idx = Math.min(Math.floor(buildElapsed / buildMsgDurationS), buildMessages.length - 1);
+        const globalIdx = analysisMessages.length + idx;
+        if (globalIdx !== msgIndex) { msgIndex = globalIdx; setAiProgressMsg(buildMessages[idx]); }
+      }
+    }, 800);
+
+    // Fake events: add one every 300-800ms with random part/position
+    const addFakeEvent = () => {
+      if (!aiGeneratingRef.current) return;
+      fakeCount++;
+      const part = AI_LIGHT_PARTS[Math.floor(Math.random() * AI_LIGHT_PARTS.length)];
+      const maxPos = trackDurationMs || 60000;
+      const startMs = Math.floor(Math.random() * (maxPos - 2000));
+      const duration = 300 + Math.floor(Math.random() * 1500);
+      const fakeEvent = {
+        id: `ai_fake_${fakeCount}_${Date.now()}`,
+        part,
+        startMs,
+        endMs: Math.min(startMs + duration, maxPos),
+        effect: Math.random() > 0.5 ? 'blink' : 'solid',
+        power: 60 + Math.floor(Math.random() * 40),
+        blinkSpeed: Math.floor(Math.random() * 3),
+        easeIn: Math.random() > 0.6,
+        easeOut: Math.random() > 0.6,
+      };
+      const currentEvents = eventsRef.current;
+      const updatedEvents = [...currentEvents, fakeEvent];
+      eventsRef.current = updatedEvents;
+      audioTimelineRef.current?.loadEvents(updatedEvents);
+      aiFakeIntervalRef.current = setTimeout(addFakeEvent, 300 + Math.floor(Math.random() * 500));
+    };
+    aiFakeIntervalRef.current = setTimeout(addFakeEvent, 500);
+  }, [t]);
+
+  const stopAiAnimation = useCallback(() => {
+    aiGeneratingRef.current = false;
+    if (aiTimerRef.current) { clearInterval(aiTimerRef.current); aiTimerRef.current = null; }
+    if (aiFakeIntervalRef.current) { clearTimeout(aiFakeIntervalRef.current); aiFakeIntervalRef.current = null; }
+    setAiProgressMsg('');
+  }, []);
+
   const handleAIGenerate = useCallback(() => {
     const trackInfo = audioTimelineRef.current?.getTrackInfo();
     if (!trackInfo) {
@@ -146,6 +242,13 @@ export default function ModelViewer({ showId, onGoHome }) {
     const doGenerate = async () => {
       closeDrawer();
       setAiGenerating(true);
+      const durationMs = Math.round(playbackDurationRef.current || 60000);
+
+      // Clear existing events and start AI animation
+      eventsRef.current = [];
+      audioTimelineRef.current?.loadEvents([]);
+      startAiAnimation(durationMs);
+
       try {
         // Get waveform data from the selected track
         let waveformData;
@@ -158,14 +261,14 @@ export default function ModelViewer({ showId, onGoHome }) {
         }
         if (!waveformData) waveformData = [];
 
-        const durationMs = Math.round(playbackDurationRef.current || 60000);
         const events = await generateAIShow({
           waveform: waveformData,
           durationMs,
           trackTitle: trackInfo.title || 'Unknown',
         });
 
-        // Replace current events with AI-generated ones
+        // Stop animation and replace fake events with real AI-generated ones
+        stopAiAnimation();
         pushUndo();
         setSelectedEvent(null);
         audioTimelineRef.current?.loadEvents(events);
@@ -173,6 +276,10 @@ export default function ModelViewer({ showId, onGoHome }) {
         scheduleSave();
         flashRef.current?.show(t('editor.aiSuccess', { count: events.length }));
       } catch (err) {
+        stopAiAnimation();
+        // Clear fake events on error
+        eventsRef.current = [];
+        audioTimelineRef.current?.loadEvents([]);
         console.error('[AI Generate]', err);
         Alert.alert(t('editor.aiGenerate'), t('editor.aiError', { error: err.message }));
       } finally {
@@ -193,7 +300,7 @@ export default function ModelViewer({ showId, onGoHome }) {
     } else {
       doGenerate();
     }
-  }, [t, closeDrawer, scheduleSave, pushUndo]);
+  }, [t, closeDrawer, scheduleSave, pushUndo, startAiAnimation, stopAiAnimation]);
 
   // Debounced auto-save (1.5s after last change)
   const scheduleSave = useCallback(() => {
@@ -1074,32 +1181,51 @@ export default function ModelViewer({ showId, onGoHome }) {
         }
         const sorted = sortedEventsRef.current;
 
-        // Scan only relevant events (sorted by startMs, early-break)
-        for (let i = 0; i < sorted.length; i++) {
-          const evt = sorted[i];
-          if (evt.startMs > pos) break;
-          if (evt.endMs <= pos) continue;
-          let intensity = (evt.power ?? 100) / 100;
-          const evtDuration = evt.endMs - evt.startMs;
-          const elapsed = pos - evt.startMs;
-          const remaining = evt.endMs - pos;
-          const easeDuration = Math.min(evtDuration * 0.3, 1500);
-
-          if (evt.easeIn && elapsed < easeDuration && easeDuration > 0) {
-            intensity *= elapsed / easeDuration;
+        // AI generating mode: random light animation on the 3D model
+        if (aiGeneratingRef.current) {
+          const now = Date.now();
+          for (let i = 0; i < lightPartNames.length; i++) {
+            const partName = lightPartNames[i];
+            // Each light has its own pseudo-random phase based on index
+            const phase = (now * 0.003 + i * 1.7);
+            const wave = Math.sin(phase) * 0.5 + 0.5; // 0-1
+            // Only light up if wave is above threshold (creates random blinking)
+            const threshold = 0.3 + Math.sin(now * 0.001 + i * 2.3) * 0.2;
+            if (wave > threshold) {
+              const intensity = wave;
+              const blinkOff = (Math.floor(now / (120 + i * 15)) % 2) === 0;
+              _activeMap.set(partName, { evt: { part: partName, effect: 'blink', power: 100, blinkSpeed: 1 }, intensity, blinkOff });
+            }
           }
-          if (evt.easeOut && remaining < easeDuration && easeDuration > 0) {
-            intensity *= remaining / easeDuration;
-          }
+        } else {
+          // Normal mode: events-based lighting
+          // Scan only relevant events (sorted by startMs, early-break)
+          for (let i = 0; i < sorted.length; i++) {
+            const evt = sorted[i];
+            if (evt.startMs > pos) break;
+            if (evt.endMs <= pos) continue;
+            let intensity = (evt.power ?? 100) / 100;
+            const evtDuration = evt.endMs - evt.startMs;
+            const elapsed = pos - evt.startMs;
+            const remaining = evt.endMs - pos;
+            const easeDuration = Math.min(evtDuration * 0.3, 1500);
 
-          let blinkOff = false;
-          if (evt.effect === 'blink') {
-            const speedIdx = evt.blinkSpeed ?? 0;
-            const periodMs = BLINK_SPEEDS[speedIdx]?.periodMs ?? 80;
-            blinkOff = (Math.floor(elapsed / (periodMs / 2)) % 2) !== 0;
-          }
+            if (evt.easeIn && elapsed < easeDuration && easeDuration > 0) {
+              intensity *= elapsed / easeDuration;
+            }
+            if (evt.easeOut && remaining < easeDuration && easeDuration > 0) {
+              intensity *= remaining / easeDuration;
+            }
 
-          _activeMap.set(evt.part, { evt, intensity, blinkOff });
+            let blinkOff = false;
+            if (evt.effect === 'blink') {
+              const speedIdx = evt.blinkSpeed ?? 0;
+              const periodMs = BLINK_SPEEDS[speedIdx]?.periodMs ?? 80;
+              blinkOff = (Math.floor(elapsed / (periodMs / 2)) % 2) !== 0;
+            }
+
+            _activeMap.set(evt.part, { evt, intensity, blinkOff });
+          }
         }
 
         // Update SpotLight intensities
@@ -1496,7 +1622,11 @@ export default function ModelViewer({ showId, onGoHome }) {
             {aiGenerating && (
               <View style={styles.aiLoadingOverlay}>
                 <ActivityIndicator size="large" color="#a855f7" />
-                <Text style={styles.aiLoadingText}>{t('editor.aiGenerating')}</Text>
+                <Text style={styles.aiLoadingTitle}>{t('editor.aiGenerating')}</Text>
+                {aiProgressMsg !== '' && (
+                  <Text style={styles.aiLoadingStep}>{aiProgressMsg}</Text>
+                )}
+                <Text style={styles.aiLoadingHint}>{t('editor.aiMayTakeMinutes')}</Text>
               </View>
             )}
 
@@ -1516,7 +1646,9 @@ export default function ModelViewer({ showId, onGoHome }) {
       </View>
 
       {/* Bottom: scrollable timeline + options */}
-      <ScrollView style={styles.bottomSection} contentContainerStyle={styles.bottomContent}>
+      <View style={styles.bottomSection}>
+        {aiGenerating && <View style={styles.aiBottomOverlay} pointerEvents="auto" />}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.bottomContent} scrollEnabled={!aiGenerating} pointerEvents={aiGenerating ? 'none' : 'auto'}>
         {/* Timeline */}
         <View style={styles.timelineSection}>
           <AudioTimeline
@@ -1629,6 +1761,7 @@ export default function ModelViewer({ showId, onGoHome }) {
           />
         </View>
       </ScrollView>
+      </View>
 
       {/* Undo / Redo buttons — top-left, symmetric to burger */}
       {(canUndo || canRedo) && (
@@ -2153,14 +2286,34 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 15, 35, 0.9)',
+    backgroundColor: 'rgba(15, 15, 35, 0.85)',
     zIndex: 100,
+    paddingHorizontal: 24,
   },
-  aiLoadingText: {
+  aiLoadingTitle: {
     color: '#a855f7',
+    marginTop: 14,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  aiLoadingStep: {
+    color: '#c4b5fd',
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  aiLoadingHint: {
+    color: '#555577',
     marginTop: 12,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  aiBottomOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    zIndex: 50,
   },
   errorText: {
     color: '#e94560',
