@@ -13,22 +13,42 @@ const { generateLightShow } = require('../services/llmService');
  * Response: { events: [...] }
  */
 router.post('/', async (req, res) => {
+  const isDev = process.env.NODE_ENV === 'development';
+  const reqId = Date.now().toString(36);
+  const log = (msg) => isDev && console.log(`[${reqId}] ${msg}`);
+
+  log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  log('📥 New generate-show request received');
+
   try {
     const { waveform, durationMs, mood, trackTitle } = req.body;
 
+    log(`🎵 Track: "${trackTitle}"`);
+    log(`⏱  Duration: ${durationMs}ms (${(durationMs/1000).toFixed(1)}s)`);
+    log(`🎭 Mood: ${mood || 'auto'}`);
+    log(`📊 Waveform: ${waveform?.length || 0} samples`);
+
     // Validation
     if (!waveform || !Array.isArray(waveform) || waveform.length === 0) {
+      log('❌ Validation failed: waveform missing or empty');
       return res.status(400).json({ error: 'waveform is required (array of amplitudes)' });
     }
     if (!durationMs || typeof durationMs !== 'number' || durationMs < 5000) {
+      log(`❌ Validation failed: durationMs=${durationMs} (min 5000)`);
       return res.status(400).json({ error: 'durationMs is required (minimum 5000ms)' });
     }
-    if (durationMs > 300000) {
-      return res.status(400).json({ error: 'durationMs too long (max 5 minutes)' });
+    if (durationMs > 600000) {
+      log(`❌ Validation failed: durationMs=${durationMs} > 600000`);
+      return res.status(400).json({ error: 'durationMs too long (max 10 minutes)' });
     }
+    log('✅ Validation passed');
 
     // Downsample waveform to ~200 points to reduce token count
-    const downsampled = downsampleWaveform(waveform, 200);
+    const downsampled = downsampleWaveform(waveform, 500);
+    log(`📉 Waveform downsampled: ${waveform.length} → ${downsampled.length} samples`);
+
+    log('🤖 Calling LLM...');
+    const startTime = Date.now();
 
     const result = await generateLightShow({
       waveform: downsampled,
@@ -37,8 +57,15 @@ router.post('/', async (req, res) => {
       trackTitle: trackTitle || 'Unknown Track',
     });
 
+    const elapsed = Date.now() - startTime;
+    log(`✅ LLM responded in ${elapsed}ms`);
+    log(`🎯 Generated ${result.events.length} events`);
+    log('📤 Sending response to client');
+    log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
     res.json(result);
   } catch (err) {
+    log(`💥 ERROR: ${err.message}`);
     console.error('[generateShow] Error:', err.message);
     if (err.message.includes('JSON')) {
       return res.status(502).json({ error: 'LLM returned invalid response, please retry' });

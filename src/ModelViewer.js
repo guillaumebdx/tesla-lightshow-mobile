@@ -158,7 +158,7 @@ export default function ModelViewer({ showId, onGoHome }) {
         }
         if (!waveformData) waveformData = [];
 
-        const durationMs = Math.round((playbackDurationRef.current || 60) * 1000);
+        const durationMs = Math.round(playbackDurationRef.current || 60000);
         const events = await generateAIShow({
           waveform: waveformData,
           durationMs,
