@@ -83,6 +83,25 @@
     "aiSuccess": "{{count}} Ereignisse von KI generiert",
     "aiError": "KI-Generierung fehlgeschlagen: {{error}}"
   },
+  "aiPrompt": {
+    "title": "Beschreibe deine Light Show",
+    "placeholder": "Beschreibe, wie deine LightShow aussehen soll...",
+    "ideas": "Ideen",
+    "generate": "Mit KI generieren",
+    "hint": "Leer lassen für eine vollautomatische Show",
+    "suggFireworks": "Feuerwerk",
+    "suggFireworksText": "Explosive Blitze auf jedem Beat, wie ein Feuerwerk mit allen Lichtern bei den Drops.",
+    "suggWave": "Wellen",
+    "suggWaveText": "Fließende Lichter von vorne nach hinten wie Meereswellen, ruhig und hypnotisch.",
+    "suggParty": "Party",
+    "suggPartyText": "Maximale Energie! Schnelles Blinken, Strobes, alle Lichter drehen durch, Non-Stop-Party.",
+    "suggSpooky": "Gruselig",
+    "suggSpookyText": "Langsame unheimliche Pulse, plötzliche Blitze im Dunkeln, gruselige Atemeffekte.",
+    "suggRomantic": "Romantisch",
+    "suggRomanticText": "Sanft atmende Scheinwerfer, weiche Überblendungen, langsame elegante Übergänge.",
+    "suggAggressive": "Aggressiv",
+    "suggAggressiveText": "Harte Strobes auf jedem Beat, schneller Links-Rechts-Wechsel, maximale Intensität."
+  },
   "timeline": {
     "loadingMusic": "Musik wird geladen...",
     "chooseMusic": "Musik auswählen",

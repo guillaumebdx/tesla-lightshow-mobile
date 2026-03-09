@@ -8,9 +8,10 @@ import { getAppCheckToken } from './firebase';
  * @param {number} params.durationMs - Track duration in ms
  * @param {string} [params.mood] - Optional mood: intense, chill, spooky, epic, festive, romantic
  * @param {string} [params.trackTitle] - Optional track title
+ * @param {string} [params.userPrompt] - Optional user description of desired light show style
  * @returns {Promise<Object[]>} Array of event objects ready for the timeline
  */
-export async function generateAIShow({ waveform, durationMs, mood, trackTitle }) {
+export async function generateAIShow({ waveform, durationMs, mood, trackTitle, userPrompt }) {
   // Get App Check token (skipped in dev if not initialized)
   let headers = { 'Content-Type': 'application/json' };
   try {
@@ -30,6 +31,7 @@ export async function generateAIShow({ waveform, durationMs, mood, trackTitle })
       durationMs,
       mood: mood || 'auto',
       trackTitle: trackTitle || 'Unknown Track',
+      ...(userPrompt ? { userPrompt } : {}),
     }),
   });
 

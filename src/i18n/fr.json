@@ -83,6 +83,25 @@
     "aiSuccess": "{{count}} événements générés par l'IA",
     "aiError": "Échec de la génération IA : {{error}}"
   },
+  "aiPrompt": {
+    "title": "Décris ton Light Show",
+    "placeholder": "Décris à quoi doit ressembler ton LightShow...",
+    "ideas": "Idées",
+    "generate": "Générer avec l'IA",
+    "hint": "Laisse vide pour un show entièrement automatique",
+    "suggFireworks": "Feu d'artifice",
+    "suggFireworksText": "Des flashs explosifs sur chaque beat, comme un feu d'artifice avec toutes les lumières qui explosent sur les drops.",
+    "suggWave": "Vagues",
+    "suggWaveText": "Des lumières fluides de l'avant vers l'arrière comme des vagues, calme et hypnotique.",
+    "suggParty": "Fête",
+    "suggPartyText": "Énergie maximale ! Clignotements rapides, strobes, toutes les lumières en folie, mode fête non-stop.",
+    "suggSpooky": "Effrayant",
+    "suggSpookyText": "Pulsations lentes et inquiétantes, flashs soudains dans le noir, effets de respiration effrayants.",
+    "suggRomantic": "Romantique",
+    "suggRomanticText": "Phares en respiration douce, fondus légers, transitions lentes et élégantes entre les lumières.",
+    "suggAggressive": "Agressif",
+    "suggAggressiveText": "Strobes percutants sur chaque beat, alternance gauche-droite rapide, intensité maximale."
+  },
   "timeline": {
     "loadingMusic": "Chargement de la musique...",
     "chooseMusic": "Choisir une musique",

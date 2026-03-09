@@ -31,12 +31,20 @@ const PRICING = PRICING_MAP[MODEL] || { input: 2.00, output: 8.00 };
 
 log(`🔧 Model: ${MODEL} | max_tokens: ${MAX_TOKENS} | pricing: $${PRICING.input}/$${PRICING.output} per M tokens`);
 
-async function generateLightShow({ waveform, durationMs, mood, trackTitle }) {
+async function generateLightShow({ waveform, durationMs, mood, trackTitle, userPrompt: rawUserPrompt }) {
   log('📝 Building user prompt...');
-  const { prompt: userPrompt, analysis } = buildUserPrompt({ waveform, durationMs, mood, trackTitle });
-  log(`📝 Prompt built (${userPrompt.length} chars)`);
+  const { prompt: basePrompt, analysis } = buildUserPrompt({ waveform, durationMs, mood, trackTitle });
+
+  // Append user's custom description if provided (already validated/trimmed by route)
+  let finalPrompt = basePrompt;
+  if (rawUserPrompt) {
+    finalPrompt += `\n\n# USER'S CREATIVE DIRECTION (follow this closely)\n${rawUserPrompt}`;
+    log(`� User prompt appended (${rawUserPrompt.length} chars): "${rawUserPrompt}"`);
+  }
+
+  log(`�📝 Prompt built (${finalPrompt.length} chars)`);
   log(`📝 System prompt: ${SYSTEM_PROMPT.length} chars`);
-  log(`🎵 Music analysis: ${analysis.beats} beats, ${analysis.peaks} peak sections, ${analysis.drops} drops, ${analysis.rises} rises`);
+  log(`🎵 Music analysis: ${analysis.beats} beats (${analysis.strongBeats} strong), ~${analysis.bpm} BPM, ${analysis.peaks} peaks, ${analysis.drops} drops, ${analysis.rises} rises, ${analysis.sections} sections [${analysis.sectionTypes}]`);
 
   const startTime = Date.now();
   log(`🌐 Sending request to OpenAI API (${MODEL})...`);
@@ -48,7 +56,7 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle }) {
     max_tokens: MAX_TOKENS,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt },
+      { role: 'user', content: finalPrompt },
     ],
   });
 
@@ -148,9 +156,13 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle }) {
       finishReason,
       responseTimeMs: elapsed,
       beatsDetected: analysis.beats,
+      strongBeats: analysis.strongBeats,
+      estimatedBPM: analysis.bpm,
       peaksDetected: analysis.peaks,
       dropsDetected: analysis.drops,
       risesDetected: analysis.rises,
+      sectionsDetected: analysis.sections,
+      sectionTypes: analysis.sectionTypes,
       segmentCoverage: segmentCoverageStr,
       partBreakdown: JSON.stringify(partCounts),
     },
@@ -158,121 +170,287 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle }) {
 }
 
 /**
- * Build the user prompt with waveform energy timeline, beat detection, and musical analysis.
+ * Build the user prompt with rich musical analysis:
+ * - Fine energy grid (200ms windows) for sub-beat precision
+ * - BPM estimation and beat grid in ms
+ * - Song section detection (intro/verse/chorus/bridge/outro)
+ * - Peak/drop/rise moments with ms precision
  */
 function buildUserPrompt({ waveform, durationMs, mood, trackTitle }) {
   const durationSec = (durationMs / 1000).toFixed(1);
   const sampleIntervalMs = Math.round(durationMs / waveform.length);
-  const totalSeconds = Math.ceil(durationMs / 1000);
 
-  // 1. Build per-second energy timeline
-  const energyPerSecond = [];
-  for (let s = 0; s < totalSeconds; s++) {
-    const startIdx = Math.floor(s * 1000 / sampleIntervalMs);
-    const endIdx = Math.min(Math.floor((s + 1) * 1000 / sampleIntervalMs), waveform.length);
+  // ─── 1. Fine-grained energy grid (200ms windows) ───
+  const WINDOW_MS = 200;
+  const numWindows = Math.ceil(durationMs / WINDOW_MS);
+  const energyGrid = [];
+  for (let w = 0; w < numWindows; w++) {
+    const startIdx = Math.floor(w * WINDOW_MS / sampleIntervalMs);
+    const endIdx = Math.min(Math.floor((w + 1) * WINDOW_MS / sampleIntervalMs), waveform.length);
     let max = 0;
     for (let j = startIdx; j < endIdx; j++) {
       if (waveform[j] > max) max = waveform[j];
     }
-    energyPerSecond.push(Math.round(max * 100) / 100);
+    energyGrid.push(Math.round(max * 100) / 100);
   }
 
-  // 2. Detect beats (local peaks in energy with minimum gap)
-  const beats = [];
-  const minBeatGapSec = 0.4; // minimum 400ms between beats
-  let lastBeatSec = -1;
-  for (let s = 1; s < energyPerSecond.length - 1; s++) {
-    const prev = energyPerSecond[s - 1];
-    const curr = energyPerSecond[s];
-    const next = energyPerSecond[s + 1];
-    // A beat is a local maximum above 0.2 threshold
-    if (curr > prev && curr >= next && curr > 0.2 && (s - lastBeatSec) >= minBeatGapSec) {
-      beats.push({ sec: s, energy: curr });
-      lastBeatSec = s;
-    }
+  // Also build per-second energy for section detection
+  const totalSeconds = Math.ceil(durationMs / 1000);
+  const energyPerSecond = [];
+  for (let s = 0; s < totalSeconds; s++) {
+    const wStart = Math.floor(s * 1000 / WINDOW_MS);
+    const wEnd = Math.min(Math.floor((s + 1) * 1000 / WINDOW_MS), energyGrid.length);
+    let sum = 0, count = 0;
+    for (let w = wStart; w < wEnd; w++) { sum += energyGrid[w]; count++; }
+    energyPerSecond.push(count > 0 ? Math.round((sum / count) * 100) / 100 : 0);
   }
 
-  // 3. Detect peaks (sustained high energy), drops (sudden decrease), rises (sudden increase)
-  const peaks = [];
-  const drops = [];
-  const rises = [];
-  for (let s = 1; s < energyPerSecond.length; s++) {
-    const prev = energyPerSecond[s - 1];
-    const curr = energyPerSecond[s];
-    const diff = curr - prev;
-
-    if (diff < -0.25) {
-      drops.push({ sec: s, from: prev, to: curr });
-    } else if (diff > 0.2) {
-      rises.push({ sec: s, from: prev, to: curr });
-    }
-    if (curr > 0.7) {
-      if (peaks.length === 0 || s - peaks[peaks.length - 1].endSec > 2) {
-        peaks.push({ startSec: s, endSec: s });
-      } else {
-        peaks[peaks.length - 1].endSec = s;
+  // ─── 2. Beat detection with BPM estimation ───
+  // Detect onsets: significant energy increases in 200ms windows
+  const onsets = [];
+  for (let w = 1; w < energyGrid.length; w++) {
+    const diff = energyGrid[w] - energyGrid[w - 1];
+    if (diff > 0.08 && energyGrid[w] > 0.15) {
+      const ms = w * WINDOW_MS;
+      if (onsets.length === 0 || ms - onsets[onsets.length - 1].ms > 200) {
+        onsets.push({ ms, energy: energyGrid[w] });
       }
     }
   }
 
-  // 4. Target events
-  const targetEvents = Math.min(480, Math.max(80, Math.round(durationMs / 1000 * 3)));
+  // Estimate BPM from onset intervals
+  let estimatedBPM = 120; // fallback
+  if (onsets.length > 4) {
+    const intervals = [];
+    for (let i = 1; i < onsets.length; i++) {
+      const gap = onsets[i].ms - onsets[i - 1].ms;
+      if (gap > 200 && gap < 2000) intervals.push(gap);
+    }
+    if (intervals.length > 2) {
+      intervals.sort((a, b) => a - b);
+      const median = intervals[Math.floor(intervals.length / 2)];
+      estimatedBPM = Math.round(60000 / median);
+      // Normalize to reasonable range
+      if (estimatedBPM > 200) estimatedBPM = Math.round(estimatedBPM / 2);
+      if (estimatedBPM < 60) estimatedBPM = Math.round(estimatedBPM * 2);
+    }
+  }
+  const beatIntervalMs = Math.round(60000 / estimatedBPM);
 
-  // 5. Build the prompt
+  // Build a regular beat grid aligned to estimated BPM
+  const beatGrid = [];
+  // Find first strong onset to align grid
+  const firstStrongOnset = onsets.find(o => o.energy > 0.3);
+  const gridStart = firstStrongOnset ? firstStrongOnset.ms % beatIntervalMs : 0;
+  for (let ms = gridStart; ms < durationMs; ms += beatIntervalMs) {
+    // Find closest onset to this grid point
+    const nearby = onsets.find(o => Math.abs(o.ms - ms) < beatIntervalMs * 0.3);
+    beatGrid.push({
+      ms: nearby ? nearby.ms : Math.round(ms),
+      energy: nearby ? nearby.energy : energyGrid[Math.min(Math.floor(ms / WINDOW_MS), energyGrid.length - 1)] || 0,
+      strong: nearby ? nearby.energy > 0.5 : false,
+    });
+  }
+
+  // ─── 3. Song section detection ───
+  // Use 4-second windows to detect energy shifts
+  const SECTION_WINDOW = 4;
+  const sectionEnergies = [];
+  for (let s = 0; s < totalSeconds; s += SECTION_WINDOW) {
+    const end = Math.min(s + SECTION_WINDOW, totalSeconds);
+    let sum = 0, count = 0;
+    for (let i = s; i < end; i++) { sum += energyPerSecond[i]; count++; }
+    sectionEnergies.push({ startSec: s, endSec: end, avgEnergy: count > 0 ? sum / count : 0 });
+  }
+
+  // Classify sections based on relative energy
+  const overallAvg = energyPerSecond.reduce((a, b) => a + b, 0) / energyPerSecond.length;
+  const sections = [];
+  let currentType = null;
+  let sectionStart = 0;
+
+  for (const seg of sectionEnergies) {
+    let type;
+    const e = seg.avgEnergy;
+    const isEarly = seg.startSec < totalSeconds * 0.1;
+    const isLate = seg.startSec > totalSeconds * 0.85;
+
+    if (isEarly && e < overallAvg * 0.8) {
+      type = 'intro';
+    } else if (isLate && e < overallAvg * 0.8) {
+      type = 'outro';
+    } else if (e > overallAvg * 1.3) {
+      type = 'chorus';
+    } else if (e < overallAvg * 0.5) {
+      type = 'bridge';
+    } else {
+      type = 'verse';
+    }
+
+    if (type !== currentType) {
+      if (currentType !== null) {
+        sections.push({ type: currentType, startSec: sectionStart, endSec: seg.startSec });
+      }
+      currentType = type;
+      sectionStart = seg.startSec;
+    }
+  }
+  if (currentType !== null) {
+    sections.push({ type: currentType, startSec: sectionStart, endSec: totalSeconds });
+  }
+
+  // Merge very short sections (< 4s) into neighbors
+  const mergedSections = [];
+  for (const sec of sections) {
+    if (mergedSections.length > 0 && (sec.endSec - sec.startSec) < 4) {
+      mergedSections[mergedSections.length - 1].endSec = sec.endSec;
+    } else {
+      mergedSections.push({ ...sec });
+    }
+  }
+
+  // ─── 4. Detect peaks, drops, rises with ms precision ───
+  const peaks = [];
+  const drops = [];
+  const rises = [];
+
+  for (let w = 1; w < energyGrid.length; w++) {
+    const prev = energyGrid[w - 1];
+    const curr = energyGrid[w];
+    const diff = curr - prev;
+    const ms = w * WINDOW_MS;
+
+    if (diff < -0.20) {
+      drops.push({ ms, from: prev, to: curr });
+    } else if (diff > 0.15) {
+      rises.push({ ms, from: prev, to: curr });
+    }
+  }
+
+  // Cluster high-energy windows into peak sections
+  let peakStart = -1;
+  for (let w = 0; w < energyGrid.length; w++) {
+    if (energyGrid[w] > 0.65) {
+      if (peakStart < 0) peakStart = w * WINDOW_MS;
+    } else {
+      if (peakStart >= 0) {
+        const peakEnd = w * WINDOW_MS;
+        if (peakEnd - peakStart >= 1000) { // only peaks > 1s
+          peaks.push({ startMs: peakStart, endMs: peakEnd });
+        }
+        peakStart = -1;
+      }
+    }
+  }
+  if (peakStart >= 0) {
+    peaks.push({ startMs: peakStart, endMs: numWindows * WINDOW_MS });
+  }
+
+  // ─── 5. Compute energy variance per section for rhythmic density hint ───
+  const sectionDetails = mergedSections.map(sec => {
+    const wStart = Math.floor(sec.startSec * 1000 / WINDOW_MS);
+    const wEnd = Math.min(Math.floor(sec.endSec * 1000 / WINDOW_MS), energyGrid.length);
+    let sum = 0, count = 0;
+    for (let w = wStart; w < wEnd; w++) { sum += energyGrid[w]; count++; }
+    const avg = count > 0 ? sum / count : 0;
+    let variance = 0;
+    for (let w = wStart; w < wEnd; w++) { variance += Math.pow(energyGrid[w] - avg, 2); }
+    variance = count > 0 ? variance / count : 0;
+    const rhythmic = variance > 0.02; // high variance = rhythmic, low = sustained
+    return { ...sec, avgEnergy: Math.round(avg * 100) / 100, rhythmic };
+  });
+
+  // ─── 6. Target events (scale with duration) ───
+  const targetEvents = Math.min(480, Math.max(100, Math.round(durationMs / 1000 * 3.5)));
+
+  // ─── 7. Build compact energy representation ───
+  // Per-second is more compact but still useful; provide 200ms grid only for key sections
   const energyLine = energyPerSecond.map((v, i) => `${i}s:${v.toFixed(2)}`).join(' ');
 
-  const beatLine = beats.length > 0
-    ? beats.map(b => `${b.sec}s(${b.energy.toFixed(2)})`).join(', ')
-    : 'no clear beats detected — use waveform energy for timing';
+  // Fine grid around peaks and drops (±2s around each)
+  const fineGridRanges = new Set();
+  [...peaks.map(p => p.startMs), ...drops.map(d => d.ms), ...rises.map(r => r.ms)].forEach(ms => {
+    const wCenter = Math.floor(ms / WINDOW_MS);
+    for (let w = Math.max(0, wCenter - 10); w < Math.min(numWindows, wCenter + 10); w++) {
+      fineGridRanges.add(w);
+    }
+  });
+  const fineGridEntries = [...fineGridRanges].sort((a, b) => a - b);
+  const fineGridLine = fineGridEntries.length > 0
+    ? fineGridEntries.map(w => `${w * WINDOW_MS}ms:${energyGrid[w].toFixed(2)}`).join(' ')
+    : 'same as per-second data';
+
+  // ─── 8. Format all data for prompt ───
+  const beatLine = beatGrid.length > 0
+    ? beatGrid.filter(b => b.strong).map(b => `${b.ms}ms(${b.energy.toFixed(2)})`).join(', ')
+      + `\nAll beats (${estimatedBPM} BPM, every ${beatIntervalMs}ms): `
+      + beatGrid.map(b => `${b.ms}`).join(',')
+    : `no clear beats — estimated ~${estimatedBPM} BPM`;
+
+  const sectionLine = sectionDetails
+    .map(s => `${s.startSec}-${s.endSec}s: ${s.type.toUpperCase()} (avg energy ${s.avgEnergy}, ${s.rhythmic ? 'rhythmic' : 'sustained'})`)
+    .join('\n');
 
   const peakLine = peaks.length > 0
-    ? peaks.map(p => p.startSec === p.endSec ? `${p.startSec}s` : `${p.startSec}-${p.endSec}s`).join(', ')
+    ? peaks.map(p => `${p.startMs}-${p.endMs}ms`).join(', ')
     : 'no sustained peaks';
 
   const dropLine = drops.length > 0
-    ? drops.map(d => `${d.sec}s(${d.from.toFixed(2)}→${d.to.toFixed(2)})`).join(', ')
+    ? drops.slice(0, 20).map(d => `${d.ms}ms(${d.from.toFixed(2)}→${d.to.toFixed(2)})`).join(', ')
     : 'no sharp drops';
 
   const riseLine = rises.length > 0
-    ? rises.map(r => `${r.sec}s(${r.from.toFixed(2)}→${r.to.toFixed(2)})`).join(', ')
+    ? rises.slice(0, 20).map(r => `${r.ms}ms(${r.from.toFixed(2)}→${r.to.toFixed(2)})`).join(', ')
     : 'no sharp rises';
 
   const prompt = `Create a light show for "${trackTitle}" (${durationSec}s, mood: ${mood || 'auto'}).
-Generate ${targetEvents} events (minimum ${Math.round(targetEvents * 0.7)}).
+Generate approximately ${targetEvents} events (minimum ${Math.round(targetEvents * 0.8)}).
+Estimated BPM: ${estimatedBPM} (beat every ${beatIntervalMs}ms).
 
-# ENERGY TIMELINE (amplitude per second, 0.00=silence, 1.00=max)
+# SONG STRUCTURE
+${sectionLine}
+
+# ENERGY PER SECOND (0.00=silence, 1.00=max)
 ${energyLine}
 
-# DETECTED BEATS (place events on these timestamps)
-${beatLine}
+# FINE ENERGY GRID (200ms precision around key moments)
+${fineGridLine}
+
+# BEAT GRID
+Strong beats: ${beatLine}
 
 # PEAK SECTIONS (high energy — use strobes, all-on, blink speed 2)
 ${peakLine}
 
-# DROPS (sudden energy decrease — use for dramatic pauses or full flash)
+# DROPS (sudden energy decrease — dramatic pauses or full flash)
 ${dropLine}
 
-# RISES (energy building — use chase patterns, blink escalation)
+# RISES (energy building — chase patterns, blink escalation)
 ${riseLine}
 
 # INSTRUCTIONS
-- Place events precisely ON the beat timestamps above
-- Between beats, use the energy level to decide intensity
-- Energy > 0.6: strobe blast, left-right ping-pong, blink speed 2
-- Energy 0.3-0.6: wave patterns, headlight pulse, blink speed 0-1
-- Energy < 0.3: breathing, single lights with easeIn, or silence
-- Events from 0ms to ${durationMs}ms — cover the FULL track
-- Keep events SHORT: 300-2000ms for lights, match to beat spacing
-- Use blink effect generously for rhythmic sections
-- Include closures: 4 windows, trunk sequence, flap sequence, retro roundtrips on peaks`;
+- CRITICAL: The car must NEVER be fully dark. At minimum, keep headlights breathing (solid, easeIn+easeOut).
+- Each section (verse/chorus/bridge etc.) needs its OWN visual identity — don't repeat the same pattern everywhere.
+- Place events ON the beat timestamps (${beatIntervalMs}ms apart at ${estimatedBPM} BPM).
+- Use the FINE GRID for precise sub-beat placement around peaks and drops.
+- CHORUS sections: maximum intensity, all 13 parts, blink speed 2, strobes, left-right ping-pong.
+- VERSE sections: moderate — headlight pulse + blinker rhythm + occasional wave.
+- BRIDGE sections: contrast — if rhythmic use building chase, if sustained use breathing + slow accents.
+- Transitions between sections: use easeOut on ending events, easeIn on starting events.
+- Events from 0ms to ${durationMs}ms — cover the FULL track with NO GAPS.
+- Include closures at musically significant moments: windows at choruses, trunk at biggest buildup, flap at bridge/breakdown, retros at peaks.`;
 
   return {
     prompt,
     analysis: {
-      beats: beats.length,
+      beats: beatGrid.length,
+      strongBeats: beatGrid.filter(b => b.strong).length,
+      bpm: estimatedBPM,
       peaks: peaks.length,
       drops: drops.length,
       rises: rises.length,
+      sections: sectionDetails.length,
+      sectionTypes: sectionDetails.map(s => s.type).join(','),
     },
   };
 }
@@ -338,7 +516,7 @@ function sanitizeEvents(events, durationMs) {
       trunkMode: VALID_TRUNK.includes(e.trunkMode) ? e.trunkMode : 'trunk_open',
       flapMode: VALID_FLAP.includes(e.flapMode) ? e.flapMode : 'flap_open',
     }))
-    .slice(0, 500) // Hard limit
+    .slice(0, 600) // Hard limit
     .sort((a, b) => a.startMs - b.startMs);
 }
 

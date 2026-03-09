@@ -26,6 +26,7 @@ import FlashMessage from './FlashMessage';
 import TutorialOverlay from './TutorialOverlay';
 import { Ionicons } from '@expo/vector-icons';
 import { generateAIShow } from './aiService';
+import AiPromptModal from './AiPromptModal';
 
 export default function ModelViewer({ showId, onGoHome }) {
   const { t } = useTranslation();
@@ -135,6 +136,7 @@ export default function ModelViewer({ showId, onGoHome }) {
   }, []);
 
   // AI light show generation
+  const [aiPromptModalVisible, setAiPromptModalVisible] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
   const aiGeneratingRef = useRef(false);
   const [aiProgressMsg, setAiProgressMsg] = useState('');
@@ -238,9 +240,16 @@ export default function ModelViewer({ showId, onGoHome }) {
       Alert.alert(t('editor.aiGenerate'), t('editor.aiNoTrack'));
       return;
     }
+    closeDrawer();
+    setAiPromptModalVisible(true);
+  }, [t, closeDrawer]);
+
+  const handleAIPromptSubmit = useCallback((userPrompt) => {
+    setAiPromptModalVisible(false);
+    const trackInfo = audioTimelineRef.current?.getTrackInfo();
+    if (!trackInfo) return;
 
     const doGenerate = async () => {
-      closeDrawer();
       setAiGenerating(true);
       const durationMs = Math.round(playbackDurationRef.current || 60000);
 
@@ -265,6 +274,7 @@ export default function ModelViewer({ showId, onGoHome }) {
           waveform: waveformData,
           durationMs,
           trackTitle: trackInfo.title || 'Unknown',
+          userPrompt: userPrompt || undefined,
         });
 
         // Stop animation and replace fake events with real AI-generated ones
@@ -300,7 +310,7 @@ export default function ModelViewer({ showId, onGoHome }) {
     } else {
       doGenerate();
     }
-  }, [t, closeDrawer, scheduleSave, pushUndo, startAiAnimation, stopAiAnimation]);
+  }, [t, scheduleSave, pushUndo, startAiAnimation, stopAiAnimation]);
 
   // Debounced auto-save (1.5s after last change)
   const scheduleSave = useCallback(() => {
@@ -2169,6 +2179,13 @@ export default function ModelViewer({ showId, onGoHome }) {
           </View>
         </Pressable>
       </Modal>
+
+      {/* AI Prompt modal */}
+      <AiPromptModal
+        visible={aiPromptModalVisible}
+        onClose={() => setAiPromptModalVisible(false)}
+        onGenerate={handleAIPromptSubmit}
+      />
 
       {/* Export tutorial modal */}
       <ExportModal

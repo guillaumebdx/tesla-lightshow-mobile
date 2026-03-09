@@ -10,6 +10,7 @@ const db = require('../services/database');
  *   durationMs: number,       // track duration in ms
  *   mood?: string,            // optional: "intense", "chill", "spooky", "epic", "festive", "romantic"
  *   trackTitle?: string,      // optional: track name for context
+ *   userPrompt?: string,      // optional: user description of desired show style (max 500 chars)
  * }
  * Response: { events: [...] }
  */
@@ -23,12 +24,13 @@ router.post('/', async (req, res) => {
   log('📥 New generate-show request received');
 
   try {
-    const { waveform, durationMs, mood, trackTitle } = req.body;
+    const { waveform, durationMs, mood, trackTitle, userPrompt } = req.body;
 
     log(`🎵 Track: "${trackTitle}"`);
     log(`⏱  Duration: ${durationMs}ms (${(durationMs/1000).toFixed(1)}s)`);
     log(`🎭 Mood: ${mood || 'auto'}`);
     log(`📊 Waveform: ${waveform?.length || 0} samples`);
+    log(`💬 User prompt: ${userPrompt ? `"${userPrompt}" (${userPrompt.length} chars)` : 'none'}`);
 
     // Validation
     if (!waveform || !Array.isArray(waveform) || waveform.length === 0) {
@@ -43,6 +45,10 @@ router.post('/', async (req, res) => {
       log(`❌ Validation failed: durationMs=${durationMs} > 600000`);
       return res.status(400).json({ error: 'durationMs too long (max 10 minutes)' });
     }
+    // Validate userPrompt length
+    const sanitizedUserPrompt = (typeof userPrompt === 'string' && userPrompt.trim())
+      ? userPrompt.trim().slice(0, 500)
+      : undefined;
     log('✅ Validation passed');
 
     // Downsample waveform to ~200 points to reduce token count
@@ -69,6 +75,7 @@ router.post('/', async (req, res) => {
       durationMs,
       mood: mood || 'auto',
       trackTitle: trackTitle || 'Unknown Track',
+      userPrompt: sanitizedUserPrompt,
     });
 
     const elapsed = Date.now() - startTime;
