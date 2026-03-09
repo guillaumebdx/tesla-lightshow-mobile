@@ -1,5 +1,6 @@
 const OpenAI = require('openai');
 const { SYSTEM_PROMPT } = require('../systemPrompt');
+const { expandChoreography, getPatternCatalog } = require('./patterns');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -13,9 +14,9 @@ const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const MAX_TOKENS_MAP = {
   'gpt-4o-mini': 16384,
   'gpt-4o': 16384,
-  'gpt-4.1-mini': 32768,
-  'gpt-4.1': 32768,
-  'gpt-4.1-nano': 32768,
+  'gpt-4.1-mini': 16384,
+  'gpt-4.1': 16384,
+  'gpt-4.1-nano': 16384,
 };
 const MAX_TOKENS = MAX_TOKENS_MAP[MODEL] || 16384;
 
@@ -39,11 +40,14 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle, userP
   let finalPrompt = basePrompt;
   if (rawUserPrompt) {
     finalPrompt += `\n\n# USER'S CREATIVE DIRECTION (follow this closely)\n${rawUserPrompt}`;
-    log(`� User prompt appended (${rawUserPrompt.length} chars): "${rawUserPrompt}"`);
+    log(`💬 User prompt appended (${rawUserPrompt.length} chars): "${rawUserPrompt}"`);
   }
 
-  log(`�📝 Prompt built (${finalPrompt.length} chars)`);
-  log(`📝 System prompt: ${SYSTEM_PROMPT.length} chars`);
+  // Inject pattern catalog into system prompt
+  const systemPrompt = SYSTEM_PROMPT.replace('{PATTERN_CATALOG}', getPatternCatalog());
+
+  log(`📝 Prompt built (${finalPrompt.length} chars)`);
+  log(`📝 System prompt: ${systemPrompt.length} chars`);
   log(`🎵 Music analysis: ${analysis.beats} beats (${analysis.strongBeats} strong), ~${analysis.bpm} BPM, ${analysis.peaks} peaks, ${analysis.drops} drops, ${analysis.rises} rises, ${analysis.sections} sections [${analysis.sectionTypes}]`);
 
   const startTime = Date.now();
@@ -52,10 +56,10 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle, userP
   const response = await openai.chat.completions.create({
     model: MODEL,
     response_format: { type: 'json_object' },
-    temperature: 0.65,
+    temperature: 0.7,
     max_tokens: MAX_TOKENS,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: finalPrompt },
     ],
   });
@@ -81,40 +85,64 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle, userP
   log('🔍 Parsing JSON...');
   const parsed = JSON.parse(content);
 
-  if (!parsed.events || !Array.isArray(parsed.events)) {
-    log(`❌ Invalid response structure: keys = ${Object.keys(parsed).join(', ')}`);
-    throw new Error('LLM JSON missing events array');
-  }
-  log(`📋 Raw events from LLM: ${parsed.events.length}`);
+  // Accept both new choreography format and legacy events format
+  let events;
+  let choreographyCount = 0;
 
-  // Diagnose time distribution before sanitization
-  const rawStarts = parsed.events.map(e => e.startMs).filter(t => typeof t === 'number');
-  const rawEnds = parsed.events.map(e => e.endMs).filter(t => typeof t === 'number');
-  if (rawStarts.length > 0) {
-    const minStart = Math.min(...rawStarts);
-    const maxEnd = Math.max(...rawEnds);
-    const coverage = ((maxEnd / durationMs) * 100).toFixed(1);
-    log(`⏱  Time range: ${minStart}ms → ${maxEnd}ms (covers ${coverage}% of ${durationMs}ms track)`);
+  if (parsed.choreography && Array.isArray(parsed.choreography)) {
+    // NEW: Pattern-based choreography plan
+    choreographyCount = parsed.choreography.length;
+    log(`🎼 Choreography plan: ${choreographyCount} pattern placements`);
 
-    // Segment coverage check
-    const segSize = 10000;
-    const numSegs = Math.ceil(durationMs / segSize);
-    const segCounts = new Array(numSegs).fill(0);
-    parsed.events.forEach(e => {
-      if (typeof e.startMs === 'number') {
-        const seg = Math.min(Math.floor(e.startMs / segSize), numSegs - 1);
-        segCounts[seg]++;
-      }
+    // Log pattern usage summary
+    const patternCounts = {};
+    parsed.choreography.forEach(c => {
+      patternCounts[c.pattern] = (patternCounts[c.pattern] || 0) + 1;
     });
-    const emptySegs = segCounts.filter(c => c === 0).length;
-    log(`📊 Segment coverage (${segSize/1000}s each): ${segCounts.join(', ')}`);
-    if (emptySegs > 0) log(`⚠️  ${emptySegs} empty segments!`);
-  }
+    log('📊 Pattern usage:');
+    Object.entries(patternCounts).sort((a, b) => b[1] - a[1]).forEach(([pat, count]) => {
+      log(`   ${pat}: ${count}`);
+    });
 
-  // Post-process: validate and sanitize events
-  log('🧹 Sanitizing events...');
-  const events = sanitizeEvents(parsed.events, durationMs);
-  log(`✅ After sanitization: ${events.length} valid events (removed ${parsed.events.length - events.length})`);
+    // Diagnose startMs distribution
+    const starts = parsed.choreography.map(c => c.startMs).filter(t => typeof t === 'number');
+    if (starts.length > 0) {
+      const maxStart = Math.max(...starts);
+
+      // Auto-detect if LLM used seconds instead of milliseconds
+      // If all startMs values fit within durationMs/1000 (i.e. seconds range), multiply by 1000
+      if (maxStart < durationMs / 500 && durationMs > 10000) {
+        log(`⚠️  startMs values look like SECONDS (max=${maxStart}), converting to ms...`);
+        parsed.choreography.forEach(c => {
+          if (typeof c.startMs === 'number') c.startMs = Math.round(c.startMs * 1000);
+        });
+      }
+
+      const fixedStarts = parsed.choreography.map(c => c.startMs).filter(t => typeof t === 'number');
+      const minStart = Math.min(...fixedStarts);
+      const fixedMax = Math.max(...fixedStarts);
+      const coveragePct = ((fixedMax / durationMs) * 100).toFixed(1);
+      log(`⏱  Choreography time range: ${minStart}ms → ${fixedMax}ms (covers ${coveragePct}% of ${durationMs}ms track)`);
+      // Check per-quarter distribution
+      const q = [0,0,0,0];
+      fixedStarts.forEach(t => { const qi = Math.min(3, Math.floor(t / durationMs * 4)); q[qi]++; });
+      log(`📊 Quarter distribution: Q1=${q[0]} Q2=${q[1]} Q3=${q[2]} Q4=${q[3]}`);
+    }
+
+    // Expand choreography into full events
+    log('🔧 Expanding choreography into events...');
+    events = expandChoreography(parsed.choreography, durationMs);
+    log(`✅ Expanded: ${choreographyCount} placements → ${events.length} events`);
+
+  } else if (parsed.events && Array.isArray(parsed.events)) {
+    // LEGACY: Raw events (fallback)
+    log(`📋 Legacy mode: ${parsed.events.length} raw events from LLM`);
+    events = sanitizeEvents(parsed.events, durationMs);
+    log(`✅ After sanitization: ${events.length} valid events`);
+  } else {
+    log(`❌ Invalid response structure: keys = ${Object.keys(parsed).join(', ')}`);
+    throw new Error('LLM JSON missing choreography or events array');
+  }
 
   // Part breakdown
   const partCounts = {};
@@ -127,8 +155,8 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle, userP
   // Compute coverage
   let coveragePercent = 0;
   let segmentCoverageStr = '';
-  if (rawStarts.length > 0) {
-    const maxEnd = Math.max(...rawEnds);
+  if (events.length > 0) {
+    const maxEnd = Math.max(...events.map(e => e.endMs));
     coveragePercent = parseFloat(((maxEnd / durationMs) * 100).toFixed(1));
     const segSize = 10000;
     const numSegs = Math.ceil(durationMs / segSize);
@@ -138,6 +166,9 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle, userP
       segCounts[seg]++;
     });
     segmentCoverageStr = segCounts.join(',');
+    const emptySegs = segCounts.filter(c => c === 0).length;
+    log(`📊 Segment coverage (${segSize/1000}s each): ${segCounts.join(', ')}`);
+    if (emptySegs > 0) log(`⚠️  ${emptySegs} empty segments!`);
   }
 
   const estimatedCost = (usage?.prompt_tokens * PRICING.input + usage?.completion_tokens * PRICING.output) / 1000000;
@@ -151,7 +182,8 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle, userP
       totalTokens: usage?.total_tokens || 0,
       estimatedCost,
       eventsCount: events.length,
-      eventsRemoved: parsed.events.length - events.length,
+      eventsRemoved: 0,
+      choreographyPlacements: choreographyCount,
       coveragePercent,
       finishReason,
       responseTimeMs: elapsed,
@@ -170,11 +202,11 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle, userP
 }
 
 /**
- * Build the user prompt with rich musical analysis:
- * - Fine energy grid (200ms windows) for sub-beat precision
+ * Build the user prompt with musical analysis for the LLM choreography planner:
  * - BPM estimation and beat grid in ms
  * - Song section detection (intro/verse/chorus/bridge/outro)
  * - Peak/drop/rise moments with ms precision
+ * - Per-second energy profile
  */
 function buildUserPrompt({ waveform, durationMs, mood, trackTitle }) {
   const durationSec = (durationMs / 1000).toFixed(1);
@@ -360,35 +392,17 @@ function buildUserPrompt({ waveform, durationMs, mood, trackTitle }) {
     return { ...sec, avgEnergy: Math.round(avg * 100) / 100, rhythmic };
   });
 
-  // ─── 6. Target events (scale with duration) ───
-  const targetEvents = Math.min(1200, Math.max(200, Math.round(durationMs / 1000 * 8)));
-
-  // ─── 7. Build compact energy representation ───
-  // Per-second is more compact but still useful; provide 200ms grid only for key sections
+  // ─── 6. Build compact energy representation ───
   const energyLine = energyPerSecond.map((v, i) => `${i}s:${v.toFixed(2)}`).join(' ');
 
-  // Fine grid around peaks and drops (±2s around each)
-  const fineGridRanges = new Set();
-  [...peaks.map(p => p.startMs), ...drops.map(d => d.ms), ...rises.map(r => r.ms)].forEach(ms => {
-    const wCenter = Math.floor(ms / WINDOW_MS);
-    for (let w = Math.max(0, wCenter - 10); w < Math.min(numWindows, wCenter + 10); w++) {
-      fineGridRanges.add(w);
-    }
-  });
-  const fineGridEntries = [...fineGridRanges].sort((a, b) => a - b);
-  const fineGridLine = fineGridEntries.length > 0
-    ? fineGridEntries.map(w => `${w * WINDOW_MS}ms:${energyGrid[w].toFixed(2)}`).join(' ')
-    : 'same as per-second data';
-
-  // ─── 8. Format all data for prompt ───
+  // ─── 7. Format all data for prompt ───
+  const strongBeats = beatGrid.filter(b => b.strong);
   const beatLine = beatGrid.length > 0
-    ? beatGrid.filter(b => b.strong).map(b => `${b.ms}ms(${b.energy.toFixed(2)})`).join(', ')
-      + `\nAll beats (${estimatedBPM} BPM, every ${beatIntervalMs}ms): `
-      + beatGrid.map(b => `${b.ms}`).join(',')
-    : `no clear beats — estimated ~${estimatedBPM} BPM`;
+    ? `${estimatedBPM} BPM (beat every ${beatIntervalMs}ms). ${beatGrid.length} beats total, ${strongBeats.length} strong.\nStrong beat timestamps: ${strongBeats.map(b => `${b.ms}ms`).join(', ')}`
+    : `estimated ~${estimatedBPM} BPM (beat every ${beatIntervalMs}ms)`;
 
   const sectionLine = sectionDetails
-    .map(s => `${s.startSec}-${s.endSec}s: ${s.type.toUpperCase()} (avg energy ${s.avgEnergy}, ${s.rhythmic ? 'rhythmic' : 'sustained'})`)
+    .map(s => `${s.startSec}-${s.endSec}s: ${s.type.toUpperCase()} (energy ${s.avgEnergy}, ${s.rhythmic ? 'rhythmic' : 'sustained'})`)
     .join('\n');
 
   const peakLine = peaks.length > 0
@@ -396,58 +410,47 @@ function buildUserPrompt({ waveform, durationMs, mood, trackTitle }) {
     : 'no sustained peaks';
 
   const dropLine = drops.length > 0
-    ? drops.slice(0, 20).map(d => `${d.ms}ms(${d.from.toFixed(2)}→${d.to.toFixed(2)})`).join(', ')
+    ? drops.slice(0, 15).map(d => `${d.ms}ms`).join(', ')
     : 'no sharp drops';
 
   const riseLine = rises.length > 0
-    ? rises.slice(0, 20).map(r => `${r.ms}ms(${r.from.toFixed(2)}→${r.to.toFixed(2)})`).join(', ')
+    ? rises.slice(0, 15).map(r => `${r.ms}ms`).join(', ')
     : 'no sharp rises';
 
-  const minEvents = Math.round(targetEvents * 0.85);
-  const prompt = `Create a DENSE light show for "${trackTitle}" (${durationSec}s, mood: ${mood || 'auto'}).
+  // Target: ~0.6 pattern placement per beat (each pattern expands to ~10-18 events)
+  const targetPlacements = Math.min(150, Math.max(40, Math.round(beatGrid.length * 0.6)));
 
-**YOU MUST GENERATE AT LEAST ${minEvents} EVENTS.** Target: ${targetEvents} events. More is better.
-This means approximately ${Math.round(targetEvents / (durationMs / 1000))} events per second on average.
-Estimated BPM: ${estimatedBPM} (beat every ${beatIntervalMs}ms).
+  const prompt = `Create a choreography plan for "${trackTitle}" (${durationSec}s = ${durationMs}ms, mood: ${mood || 'auto'}).
 
-# SONG STRUCTURE
+**Target: ${targetPlacements}+ pattern placements spread across the FULL ${durationMs}ms.**
+For sustained patterns (pingPong, blinkerRhythm, frontBack, symmetricPulse), use durationMs=2000-5000. Use blinkSpeed=2 for high energy, 1 for medium, 0 for low.
+Remember: startMs is in MILLISECONDS. Last placements should be near ${durationMs - 3000}ms.
+
+# SONG STRUCTURE (fill EVERY section with patterns)
 ${sectionLine}
 
 # ENERGY PER SECOND (0.00=silence, 1.00=max)
 ${energyLine}
 
-# FINE ENERGY GRID (200ms precision around key moments)
-${fineGridLine}
+# BEATS
+${beatLine}
 
-# BEAT GRID
-Strong beats: ${beatLine}
-
-# PEAK SECTIONS (high energy — use strobes, all-on, blink speed 2)
+# PEAKS (high energy — use strobe, fullPulse, cascade)
 ${peakLine}
 
-# DROPS (sudden energy decrease — dramatic pauses or full flash)
+# DROPS (sudden energy decrease — use flashHold then strobe)
 ${dropLine}
 
-# RISES (energy building — chase patterns, blink escalation)
+# RISES (energy building — use escalation, chase)
 ${riseLine}
 
-# DENSITY INSTRUCTIONS
-- Every single beat (every ${beatIntervalMs}ms) must have at least 3-5 light events firing simultaneously.
-- On strong beats and chorus sections, fire 8-13 parts simultaneously.
-- Between beats, keep at least 2-3 ambient/breathing lights active.
-- A light show with less than ${minEvents} events looks empty and broken. ALWAYS exceed the minimum.
-
-# PLACEMENT INSTRUCTIONS
-- CRITICAL: The car must NEVER be fully dark. At minimum, keep headlights breathing (solid, easeIn+easeOut).
-- Each section (verse/chorus/bridge etc.) needs its OWN visual identity — don't repeat the same pattern everywhere.
-- Place events ON the beat timestamps (${beatIntervalMs}ms apart at ${estimatedBPM} BPM).
-- Use the FINE GRID for precise sub-beat placement around peaks and drops.
-- CHORUS sections: maximum intensity, all 13 parts, blink speed 2, strobes, left-right ping-pong.
-- VERSE sections: moderate — headlight pulse + blinker rhythm + occasional wave.
-- BRIDGE sections: contrast — if rhythmic use building chase, if sustained use breathing + slow accents.
-- Transitions between sections: use easeOut on ending events, easeIn on starting events.
-- Events from 0ms to ${durationMs}ms — cover the FULL track with NO GAPS.
-- Include closures at musically significant moments: windows at choruses, trunk at biggest buildup, flap at bridge/breakdown, retros at peaks.`;
+# KEY REMINDERS
+- COVER THE FULL TRACK from 0ms to ${durationMs}ms. Every section above must have patterns.
+- Place "breathing" patterns to fill ALL quiet gaps — the car must NEVER be dark.
+- Layer patterns: a "breathing" base + "blinkerRhythm" on top = rich look. Do this often.
+- Each section needs a different pattern mix.
+- For sustained patterns, set durationMs=2000-5000 to cover multiple beats per placement.
+- Place closures: trunkSequence in first half, windowsDance at chorus, flapSequence at breakdown, retroRoundtrip at peaks.`;
 
   return {
     prompt,
@@ -465,28 +468,7 @@ ${riseLine}
 }
 
 /**
- * Cluster nearby peak timestamps into sections.
- */
-function clusterPeaks(peaks, gapMs) {
-  if (peaks.length === 0) return [];
-  const sections = [];
-  let start = peaks[0];
-  let end = peaks[0];
-  for (let i = 1; i < peaks.length; i++) {
-    if (peaks[i] - end <= gapMs) {
-      end = peaks[i];
-    } else {
-      sections.push({ startMs: start, endMs: end });
-      start = peaks[i];
-      end = peaks[i];
-    }
-  }
-  sections.push({ startMs: start, endMs: end });
-  return sections;
-}
-
-/**
- * Sanitize and validate events from LLM output.
+ * Sanitize and validate events from LLM output (legacy fallback).
  */
 function sanitizeEvents(events, durationMs) {
   const VALID_PARTS = [
@@ -525,7 +507,7 @@ function sanitizeEvents(events, durationMs) {
       trunkMode: VALID_TRUNK.includes(e.trunkMode) ? e.trunkMode : 'trunk_open',
       flapMode: VALID_FLAP.includes(e.flapMode) ? e.flapMode : 'flap_open',
     }))
-    .slice(0, 1500) // Hard limit
+    .slice(0, 5000) // Hard limit (matches MAX_EVENTS)
     .sort((a, b) => a.startMs - b.startMs);
 }
 

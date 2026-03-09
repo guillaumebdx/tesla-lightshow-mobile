@@ -53,8 +53,8 @@ router.post('/', async (req, res) => {
       : undefined;
     log('✅ Validation passed');
 
-    // Downsample waveform to ~200 points to reduce token count
-    const downsampled = downsampleWaveform(waveform, 500);
+    // Downsample waveform to reduce processing (not sent to LLM, only used for music analysis)
+    const downsampled = downsampleWaveform(waveform, 1000);
     log(`📉 Waveform downsampled: ${waveform.length} → ${downsampled.length} samples`);
 
     // Create DB record at start
@@ -87,9 +87,9 @@ router.post('/', async (req, res) => {
 
     // Persist results to DB
     db.completeGeneration(dbId, result.meta);
-    log('� Generation saved to DB');
+    log('💾 Generation saved to DB');
 
-    log('�� Sending response to client');
+    log('📤 Sending response to client');
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     res.json({ events: result.events });
