@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { generateLightShow } = require('../services/llmService');
+const db = require('../services/database');
 
 /**
  * POST /api/generate-show
@@ -16,6 +17,7 @@ router.post('/', async (req, res) => {
   const isDev = process.env.NODE_ENV === 'development';
   const reqId = Date.now().toString(36);
   const log = (msg) => isDev && console.log(`[${reqId}] ${msg}`);
+  let dbId;
 
   log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   log('📥 New generate-show request received');
@@ -47,6 +49,18 @@ router.post('/', async (req, res) => {
     const downsampled = downsampleWaveform(waveform, 500);
     log(`📉 Waveform downsampled: ${waveform.length} → ${downsampled.length} samples`);
 
+    // Create DB record at start
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const dbId = db.createGeneration({
+      requestId: reqId,
+      trackTitle: trackTitle || 'Unknown Track',
+      durationMs,
+      mood: mood || 'auto',
+      model,
+      ipAddress: req.ip,
+    });
+    log(`💾 DB record #${dbId} created`);
+
     log('🤖 Calling LLM...');
     const startTime = Date.now();
 
@@ -60,13 +74,20 @@ router.post('/', async (req, res) => {
     const elapsed = Date.now() - startTime;
     log(`✅ LLM responded in ${elapsed}ms`);
     log(`🎯 Generated ${result.events.length} events`);
-    log('📤 Sending response to client');
+
+    // Persist results to DB
+    db.completeGeneration(dbId, result.meta);
+    log('� Generation saved to DB');
+
+    log('�� Sending response to client');
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    res.json(result);
+    res.json({ events: result.events });
   } catch (err) {
     log(`💥 ERROR: ${err.message}`);
     console.error('[generateShow] Error:', err.message);
+    // Try to mark DB record as failed
+    try { if (dbId) db.failGeneration(dbId, err.message); } catch {}
     if (err.message.includes('JSON')) {
       return res.status(502).json({ error: 'LLM returned invalid response, please retry' });
     }

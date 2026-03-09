@@ -1,9 +1,14 @@
 require('dotenv').config();
+
+// Load log broadcaster FIRST so it captures all subsequent console.log calls
+require('./services/logBroadcaster');
+
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { initFirebaseAdmin, verifyAppCheck } = require('./middleware/appCheck');
 const generateShowRoute = require('./routes/generateShow');
+const adminRoute = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,6 +35,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });
 
+// Admin dashboard (no auth for dev — add auth before deploying to prod!)
+app.use('/admin', adminRoute);
+
 // Routes (App Check protected)
 app.use('/api/generate-show', verifyAppCheck, generateShowRoute);
 
@@ -41,4 +49,5 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 LightShow Studio API running on port ${PORT}`);
+  console.log(`📊 Admin dashboard: http://localhost:${PORT}/admin`);
 });

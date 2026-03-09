@@ -116,7 +116,45 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle }) {
     log(`   ${part}: ${count}`);
   });
 
-  return { events };
+  // Compute coverage
+  let coveragePercent = 0;
+  let segmentCoverageStr = '';
+  if (rawStarts.length > 0) {
+    const maxEnd = Math.max(...rawEnds);
+    coveragePercent = parseFloat(((maxEnd / durationMs) * 100).toFixed(1));
+    const segSize = 10000;
+    const numSegs = Math.ceil(durationMs / segSize);
+    const segCounts = new Array(numSegs).fill(0);
+    events.forEach(e => {
+      const seg = Math.min(Math.floor(e.startMs / segSize), numSegs - 1);
+      segCounts[seg]++;
+    });
+    segmentCoverageStr = segCounts.join(',');
+  }
+
+  const estimatedCost = (usage?.prompt_tokens * PRICING.input + usage?.completion_tokens * PRICING.output) / 1000000;
+
+  return {
+    events,
+    meta: {
+      model: MODEL,
+      promptTokens: usage?.prompt_tokens || 0,
+      completionTokens: usage?.completion_tokens || 0,
+      totalTokens: usage?.total_tokens || 0,
+      estimatedCost,
+      eventsCount: events.length,
+      eventsRemoved: parsed.events.length - events.length,
+      coveragePercent,
+      finishReason,
+      responseTimeMs: elapsed,
+      beatsDetected: analysis.beats,
+      peaksDetected: analysis.peaks,
+      dropsDetected: analysis.drops,
+      risesDetected: analysis.rises,
+      segmentCoverage: segmentCoverageStr,
+      partBreakdown: JSON.stringify(partCounts),
+    },
+  };
 }
 
 /**

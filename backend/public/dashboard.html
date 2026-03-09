@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightShow Studio — Admin Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --bg-card: #1a1d27;
+      --bg-card-hover: #222632;
+      --bg-input: #14161e;
+      --border: #2a2e3a;
+      --text: #e4e6ed;
+      --text-muted: #8b8fa3;
+      --accent: #6c5ce7;
+      --accent-light: #a29bfe;
+      --success: #00b894;
+      --warning: #fdcb6e;
+      --danger: #e17055;
+      --info: #74b9ff;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* Header */
+    .header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-light), var(--accent));
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-badge {
+      background: var(--accent);
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--danger);
+      transition: background 0.3s;
+    }
+
+    .connection-dot.connected { background: var(--success); }
+
+    /* Layout */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--bg-card);
+      padding: 4px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      width: fit-content;
+    }
+
+    .tab {
+      padding: 8px 20px;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab:hover { color: var(--text); background: var(--bg-card-hover); }
+    .tab.active { background: var(--accent); color: white; }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .stat-card:hover { border-color: var(--accent); }
+
+    .stat-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .stat-value.accent { color: var(--accent-light); }
+    .stat-value.success { color: var(--success); }
+    .stat-value.warning { color: var(--warning); }
+    .stat-value.danger { color: var(--danger); }
+
+    .stat-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Panel */
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text-muted);
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:hover { border-color: var(--accent); color: var(--text); }
+    .btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+    /* Table */
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      background: var(--bg-input);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tr:hover td { background: var(--bg-card-hover); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-success { background: rgba(0, 184, 148, 0.15); color: var(--success); }
+    .badge-error { background: rgba(225, 112, 85, 0.15); color: var(--danger); }
+    .badge-processing { background: rgba(108, 92, 231, 0.15); color: var(--accent-light); }
+
+    /* Log Console */
+    .log-console {
+      background: var(--bg-input);
+      min-height: 400px;
+      max-height: 600px;
+      overflow-y: auto;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.7;
+      padding: 12px 16px;
+      scroll-behavior: smooth;
+    }
+
+    .log-entry {
+      display: flex;
+      gap: 8px;
+      padding: 1px 0;
+    }
+
+    .log-time {
+      color: var(--text-muted);
+      flex-shrink: 0;
+      font-size: 11px;
+      opacity: 0.6;
+    }
+
+    .log-msg { word-break: break-all; }
+    .log-msg.error { color: var(--danger); }
+    .log-msg.info { color: var(--text); }
+
+    .log-entry:hover { background: rgba(255,255,255,0.02); }
+
+    /* Model breakdown */
+    .model-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      padding: 20px;
+    }
+
+    .model-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+    }
+
+    .model-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent-light);
+      margin-bottom: 8px;
+    }
+
+    .model-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .model-stats span { color: var(--text); font-weight: 600; }
+
+    /* Section */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container { padding: 12px; gap: 16px; }
+      .header { padding: 12px 16px; }
+      .header h1 { font-size: 16px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .stat-card { padding: 14px; }
+      .stat-value { font-size: 22px; }
+      .tabs { width: 100%; }
+      .tab { flex: 1; text-align: center; padding: 8px 12px; font-size: 13px; }
+      .log-console { min-height: 300px; font-size: 11px; }
+      td, th { padding: 8px 10px; font-size: 11px; }
+    }
+
+    /* Animations */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .stat-card, .panel { animation: fadeIn 0.3s ease; }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .badge-processing { animation: pulse 1.5s infinite; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>⚡ LightShow Studio</h1>
+    <span class="header-badge">Admin</span>
+  </div>
+  <div class="connection-status">
+    <div class="connection-dot" id="connectionDot"></div>
+    <span id="connectionText">Connecting...</span>
+  </div>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="generations">Generations</button>
+    <button class="tab" data-tab="logs">Live Logs</button>
+  </div>
+
+  <!-- Overview Section -->
+  <div class="section active" id="section-overview">
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-label">Total Generations</div>
+        <div class="stat-value accent" id="statTotal">—</div>
+        <div class="stat-sub" id="statToday"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Success Rate</div>
+        <div class="stat-value success" id="statSuccess">—</div>
+        <div class="stat-sub" id="statErrors"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Cost</div>
+        <div class="stat-value warning" id="statCost">—</div>
+        <div class="stat-sub" id="statCostToday"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Events</div>
+        <div class="stat-value" id="statAvgEvents">—</div>
+        <div class="stat-sub" id="statAvgCoverage"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Response Time</div>
+        <div class="stat-value" id="statAvgTime">—</div>
+        <div class="stat-sub">per generation</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Tokens</div>
+        <div class="stat-value" id="statTokens">—</div>
+        <div class="stat-sub">prompt + completion</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+      <div class="panel-header">
+        <div class="panel-title">🤖 Model Breakdown</div>
+      </div>
+      <div class="model-grid" id="modelGrid">
+        <div class="empty-state"><p>No data yet</p></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+      <div class="panel-header">
+        <div class="panel-title">📋 Recent Generations</div>
+        <div class="panel-actions">
+          <button class="btn" onclick="loadGenerations()">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Track</th>
+              <th>Duration</th>
+              <th>Model</th>
+              <th>Events</th>
+              <th>Coverage</th>
+              <th>Cost</th>
+              <th>Time</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="overviewTableBody">
+            <tr><td colspan="9" class="empty-state"><p>No generations yet</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generations Section -->
+  <div class="section" id="section-generations">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">📋 All Generations</div>
+        <div class="panel-actions">
+          <button class="btn" onclick="loadGenerations()">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Time</th>
+              <th>Track</th>
+              <th>Duration</th>
+              <th>Mood</th>
+              <th>Model</th>
+              <th>Events</th>
+              <th>Removed</th>
+              <th>Coverage</th>
+              <th>Tokens</th>
+              <th>Cost</th>
+              <th>Response</th>
+              <th>Beats</th>
+              <th>Peaks</th>
+              <th>Finish</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="generationsTableBody">
+            <tr><td colspan="16" class="empty-state"><p>No generations yet</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logs Section -->
+  <div class="section" id="section-logs">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🖥 Live Console</div>
+        <div class="panel-actions">
+          <button class="btn active" id="autoScrollBtn" onclick="toggleAutoScroll()">Auto-scroll</button>
+          <button class="btn" onclick="clearLogs()">Clear</button>
+        </div>
+      </div>
+      <div class="log-console" id="logConsole"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // State
+  let autoScroll = true;
+  let eventSource = null;
+  let generations = [];
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(`section-${tab.dataset.tab}`).classList.add('active');
+    });
+  });
+
+  // SSE Connection
+  function connectSSE() {
+    if (eventSource) eventSource.close();
+    eventSource = new EventSource('/admin/api/logs/stream');
+
+    eventSource.onopen = () => {
+      document.getElementById('connectionDot').classList.add('connected');
+      document.getElementById('connectionText').textContent = 'Connected';
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const entry = JSON.parse(event.data);
+        appendLog(entry);
+      } catch {}
+    };
+
+    eventSource.onerror = () => {
+      document.getElementById('connectionDot').classList.remove('connected');
+      document.getElementById('connectionText').textContent = 'Reconnecting...';
+      setTimeout(connectSSE, 3000);
+    };
+  }
+
+  function appendLog(entry) {
+    const console = document.getElementById('logConsole');
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+
+    const time = new Date(entry.timestamp);
+    const ts = time.toLocaleTimeString('en-GB', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    div.innerHTML = `
+      <span class="log-time">${ts}</span>
+      <span class="log-msg ${entry.level}">${escapeHtml(entry.message)}</span>
+    `;
+    console.appendChild(div);
+
+    // Keep max 1000 entries in DOM
+    while (console.children.length > 1000) {
+      console.removeChild(console.firstChild);
+    }
+
+    if (autoScroll) {
+      console.scrollTop = console.scrollHeight;
+    }
+  }
+
+  function clearLogs() {
+    document.getElementById('logConsole').innerHTML = '';
+  }
+
+  function toggleAutoScroll() {
+    autoScroll = !autoScroll;
+    document.getElementById('autoScrollBtn').classList.toggle('active', autoScroll);
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Stats
+  async function loadStats() {
+    try {
+      const res = await fetch('/admin/api/stats');
+      const stats = await res.json();
+
+      document.getElementById('statTotal').textContent = stats.total.toLocaleString();
+      document.getElementById('statToday').textContent = `${stats.todayCount} today`;
+
+      const rate = stats.total > 0 ? ((stats.success / stats.total) * 100).toFixed(1) : '—';
+      document.getElementById('statSuccess').textContent = rate === '—' ? '—' : `${rate}%`;
+      document.getElementById('statErrors').textContent = `${stats.errors} errors`;
+
+      document.getElementById('statCost').textContent = `$${stats.totalCost.toFixed(4)}`;
+      document.getElementById('statCostToday').textContent = `$${stats.todayCost.toFixed(4)} today`;
+
+      document.getElementById('statAvgEvents').textContent = stats.avgEvents || '—';
+      document.getElementById('statAvgCoverage').textContent = `${stats.avgCoverage}% avg coverage`;
+
+      document.getElementById('statAvgTime').textContent = stats.avgTimeMs ? `${(stats.avgTimeMs / 1000).toFixed(1)}s` : '—';
+
+      document.getElementById('statTokens').textContent = stats.totalTokens ? stats.totalTokens.toLocaleString() : '—';
+
+      // Model breakdown
+      const grid = document.getElementById('modelGrid');
+      if (stats.modelBreakdown && stats.modelBreakdown.length > 0) {
+        grid.innerHTML = stats.modelBreakdown.map(m => `
+          <div class="model-card">
+            <div class="model-name">${escapeHtml(m.model)}</div>
+            <div class="model-stats">
+              <div>Generations: <span>${m.count}</span></div>
+              <div>Total cost: <span>$${m.cost.toFixed(4)}</span></div>
+              <div>Avg events: <span>${Math.round(m.avg_events)}</span></div>
+              <div>Avg time: <span>${(m.avg_time / 1000).toFixed(1)}s</span></div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        grid.innerHTML = '<div class="empty-state"><p>No data yet</p></div>';
+      }
+    } catch (err) {
+      console.error('Failed to load stats:', err);
+    }
+  }
+
+  // Generations
+  async function loadGenerations() {
+    try {
+      const res = await fetch('/admin/api/generations?limit=100');
+      const data = await res.json();
+      generations = data.generations;
+      renderGenerations();
+    } catch (err) {
+      console.error('Failed to load generations:', err);
+    }
+  }
+
+  function renderGenerations() {
+    // Overview table (last 10)
+    const overviewBody = document.getElementById('overviewTableBody');
+    const fullBody = document.getElementById('generationsTableBody');
+
+    if (generations.length === 0) {
+      overviewBody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:40px">No generations yet</td></tr>';
+      fullBody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:var(--text-muted);padding:40px">No generations yet</td></tr>';
+      return;
+    }
+
+    overviewBody.innerHTML = generations.slice(0, 10).map(g => genRow(g, false)).join('');
+    fullBody.innerHTML = generations.map(g => genRow(g, true)).join('');
+  }
+
+  function genRow(g, full) {
+    const time = new Date(g.created_at + 'Z').toLocaleString('fr-FR', { 
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' 
+    });
+    const dur = g.duration_ms ? `${(g.duration_ms / 1000).toFixed(0)}s` : '—';
+    const cost = g.estimated_cost ? `$${g.estimated_cost.toFixed(4)}` : '—';
+    const respTime = g.response_time_ms ? `${(g.response_time_ms / 1000).toFixed(1)}s` : '—';
+    const statusClass = g.status === 'success' ? 'badge-success' : g.status === 'error' ? 'badge-error' : 'badge-processing';
+    const coverage = g.coverage_percent ? `${g.coverage_percent.toFixed(1)}%` : '—';
+
+    if (full) {
+      return `<tr>
+        <td>${g.id}</td>
+        <td>${time}</td>
+        <td>${escapeHtml(g.track_title || '—')}</td>
+        <td>${dur}</td>
+        <td>${escapeHtml(g.mood || '—')}</td>
+        <td><strong>${escapeHtml(g.model || '—')}</strong></td>
+        <td><strong>${g.events_count || '—'}</strong></td>
+        <td>${g.events_removed || 0}</td>
+        <td>${coverage}</td>
+        <td>${g.total_tokens ? g.total_tokens.toLocaleString() : '—'}</td>
+        <td>${cost}</td>
+        <td>${respTime}</td>
+        <td>${g.beats_detected || '—'}</td>
+        <td>${g.peaks_detected || '—'}</td>
+        <td>${g.finish_reason || '—'}</td>
+        <td><span class="badge ${statusClass}">${g.status}</span></td>
+      </tr>`;
+    }
+
+    return `<tr>
+      <td>${time}</td>
+      <td>${escapeHtml(g.track_title || '—')}</td>
+      <td>${dur}</td>
+      <td><strong>${escapeHtml(g.model || '—')}</strong></td>
+      <td><strong>${g.events_count || '—'}</strong></td>
+      <td>${coverage}</td>
+      <td>${cost}</td>
+      <td>${respTime}</td>
+      <td><span class="badge ${statusClass}">${g.status}</span></td>
+    </tr>`;
+  }
+
+  // Auto-refresh
+  function startPolling() {
+    loadStats();
+    loadGenerations();
+    setInterval(() => {
+      loadStats();
+      loadGenerations();
+    }, 10000);
+  }
+
+  // Init
+  connectSSE();
+  startPolling();
+</script>
+
+</body>
+</html>
