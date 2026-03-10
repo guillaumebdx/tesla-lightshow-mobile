@@ -7,6 +7,6 @@ const DEV_URL = Platform.OS === 'android'
   ? 'http://10.0.2.2:3001'
   : 'http://localhost:3001';
 
-const PROD_URL = 'https://api.lightstudio.yourdomain.com'; // TODO: replace with real domain
+const PROD_URL = 'https://lightstudio.harari.ovh';
 
 export const API_BASE_URL = __DEV__ ? DEV_URL : PROD_URL;
