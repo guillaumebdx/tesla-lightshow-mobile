@@ -30,9 +30,8 @@ export async function generateAIShow({ waveform, durationMs, mood, trackTitle, u
     const token = await getAppCheckToken();
     if (token) headers['X-Firebase-AppCheck'] = token;
   } catch (e) {
-    // In dev mode, App Check may not be available — continue without token
-    if (!__DEV__) throw e;
-    console.warn('[AI] App Check token unavailable, continuing in dev mode');
+    console.warn('[AI] App Check token unavailable:', e?.message);
+    // Continue without token — backend will reject if required
   }
 
   // Attach stable anonymous device ID

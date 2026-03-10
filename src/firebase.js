@@ -1,11 +1,6 @@
-import { getApp } from '@react-native-firebase/app';
-import {
-  initializeAppCheck,
-  getToken,
-  ReactNativeFirebaseAppCheckProvider,
-} from '@react-native-firebase/app-check';
+import appCheck from '@react-native-firebase/app-check';
 
-let appCheckInstance = null;
+let initialized = false;
 
 /**
  * Initialize Firebase App Check.
@@ -13,10 +8,10 @@ let appCheckInstance = null;
  * In __DEV__ mode, uses the debug provider for local testing.
  */
 export async function initAppCheck() {
-  if (appCheckInstance) return;
+  if (initialized) return;
 
-  const rnfbProvider = new ReactNativeFirebaseAppCheckProvider();
-  rnfbProvider.configure({
+  const provider = appCheck().newReactNativeFirebaseAppCheckProvider();
+  provider.configure({
     android: {
       provider: __DEV__ ? 'debug' : 'playIntegrity',
     },
@@ -25,10 +20,11 @@ export async function initAppCheck() {
     },
   });
 
-  appCheckInstance = initializeAppCheck(getApp(), {
-    provider: rnfbProvider,
+  await appCheck().initializeAppCheck({
+    provider,
     isTokenAutoRefreshEnabled: true,
   });
+  initialized = true;
 }
 
 /**
@@ -36,9 +32,9 @@ export async function initAppCheck() {
  * @returns {Promise<string>} The App Check token string.
  */
 export async function getAppCheckToken() {
-  if (!appCheckInstance) {
+  if (!initialized) {
     await initAppCheck();
   }
-  const { token } = await getToken(appCheckInstance, /* forceRefresh */ false);
+  const { token } = await appCheck().getToken(false);
   return token;
 }
