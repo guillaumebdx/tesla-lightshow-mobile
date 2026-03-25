@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Support Chat — LightShow Studio</title>
+  <link rel="manifest" href="/admin/manifest.json">
+  <meta name="theme-color" content="#e94560">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a1a; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height: 100vh; overflow: hidden; }
+
+    /* Layout */
+    .app { display: flex; height: 100vh; }
+    .sidebar { width: 320px; background: #0f0f23; border-right: 1px solid #2a2a4a; display: flex; flex-direction: column; flex-shrink: 0; }
+    .main { flex: 1; display: flex; flex-direction: column; }
+
+    /* Sidebar header */
+    .sidebar-header { padding: 16px; border-bottom: 1px solid #2a2a4a; display: flex; align-items: center; gap: 10px; }
+    .sidebar-header a { color: #8888aa; text-decoration: none; font-size: 20px; }
+    .sidebar-header h2 { font-size: 16px; font-weight: 600; flex: 1; }
+    .sidebar-header .count { color: #6666aa; font-size: 12px; }
+
+    /* Conversation list */
+    .conv-list { flex: 1; overflow-y: auto; }
+    .conv-item { padding: 14px 16px; border-bottom: 1px solid #1a1a30; cursor: pointer; transition: background 0.15s; }
+    .conv-item:hover { background: #1a1a30; }
+    .conv-item.active { background: #1a1a35; border-left: 3px solid #e94560; }
+    .conv-item.closed { opacity: 0.5; }
+    .conv-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .conv-id { font-size: 12px; font-weight: 600; color: #44aaff; font-family: monospace; }
+    .conv-time { font-size: 11px; color: #6666aa; }
+    .conv-preview { font-size: 13px; color: #8888aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-meta { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+    .conv-badge { background: #e94560; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 8px; }
+    .conv-status { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+    .conv-status.open { background: rgba(68, 200, 100, 0.15); color: #44c864; }
+    .conv-status.closed { background: rgba(136, 136, 170, 0.15); color: #8888aa; }
+    .conv-info { font-size: 10px; color: #555; }
+
+    /* Main area */
+    .main-empty { flex: 1; display: flex; justify-content: center; align-items: center; color: #444466; font-size: 15px; }
+    .main-header { padding: 14px 20px; border-bottom: 1px solid #2a2a4a; display: flex; align-items: center; gap: 12px; background: #0f0f23; }
+    .main-header .back-btn { display: none; color: #44aaff; font-size: 14px; cursor: pointer; background: none; border: none; font-weight: 600; }
+    .main-header-info { flex: 1; }
+    .main-header-id { font-size: 13px; font-weight: 600; color: #44aaff; font-family: monospace; }
+    .main-header-device { font-size: 11px; color: #6666aa; }
+    .status-toggle { padding: 6px 12px; border-radius: 8px; border: 1px solid #2a2a4a; background: #12122a; color: #ccc; font-size: 12px; cursor: pointer; font-weight: 600; }
+    .status-toggle:hover { border-color: #e94560; }
+
+    /* Messages */
+    .messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
+    .msg { max-width: 75%; padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.5; word-break: break-word; }
+    .msg.user { background: #1a1a35; color: #ccccee; align-self: flex-start; border-bottom-left-radius: 4px; }
+    .msg.admin { background: #e94560; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .msg-time { font-size: 10px; color: #6666aa; margin-top: 2px; }
+    .msg.admin .msg-time { color: rgba(255,255,255,0.5); }
+    .device-banner { background: rgba(68, 170, 255, 0.08); border: 1px solid rgba(68, 170, 255, 0.15); border-radius: 10px; padding: 10px 14px; font-size: 11px; color: #6688aa; margin-bottom: 8px; }
+
+    /* Input area */
+    .input-area { padding: 12px 20px; border-top: 1px solid #2a2a4a; background: #0f0f23; }
+    .input-row { display: flex; gap: 8px; }
+    .input-row textarea { flex: 1; padding: 10px 14px; border-radius: 10px; border: 1px solid #2a2a4a; background: #12122a; color: #fff; font-size: 14px; resize: none; outline: none; font-family: inherit; min-height: 42px; max-height: 120px; }
+    .input-row textarea:focus { border-color: #e94560; }
+    .send-btn { padding: 10px 18px; border-radius: 10px; border: none; background: #e94560; color: #fff; font-weight: 700; cursor: pointer; font-size: 14px; white-space: nowrap; }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ai-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+    .ai-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid #7c3aed; background: rgba(124, 58, 237, 0.1); color: #a855f7; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .ai-btn:hover { background: rgba(124, 58, 237, 0.2); }
+    .ai-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ai-hint { font-size: 11px; color: #555; font-style: italic; }
+
+    /* Mobile responsive */
+    @media (max-width: 700px) {
+      .sidebar { width: 100%; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; }
+      .main { width: 100%; }
+      .sidebar.hidden { display: none; }
+      .main.hidden { display: none; }
+      .main-header .back-btn { display: inline; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="/admin/">←</a>
+        <h2>Support Chat</h2>
+        <span class="count" id="convCount"></span>
+      </div>
+      <div class="conv-list" id="convList"></div>
+    </div>
+
+    <!-- Main -->
+    <div class="main hidden" id="mainPanel">
+      <div class="main-header" id="mainHeader">
+        <button class="back-btn" id="backBtn">← Back</button>
+        <div class="main-header-info">
+          <div class="main-header-id" id="headerDeviceId"></div>
+          <div class="main-header-device" id="headerDeviceInfo"></div>
+        </div>
+        <button class="status-toggle" id="statusToggle"></button>
+      </div>
+      <div class="messages" id="messagesContainer"></div>
+      <div class="input-area">
+        <div class="input-row">
+          <textarea id="replyInput" placeholder="Type a reply..." rows="1"></textarea>
+          <button class="send-btn" id="sendBtn" disabled>Send</button>
+        </div>
+        <div class="ai-row">
+          <button class="ai-btn" id="aiBtn">✨ Generate draft</button>
+          <span class="ai-hint" id="aiHint"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty state for desktop -->
+    <div class="main" id="emptyPanel">
+      <div class="main-empty">Select a conversation</div>
+    </div>
+  </div>
+
+  <script>
+    let conversations = [];
+    let activeConvId = null;
+    let pollConvTimer = null;
+    let pollMsgTimer = null;
+    let lastMsgId = null;
+    let isLoadingMessages = false;
+    const renderedMsgIds = new Set();
+    const isMobile = window.innerWidth <= 700;
+
+    // --- API helpers ---
+    async function api(url, opts = {}) {
+      const res = await fetch(url, opts);
+      if (res.status === 401) { window.location.href = '/admin/login'; return null; }
+      return res.json();
+    }
+
+    // --- Load conversations ---
+    async function loadConversations() {
+      const data = await api('/admin/api/chat/conversations');
+      if (!data) return;
+      conversations = data.conversations || [];
+      renderConversations();
+      document.getElementById('convCount').textContent = conversations.length ? `(${conversations.length})` : '';
+    }
+
+    function renderConversations() {
+      const list = document.getElementById('convList');
+      list.innerHTML = conversations.map(c => {
+        const info = tryParseJSON(c.device_info);
+        const shortId = c.id.length > 20 ? c.id.slice(0, 20) + '…' : c.id;
+        const time = c.updated_at ? formatTime(c.updated_at) : '';
+        const preview = c.last_message ? (c.last_sender === 'admin' ? 'You: ' : '') + truncate(c.last_message, 50) : 'No messages';
+        return `<div class="conv-item ${c.id === activeConvId ? 'active' : ''} ${c.status === 'closed' ? 'closed' : ''}" data-id="${c.id}">
+          <div class="conv-top">
+            <span class="conv-id">${shortId}</span>
+            <span class="conv-time">${time}</span>
+          </div>
+          <div class="conv-preview">${esc(preview)}</div>
+          <div class="conv-meta">
+            ${c.unread_admin > 0 ? `<span class="conv-badge">${c.unread_admin}</span>` : ''}
+            <span class="conv-status ${c.status}">${c.status}</span>
+            ${info.os ? `<span class="conv-info">${esc(info.os)} · ${esc(info.lang || '?')}</span>` : ''}
+            <span class="conv-info">${c.message_count || 0} msgs</span>
+          </div>
+        </div>`;
+      }).join('');
+
+      list.querySelectorAll('.conv-item').forEach(el => {
+        el.addEventListener('click', () => openConversation(el.dataset.id));
+      });
+    }
+
+    // --- Open conversation ---
+    async function openConversation(id) {
+      activeConvId = id;
+      lastMsgId = null;
+      renderConversations();
+
+      if (isMobile) {
+        document.getElementById('sidebar').classList.add('hidden');
+        document.getElementById('mainPanel').classList.remove('hidden');
+      } else {
+        document.getElementById('emptyPanel').style.display = 'none';
+        document.getElementById('mainPanel').classList.remove('hidden');
+      }
+
+      const conv = conversations.find(c => c.id === id);
+      const info = conv ? tryParseJSON(conv.device_info) : {};
+      document.getElementById('headerDeviceId').textContent = id;
+      document.getElementById('headerDeviceInfo').textContent = [info.os, info.appVersion, info.lang, info.device].filter(Boolean).join(' · ') || 'No device info';
+      updateStatusToggle(conv?.status || 'open');
+
+      await loadMessages(id);
+      startMessagePolling();
+    }
+
+    async function loadMessages(id, sinceId) {
+      if (isLoadingMessages) return;
+      isLoadingMessages = true;
+      try {
+        const url = `/admin/api/chat/conversations/${id}/messages` + (sinceId ? `?since_id=${sinceId}` : '');
+        const data = await api(url);
+        if (!data) return;
+
+        const container = document.getElementById('messagesContainer');
+        const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
+        const msgs = data.messages || [];
+
+        if (!sinceId) {
+          // Full load — reset tracked IDs
+          renderedMsgIds.clear();
+          const conv = conversations.find(c => c.id === id);
+          const info = conv ? tryParseJSON(conv.device_info) : {};
+          let html = '';
+          if (Object.keys(info).length > 0) {
+            html += `<div class="device-banner">📱 ${esc(info.os || '?')} · ${esc(info.device || '?')} · v${esc(info.appVersion || '?')} · ${esc(info.lang || '?')}</div>`;
+          }
+          msgs.forEach(m => renderedMsgIds.add(m.id));
+          html += msgs.map(msgHTML).join('');
+          container.innerHTML = html;
+          container.scrollTop = container.scrollHeight;
+        } else {
+          // Incremental — deduplicate
+          const newMsgs = msgs.filter(m => !renderedMsgIds.has(m.id));
+          if (newMsgs.length > 0) {
+            newMsgs.forEach(m => renderedMsgIds.add(m.id));
+            container.insertAdjacentHTML('beforeend', newMsgs.map(msgHTML).join(''));
+            if (isAtBottom) container.scrollTop = container.scrollHeight;
+          }
+        }
+
+        if (msgs.length > 0) {
+          lastMsgId = msgs[msgs.length - 1].id;
+        }
+      } finally {
+        isLoadingMessages = false;
+      }
+    }
+
+    function msgHTML(m) {
+      return `<div class="msg ${m.sender}">
+        <div>${esc(m.content)}</div>
+        <div class="msg-time">${formatTime(m.created_at)}</div>
+      </div>`;
+    }
+
+    // --- Send ---
+    const replyInput = document.getElementById('replyInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    replyInput.addEventListener('input', () => {
+      sendBtn.disabled = !replyInput.value.trim();
+      replyInput.style.height = 'auto';
+      replyInput.style.height = Math.min(replyInput.scrollHeight, 120) + 'px';
+    });
+
+    replyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); }
+    });
+
+    sendBtn.addEventListener('click', sendReply);
+
+    async function sendReply() {
+      const content = replyInput.value.trim();
+      if (!content || !activeConvId) return;
+      sendBtn.disabled = true;
+      replyInput.value = '';
+      replyInput.style.height = 'auto';
+
+      await api(`/admin/api/chat/conversations/${activeConvId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+
+      await loadMessages(activeConvId, lastMsgId);
+      loadConversations();
+    }
+
+    // --- AI Draft ---
+    const aiBtn = document.getElementById('aiBtn');
+    const aiHint = document.getElementById('aiHint');
+
+    aiBtn.addEventListener('click', async () => {
+      if (!activeConvId) return;
+      aiBtn.disabled = true;
+      aiHint.textContent = 'Generating...';
+      try {
+        const data = await api(`/admin/api/chat/conversations/${activeConvId}/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (data?.draft) {
+          replyInput.value = data.draft;
+          replyInput.style.height = 'auto';
+          replyInput.style.height = Math.min(replyInput.scrollHeight, 120) + 'px';
+          sendBtn.disabled = false;
+          aiHint.textContent = `Draft generated (${data.model}, ${data.tokens} tokens)`;
+        } else {
+          aiHint.textContent = 'No draft generated';
+        }
+      } catch (e) {
+        aiHint.textContent = 'Error: ' + e.message;
+      }
+      aiBtn.disabled = false;
+    });
+
+    // --- Status toggle ---
+    const statusToggle = document.getElementById('statusToggle');
+    statusToggle.addEventListener('click', async () => {
+      if (!activeConvId) return;
+      const conv = conversations.find(c => c.id === activeConvId);
+      const newStatus = conv?.status === 'open' ? 'closed' : 'open';
+      await api(`/admin/api/chat/conversations/${activeConvId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (conv) conv.status = newStatus;
+      updateStatusToggle(newStatus);
+      renderConversations();
+    });
+
+    function updateStatusToggle(status) {
+      statusToggle.textContent = status === 'open' ? '✓ Open — Close' : '✗ Closed — Reopen';
+    }
+
+    // --- Back button (mobile) ---
+    document.getElementById('backBtn').addEventListener('click', () => {
+      activeConvId = null;
+      stopMessagePolling();
+      document.getElementById('sidebar').classList.remove('hidden');
+      document.getElementById('mainPanel').classList.add('hidden');
+    });
+
+    // --- Polling ---
+    function startConversationPolling() {
+      if (pollConvTimer) clearInterval(pollConvTimer);
+      pollConvTimer = setInterval(loadConversations, 5000);
+    }
+
+    function startMessagePolling() {
+      stopMessagePolling();
+      pollMsgTimer = setInterval(() => {
+        if (activeConvId) loadMessages(activeConvId, lastMsgId);
+      }, 3000);
+    }
+
+    function stopMessagePolling() {
+      if (pollMsgTimer) { clearInterval(pollMsgTimer); pollMsgTimer = null; }
+    }
+
+    // --- Helpers ---
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+    function truncate(s, n) { return s && s.length > n ? s.slice(0, n) + '…' : s; }
+    function tryParseJSON(s) { try { return JSON.parse(s || '{}'); } catch { return {}; } }
+    function formatTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso + 'Z');
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return isToday ? time : d.toLocaleDateString([], { day: '2-digit', month: '2-digit' }) + ' ' + time;
+    }
+
+    // --- Init ---
+    (async () => {
+      const auth = await api('/admin/auth-check');
+      if (!auth?.authenticated) { window.location.href = '/admin/login'; return; }
+      await loadConversations();
+      startConversationPolling();
+    })();
+  </script>
+</body>
+</html>

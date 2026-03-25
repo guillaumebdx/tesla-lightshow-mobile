@@ -240,5 +240,15 @@
     "noTrack": "Du musst zuerst einen Musiktitel in dieser Light Show laden, bevor du Ereignisse importieren kannst.",
     "warning": "Achtung: Die aktuellen Ereignisse werden durch die aus der importierten Datei ersetzt.",
     "loadBtn": "Datei auswählen"
+  },
+  "chat": {
+    "title": "Support",
+    "subtitle": "Guillaume · LightShow Studio",
+    "emptyTitle": "Brauchen Sie Hilfe?",
+    "emptyText": "Senden Sie eine Nachricht und ich werde Ihnen so schnell wie möglich antworten.",
+    "placeholder": "Ihre Nachricht...",
+    "menuLabel": "Support",
+    "settingsLabel": "Support kontaktieren",
+    "newReply": "Neue Antwort vom Support"
   }
 }

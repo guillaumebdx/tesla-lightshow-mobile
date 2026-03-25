@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, Dimensions,
-  Modal, Pressable, Linking, ScrollView,
+  Modal, Pressable, Linking, ScrollView, Image,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { setAppLanguage } from './i18n';
@@ -9,6 +9,9 @@ import { listShows, deleteShow, duplicateShow, createDemoShow } from './storage'
 import { MP3_TRACKS } from '../assets/mp3/index';
 import DemoViewer from './DemoViewer';
 import { Ionicons } from '@expo/vector-icons';
+import SupportChat from './SupportChat';
+import { hasEverSentMessage, fetchChatStatus } from './chatService';
+import FlashMessage from './FlashMessage';
 
 const LANGUAGES = [
   { code: 'fr', flag: '🇫🇷', label: 'Français' },
@@ -49,6 +52,11 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
   const [loading, setLoading] = useState(true);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
+  const [chatVisible, setChatVisible] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const chatPollRef = useRef(null);
+  const prevChatUnreadRef = useRef(0);
+  const flashRef = useRef(null);
   const { t, i18n } = useTranslation();
   const [selectedLang, setSelectedLang] = useState(i18n.language);
 
@@ -62,6 +70,28 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Chat unread badge polling (30s, only if user has ever sent a message)
+  useEffect(() => {
+    let mounted = true;
+    const checkUnread = async () => {
+      const hasSent = await hasEverSentMessage();
+      if (!hasSent || !mounted) return;
+      try {
+        const data = await fetchChatStatus();
+        if (!mounted) return;
+        const newUnread = data.unread || 0;
+        if (newUnread > prevChatUnreadRef.current && !chatVisible) {
+          flashRef.current?.show(t('chat.newReply'), 'info', 4000);
+        }
+        prevChatUnreadRef.current = newUnread;
+        setChatUnread(newUnread);
+      } catch {}
+    };
+    checkUnread();
+    chatPollRef.current = setInterval(checkUnread, 30000);
+    return () => { mounted = false; if (chatPollRef.current) clearInterval(chatPollRef.current); };
+  }, [chatVisible]);
 
   const handleDelete = (show) => {
     Alert.alert(
@@ -186,6 +216,18 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
                 <Text style={styles.settingsItemArrow}>›</Text>
               </TouchableOpacity>
 
+              {/* Support Chat */}
+              <TouchableOpacity style={styles.settingsItem} onPress={() => { setSettingsVisible(false); setTimeout(() => setChatVisible(true), 300); }}>
+                <Image source={require('../assets/guillaume.jpg')} style={styles.settingsAvatar} />
+                <Text style={styles.settingsItemText}>{t('chat.settingsLabel')}</Text>
+                {chatUnread > 0 && (
+                  <View style={styles.chatBadge}>
+                    <Text style={styles.chatBadgeText}>{chatUnread}</Text>
+                  </View>
+                )}
+                <Text style={styles.settingsItemArrow}>›</Text>
+              </TouchableOpacity>
+
               {/* Demo show */}
               <TouchableOpacity style={styles.settingsItem} onPress={handleCreateDemo}>
                 <Ionicons name="play-circle-outline" size={18} color="#e94560" />
@@ -212,6 +254,13 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
             </ScrollView>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <FlashMessage ref={flashRef} />
+
+      {/* Support Chat modal */}
+      <Modal visible={chatVisible} animationType="slide" onRequestClose={() => { setChatVisible(false); setChatUnread(0); }}>
+        <SupportChat onClose={() => { setChatVisible(false); setChatUnread(0); }} />
       </Modal>
 
       {/* About modal */}
@@ -566,5 +615,24 @@ const styles = StyleSheet.create({
   aboutCloseBtnText: {
     color: '#8888aa',
     fontSize: 14,
+  },
+  settingsAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+  },
+  chatBadge: {
+    backgroundColor: '#e94560',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  chatBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

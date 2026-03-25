@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TextInput, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert, KeyboardAvoidingView, Platform, Linking, Animated as RNAnimated } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TextInput, TouchableOpacity, Dimensions, ScrollView, Modal, Pressable, Alert, KeyboardAvoidingView, Platform, Linking, Animated as RNAnimated, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { GLView } from 'expo-gl';
@@ -27,6 +27,8 @@ import TutorialOverlay from './TutorialOverlay';
 import { Ionicons } from '@expo/vector-icons';
 import { generateAIShow } from './aiService';
 import AiPromptModal from './AiPromptModal';
+import SupportChat from './SupportChat';
+import { hasEverSentMessage, fetchChatStatus } from './chatService';
 
 export default function ModelViewer({ showId, onGoHome }) {
   const { t } = useTranslation();
@@ -69,6 +71,9 @@ export default function ModelViewer({ showId, onGoHome }) {
   const [exportVisible, setExportVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
   const [loadVisible, setLoadVisible] = useState(false);
+  const [chatVisible, setChatVisible] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const chatPollRef = useRef(null);
   const [cursorOffsetMs, _setCursorOffsetMs] = useState(0);
   const cursorOffsetMsRef = useRef(0);
   const setCursorOffsetMs = useCallback((valOrFn) => {
@@ -414,6 +419,30 @@ export default function ModelViewer({ showId, onGoHome }) {
       return () => clearInterval(waitForTimeline);
     })();
   }, [showId]);
+
+  // Chat unread badge polling (30s, only if user has ever sent a message)
+  const prevChatUnreadRef = useRef(0);
+  useEffect(() => {
+    let mounted = true;
+    const checkUnread = async () => {
+      const hasSent = await hasEverSentMessage();
+      if (!hasSent || !mounted) return;
+      try {
+        const data = await fetchChatStatus();
+        if (!mounted) return;
+        const newUnread = data.unread || 0;
+        // Show toast if unread increased and chat is not open
+        if (newUnread > prevChatUnreadRef.current && !chatVisible) {
+          flashRef.current?.show(t('chat.newReply'), 'info', 4000);
+        }
+        prevChatUnreadRef.current = newUnread;
+        setChatUnread(newUnread);
+      } catch {}
+    };
+    checkUnread();
+    chatPollRef.current = setInterval(checkUnread, 30000);
+    return () => { mounted = false; if (chatPollRef.current) clearInterval(chatPollRef.current); };
+  }, [chatVisible]);
 
   const handleDeleteEvent = () => {
     if (!selectedEvent) return;
@@ -1889,6 +1918,21 @@ export default function ModelViewer({ showId, onGoHome }) {
               <Ionicons name="share-outline" size={20} color="#e94560" />
               <Text style={styles.menuItemText}>{t('editor.export')}</Text>
             </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => closeDrawer(() => setChatVisible(true))}
+            >
+              <Image source={require('../assets/guillaume.jpg')} style={styles.menuAvatar} />
+              <Text style={[styles.menuItemText, { color: '#44aaff' }]}>{t('chat.menuLabel')}</Text>
+              {chatUnread > 0 && (
+                <View style={styles.chatBadge}>
+                  <Text style={styles.chatBadgeText}>{chatUnread}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </RNAnimated.View>
         </View>
       )}
@@ -2225,6 +2269,10 @@ export default function ModelViewer({ showId, onGoHome }) {
         onNext={handleTutorialNext}
         onSkip={handleTutorialSkip}
       />
+      {/* Support Chat */}
+      <Modal visible={chatVisible} animationType="slide" onRequestClose={() => { setChatVisible(false); setChatUnread(0); }}>
+        <SupportChat onClose={() => { setChatVisible(false); setChatUnread(0); }} />
+      </Modal>
     </GestureHandlerRootView>
   );
 }
@@ -2696,6 +2744,25 @@ const styles = StyleSheet.create({
   shareLoadActionText: {
     color: '#ffffff',
     fontSize: 15,
+    fontWeight: '700',
+  },
+  menuAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  chatBadge: {
+    backgroundColor: '#e94560',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  chatBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
     fontWeight: '700',
   },
 });

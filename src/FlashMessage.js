@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 const FLASH_DURATION = 3000;
 const FADE_IN = 200;
 const FADE_OUT = 400;
 
 const TYPES = {
-  error: { bg: 'rgba(233, 69, 96, 0.95)', icon: '⚠️' },
-  success: { bg: 'rgba(46, 204, 113, 0.95)', icon: '✅' },
-  info: { bg: 'rgba(68, 170, 255, 0.95)', icon: 'ℹ️' },
+  error: { bg: 'rgba(233, 69, 96, 0.95)', icon: 'alert-circle' },
+  success: { bg: 'rgba(46, 204, 113, 0.95)', icon: 'checkmark-circle' },
+  info: { bg: 'rgba(68, 170, 255, 0.95)', icon: 'chatbubble-ellipses' },
 };
 
 const FlashMessage = forwardRef((props, ref) => {
@@ -43,7 +44,7 @@ const FlashMessage = forwardRef((props, ref) => {
 
   return (
     <Animated.View style={[styles.container, { opacity, backgroundColor: config.bg }]} pointerEvents="none">
-      <Text style={styles.icon}>{config.icon}</Text>
+      <Ionicons name={config.icon} size={20} color="#fff" style={styles.icon} />
       <Text style={styles.text}>{message.text}</Text>
     </Animated.View>
   );
@@ -68,7 +69,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   icon: {
-    fontSize: 18,
     marginRight: 10,
   },
   text: {

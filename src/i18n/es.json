@@ -240,5 +240,15 @@
     "noTrack": "Primero debes cargar una música en este Light Show antes de poder importar eventos.",
     "warning": "Atención: los eventos actuales serán reemplazados por los del archivo importado.",
     "loadBtn": "Elegir un archivo"
+  },
+  "chat": {
+    "title": "Soporte",
+    "subtitle": "Guillaume · LightShow Studio",
+    "emptyTitle": "¿Necesitas ayuda?",
+    "emptyText": "Envía un mensaje y te responderé lo antes posible.",
+    "placeholder": "Tu mensaje...",
+    "menuLabel": "Soporte",
+    "settingsLabel": "Contactar soporte",
+    "newReply": "Nueva respuesta del soporte"
   }
 }

@@ -3,11 +3,47 @@ const router = express.Router();
 const path = require('path');
 const { getGenerations, getGenerationsCount, getTopUsers, getStats } = require('../services/database');
 const { addClient, getRecentLogs } = require('../services/logBroadcaster');
+const { adminAuth, adminLogin, adminCheck } = require('../middleware/adminAuth');
+const adminChatRoute = require('./adminChat');
 
-// Serve dashboard UI
+// --- Public routes (no auth) ---
+
+// Login page
+router.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'public', 'login.html'));
+});
+
+// Login API
+router.post('/login', adminLogin);
+
+// Auth check
+router.get('/auth-check', adminCheck);
+
+// PWA manifest
+router.get('/manifest.json', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'public', 'manifest.json'));
+});
+
+// --- Protected routes (require auth) ---
+router.use(adminAuth);
+
+// Landing page
 router.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'public', 'index.html'));
+});
+
+// Dashboard
+router.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'public', 'dashboard.html'));
 });
+
+// Chat admin UI
+router.get('/chat', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'public', 'chat.html'));
+});
+
+// Chat API routes (under /admin/api/chat to avoid conflict with /admin/chat page)
+router.use('/api/chat', adminChatRoute);
 
 // API: Get generations list (paginated)
 router.get('/api/generations', (req, res) => {

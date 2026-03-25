@@ -46,6 +46,32 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_generations_status ON generations(status);
 `);
 
+// Chat tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    status TEXT DEFAULT 'open',
+    unread_admin INTEGER DEFAULT 0,
+    unread_user INTEGER DEFAULT 0,
+    device_info TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL,
+    sender TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_conversations_status ON conversations(status);
+`);
+
 // Migration: add device_id column if it doesn't exist
 try {
   db.prepare(`SELECT device_id FROM generations LIMIT 1`).get();
@@ -173,6 +199,71 @@ function getStats() {
   };
 }
 
+// ─── Chat helpers ───
+
+function getOrCreateConversation(deviceId, deviceInfo) {
+  let conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(deviceId);
+  if (!conv) {
+    db.prepare(`INSERT INTO conversations (id, device_info) VALUES (?, ?)`)
+      .run(deviceId, JSON.stringify(deviceInfo || {}));
+    conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(deviceId);
+  } else if (deviceInfo && Object.keys(deviceInfo).length > 0) {
+    db.prepare('UPDATE conversations SET device_info = ? WHERE id = ?')
+      .run(JSON.stringify(deviceInfo), deviceId);
+  }
+  return conv;
+}
+
+function addMessage(conversationId, sender, content) {
+  const stmt = db.prepare(`
+    INSERT INTO messages (conversation_id, sender, content) VALUES (?, ?, ?)
+  `);
+  const result = stmt.run(conversationId, sender, content);
+  // Update conversation
+  const unreadCol = sender === 'user' ? 'unread_admin' : 'unread_user';
+  db.prepare(`UPDATE conversations SET ${unreadCol} = ${unreadCol} + 1, updated_at = datetime('now'), status = 'open' WHERE id = ?`)
+    .run(conversationId);
+  return result.lastInsertRowid;
+}
+
+function getMessages(conversationId, sinceId) {
+  if (sinceId) {
+    return db.prepare('SELECT * FROM messages WHERE conversation_id = ? AND id > ? ORDER BY id ASC')
+      .all(conversationId, sinceId);
+  }
+  return db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY id ASC')
+    .all(conversationId);
+}
+
+function getConversationStatus(deviceId) {
+  const conv = db.prepare('SELECT unread_user, status FROM conversations WHERE id = ?').get(deviceId);
+  return conv || null;
+}
+
+function markReadByUser(deviceId) {
+  db.prepare('UPDATE conversations SET unread_user = 0 WHERE id = ?').run(deviceId);
+}
+
+function markReadByAdmin(conversationId) {
+  db.prepare('UPDATE conversations SET unread_admin = 0 WHERE id = ?').run(conversationId);
+}
+
+function getAllConversations() {
+  return db.prepare(`
+    SELECT c.*, 
+      (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
+      (SELECT sender FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_sender,
+      (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) as message_count
+    FROM conversations c
+    ORDER BY c.updated_at DESC
+  `).all();
+}
+
+function setConversationStatus(conversationId, status) {
+  db.prepare("UPDATE conversations SET status = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(status, conversationId);
+}
+
 module.exports = {
   createGeneration,
   completeGeneration,
@@ -181,4 +272,13 @@ module.exports = {
   getGenerationsCount,
   getTopUsers,
   getStats,
+  // Chat
+  getOrCreateConversation,
+  addMessage,
+  getMessages,
+  getConversationStatus,
+  markReadByUser,
+  markReadByAdmin,
+  getAllConversations,
+  setConversationStatus,
 };
