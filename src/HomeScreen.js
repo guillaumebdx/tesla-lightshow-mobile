@@ -226,6 +226,9 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
             <Text style={styles.aboutText}>
               {t('settings.aboutText2')}
             </Text>
+            <Text style={styles.aboutDisclaimer}>
+              {t('settings.disclaimer')}
+            </Text>
             <TouchableOpacity
               style={styles.aboutMailBtn}
               onPress={() => Linking.openURL('mailto:guillaumeharari@hotmail.com?subject=Light%20Studio%20-%20Suggestion')}
@@ -524,6 +527,16 @@ const styles = StyleSheet.create({
   aboutBold: {
     fontWeight: '700',
     color: '#ffffff',
+  },
+  aboutDisclaimer: {
+    color: '#8888aa',
+    fontSize: 12,
+    lineHeight: 18,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 16,
+    paddingHorizontal: 8,
   },
   aboutMailBtn: {
     flexDirection: 'row',
