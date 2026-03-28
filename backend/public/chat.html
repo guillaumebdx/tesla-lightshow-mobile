@@ -20,6 +20,11 @@
     .sidebar-header a { color: #8888aa; text-decoration: none; font-size: 20px; }
     .sidebar-header h2 { font-size: 16px; font-weight: 600; flex: 1; }
     .sidebar-header .count { color: #6666aa; font-size: 12px; }
+    .notif-btn { background: none; border: 1px solid #2a2a4a; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 16px; position: relative; transition: border-color 0.2s; }
+    .notif-btn:hover { border-color: #e94560; }
+    .notif-btn.active { border-color: #44c864; }
+    .notif-btn .dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #44c864; display: none; }
+    .notif-btn.active .dot { display: block; }
 
     /* Conversation list */
     .conv-list { flex: 1; overflow-y: auto; }
@@ -88,6 +93,7 @@
         <a href="/admin/">←</a>
         <h2>Support Chat</h2>
         <span class="count" id="convCount"></span>
+        <button class="notif-btn" id="notifBtn" title="Enable notifications">🔔<span class="dot"></span></button>
       </div>
       <div class="conv-list" id="convList"></div>
     </div>
@@ -367,12 +373,105 @@
       return isToday ? time : d.toLocaleDateString([], { day: '2-digit', month: '2-digit' }) + ' ' + time;
     }
 
+    // --- Push Notifications ---
+    const notifBtn = document.getElementById('notifBtn');
+    let pushSubscription = null;
+    let swRegistration = null;
+
+    async function initServiceWorker() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        notifBtn.style.display = 'none';
+        return;
+      }
+      try {
+        swRegistration = await navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' });
+        // Check existing subscription
+        pushSubscription = await swRegistration.pushManager.getSubscription();
+        updateNotifBtn();
+      } catch (e) {
+        console.error('[SW] Registration failed:', e);
+        notifBtn.style.display = 'none';
+      }
+    }
+
+    function updateNotifBtn() {
+      if (pushSubscription) {
+        notifBtn.classList.add('active');
+        notifBtn.title = 'Notifications enabled (tap to disable)';
+      } else {
+        notifBtn.classList.remove('active');
+        notifBtn.title = 'Enable notifications';
+      }
+    }
+
+    notifBtn.addEventListener('click', async () => {
+      if (!swRegistration) return;
+
+      if (pushSubscription) {
+        // Unsubscribe
+        try {
+          const endpoint = pushSubscription.endpoint;
+          await pushSubscription.unsubscribe();
+          pushSubscription = null;
+          await api('/admin/api/push/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint }),
+          });
+        } catch (e) {
+          console.error('[Push] Unsubscribe error:', e);
+        }
+      } else {
+        // Subscribe
+        try {
+          const keyData = await api('/admin/api/push/vapid-key');
+          if (!keyData?.publicKey) { alert('Push not configured on server'); return; }
+
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') { alert('Notification permission denied'); return; }
+
+          const applicationServerKey = urlBase64ToUint8Array(keyData.publicKey);
+          pushSubscription = await swRegistration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey,
+          });
+
+          await api('/admin/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription: pushSubscription.toJSON() }),
+          });
+        } catch (e) {
+          console.error('[Push] Subscribe error:', e);
+          alert('Failed to enable notifications: ' + e.message);
+        }
+      }
+      updateNotifBtn();
+    });
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+      return outputArray;
+    }
+
+    // Clear badge when page is visible
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && navigator.clearAppBadge) {
+        navigator.clearAppBadge();
+      }
+    });
+
     // --- Init ---
     (async () => {
       const auth = await api('/admin/auth-check');
       if (!auth?.authenticated) { window.location.href = '/admin/login'; return; }
       await loadConversations();
       startConversationPolling();
+      await initServiceWorker();
     })();
   </script>
 </body>

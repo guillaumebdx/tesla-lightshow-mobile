@@ -7,6 +7,7 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { initFirebaseAdmin, verifyAppCheck } = require('./middleware/appCheck');
+const { initPush } = require('./services/pushService');
 const generateShowRoute = require('./routes/generateShow');
 const adminRoute = require('./routes/admin');
 const chatRoute = require('./routes/chat');
@@ -17,6 +18,9 @@ const PORT = process.env.PORT || 3001;
 
 // Initialize Firebase Admin SDK
 initFirebaseAdmin();
+
+// Initialize Web Push
+initPush();
 
 // Middleware
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));

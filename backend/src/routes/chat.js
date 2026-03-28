@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { getOrCreateConversation, addMessage, getMessages, getConversationStatus, markReadByUser } = require('../services/database');
+const { getOrCreateConversation, addMessage, getMessages, getConversationStatus, markReadByUser, getAllPushSubscriptions, removePushSubscription } = require('../services/database');
+const { sendPush } = require('../services/pushService');
 
 // POST /api/chat/messages — User sends a message
 router.post('/messages', (req, res) => {
@@ -17,6 +18,27 @@ router.post('/messages', (req, res) => {
 
     const msgId = addMessage(deviceId, 'user', content.trim());
     res.json({ ok: true, messageId: msgId });
+
+    // Send push notification to all admin subscribers (async, don't block response)
+    setImmediate(async () => {
+      try {
+        const subs = getAllPushSubscriptions();
+        if (subs.length === 0) return;
+        const shortId = deviceId.length > 12 ? deviceId.slice(0, 12) + '…' : deviceId;
+        const payload = {
+          title: '💬 New support message',
+          body: content.trim().slice(0, 120),
+          badge: 1,
+          data: { url: '/admin/chat', conversationId: deviceId },
+        };
+        for (const sub of subs) {
+          const ok = await sendPush(sub, payload);
+          if (!ok) removePushSubscription(sub.endpoint);
+        }
+      } catch (e) {
+        console.error('[Chat] Push notify error:', e.message);
+      }
+    });
   } catch (e) {
     console.error('[Chat] Send error:', e.message);
     res.status(500).json({ error: 'Failed to send message' });

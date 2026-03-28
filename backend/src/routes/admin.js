@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
-const { getGenerations, getGenerationsCount, getTopUsers, getStats } = require('../services/database');
+const { getGenerations, getGenerationsCount, getTopUsers, getStats, savePushSubscription, removePushSubscription } = require('../services/database');
+const { getVapidPublicKey } = require('../services/pushService');
 const { addClient, getRecentLogs } = require('../services/logBroadcaster');
 const { adminAuth, adminLogin, adminCheck } = require('../middleware/adminAuth');
 const adminChatRoute = require('./adminChat');
@@ -22,6 +23,13 @@ router.get('/auth-check', adminCheck);
 // PWA manifest
 router.get('/manifest.json', (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'public', 'manifest.json'));
+});
+
+// Service worker (must be served at /admin/ scope)
+router.get('/sw.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Service-Worker-Allowed', '/admin/');
+  res.sendFile(path.join(__dirname, '..', '..', 'public', 'sw.js'));
 });
 
 // --- Protected routes (require auth) ---
@@ -72,6 +80,41 @@ router.get('/api/logs', (req, res) => {
   const count = Math.min(parseInt(req.query.count) || 100, 500);
   const logs = getRecentLogs(count);
   res.json({ logs });
+});
+
+// Push: Get VAPID public key (no auth needed for service worker registration)
+router.get('/api/push/vapid-key', (req, res) => {
+  const key = getVapidPublicKey();
+  if (!key) return res.status(404).json({ error: 'Push not configured' });
+  res.json({ publicKey: key });
+});
+
+// Push: Save subscription
+router.post('/api/push/subscribe', (req, res) => {
+  try {
+    const { subscription } = req.body;
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      return res.status(400).json({ error: 'Invalid subscription' });
+    }
+    savePushSubscription(subscription);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[Push] Subscribe error:', e.message);
+    res.status(500).json({ error: 'Failed to save subscription' });
+  }
+});
+
+// Push: Remove subscription
+router.post('/api/push/unsubscribe', (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (!endpoint) return res.status(400).json({ error: 'Missing endpoint' });
+    removePushSubscription(endpoint);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[Push] Unsubscribe error:', e.message);
+    res.status(500).json({ error: 'Failed to remove subscription' });
+  }
 });
 
 // SSE: Stream logs in real-time
