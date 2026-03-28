@@ -110,4 +110,43 @@ router.post('/conversations/:id/generate', async (req, res) => {
   }
 });
 
+// POST /admin/chat/translate — Translate text to target language via LLM
+router.post('/translate', async (req, res) => {
+  try {
+    const model = process.env.OPENAI_CHAT_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'OpenAI API key not configured' });
+
+    const { text, targetLang } = req.body;
+    if (!text || !targetLang) return res.status(400).json({ error: 'Missing text or targetLang' });
+
+    const langNames = { en: 'English', de: 'German', es: 'Spanish', fr: 'French' };
+    const langName = langNames[targetLang] || targetLang;
+
+    const openai = new OpenAI({ apiKey });
+    const completion = await openai.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a translator. Translate the user's message to ${langName}. Rules:
+- Use simple, clear words that anyone can understand.
+- Keep the same tone and style (casual, friendly, technical — match the original).
+- Do NOT add or remove information. Just translate.
+- Output ONLY the translated text, nothing else.`,
+        },
+        { role: 'user', content: text },
+      ],
+      max_tokens: 500,
+      temperature: 0.3,
+    });
+
+    const translation = completion.choices?.[0]?.message?.content?.trim() || '';
+    res.json({ translation, tokens: completion.usage?.total_tokens || 0 });
+  } catch (e) {
+    console.error('[AdminChat] Translate error:', e.message);
+    res.status(500).json({ error: 'Translation failed: ' + e.message });
+  }
+});
+
 module.exports = router;

@@ -14,6 +14,7 @@
     .app { display: flex; height: 100vh; }
     .sidebar { width: 320px; background: #0f0f23; border-right: 1px solid #2a2a4a; display: flex; flex-direction: column; flex-shrink: 0; }
     .main { flex: 1; display: flex; flex-direction: column; }
+    .main.hidden { display: none; }
 
     /* Sidebar header */
     .sidebar-header { padding: 16px; border-bottom: 1px solid #2a2a4a; display: flex; align-items: center; gap: 10px; }
@@ -74,14 +75,19 @@
     .ai-btn:hover { background: rgba(124, 58, 237, 0.2); }
     .ai-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .ai-hint { font-size: 11px; color: #555; font-style: italic; }
+    .translate-row { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+    .translate-btn { padding: 4px 10px; border-radius: 8px; border: 1px solid #2a2a4a; background: #12122a; cursor: pointer; font-size: 15px; transition: border-color 0.2s, transform 0.1s; }
+    .translate-btn:hover { border-color: #44aaff; transform: scale(1.1); }
+    .translate-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .translate-label { font-size: 11px; color: #555; }
 
     /* Mobile responsive */
     @media (max-width: 700px) {
       .sidebar { width: 100%; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; }
       .main { width: 100%; }
       .sidebar.hidden { display: none; }
-      .main.hidden { display: none; }
       .main-header .back-btn { display: inline; }
+      #emptyPanel { display: none !important; }
     }
   </style>
 </head>
@@ -117,6 +123,12 @@
         <div class="ai-row">
           <button class="ai-btn" id="aiBtn">✨ Generate draft</button>
           <span class="ai-hint" id="aiHint"></span>
+        </div>
+        <div class="translate-row">
+          <span class="translate-label">Translate:</span>
+          <button class="translate-btn" data-lang="en" title="Translate to English">🇺🇸</button>
+          <button class="translate-btn" data-lang="de" title="Translate to German">🇩🇪</button>
+          <button class="translate-btn" data-lang="es" title="Translate to Spanish">🇪🇸</button>
         </div>
       </div>
     </div>
@@ -188,11 +200,9 @@
 
       if (isMobile) {
         document.getElementById('sidebar').classList.add('hidden');
-        document.getElementById('mainPanel').classList.remove('hidden');
-      } else {
-        document.getElementById('emptyPanel').style.display = 'none';
-        document.getElementById('mainPanel').classList.remove('hidden');
       }
+      document.getElementById('emptyPanel').classList.add('hidden');
+      document.getElementById('mainPanel').classList.remove('hidden');
 
       const conv = conversations.find(c => c.id === id);
       const info = conv ? tryParseJSON(conv.device_info) : {};
@@ -315,6 +325,32 @@
       aiBtn.disabled = false;
     });
 
+    // --- Translate ---
+    document.querySelectorAll('.translate-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const text = replyInput.value.trim();
+        if (!text) return;
+        const lang = btn.dataset.lang;
+        document.querySelectorAll('.translate-btn').forEach(b => b.disabled = true);
+        try {
+          const data = await api('/admin/api/chat/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, targetLang: lang }),
+          });
+          if (data?.translation) {
+            replyInput.value = data.translation;
+            replyInput.style.height = 'auto';
+            replyInput.style.height = Math.min(replyInput.scrollHeight, 120) + 'px';
+            sendBtn.disabled = false;
+          }
+        } catch (e) {
+          console.error('[Translate] Error:', e);
+        }
+        document.querySelectorAll('.translate-btn').forEach(b => b.disabled = false);
+      });
+    });
+
     // --- Status toggle ---
     const statusToggle = document.getElementById('statusToggle');
     statusToggle.addEventListener('click', async () => {
@@ -341,6 +377,7 @@
       stopMessagePolling();
       document.getElementById('sidebar').classList.remove('hidden');
       document.getElementById('mainPanel').classList.add('hidden');
+      if (!isMobile) document.getElementById('emptyPanel').classList.remove('hidden');
     });
 
     // --- Polling ---
