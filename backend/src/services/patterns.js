@@ -129,22 +129,22 @@ function wave(startMs, params = {}) {
 }
 
 /**
- * "pingPong" — Left side blinks then right side blinks, creating movement.
- * Params: { durationMs=3000, blinkSpeed=1 }
- * Great for: rhythmic verses and choruses. ~10 events.
+ * "pingPong" — Left/right sides alternate blinking back and forth.
+ * Params: { durationMs=4000, blinkSpeed=1, cycles=4 }
+ * Great for: rhythmic verses and choruses. Looks like lights bouncing L↔R.
  */
 function pingPong(startMs, params = {}) {
-  const dur = params.durationMs || 3000;
+  const dur = params.durationMs || 4000;
   const speed = params.blinkSpeed ?? 1;
-  const half = dur / 2;
+  const cycles = params.cycles || Math.max(2, Math.round(dur / 800));
+  const cycleMs = dur / cycles;
   const events = [];
-  // First half: left side blinks
-  for (const part of LEFT_LIGHTS) {
-    events.push(evt(part, startMs, startMs + half, { effect: 'blink', blinkSpeed: speed }));
-  }
-  // Second half: right side blinks
-  for (const part of RIGHT_LIGHTS) {
-    events.push(evt(part, startMs + half, startMs + dur, { effect: 'blink', blinkSpeed: speed }));
+  for (let i = 0; i < cycles; i++) {
+    const t = startMs + i * cycleMs;
+    const side = i % 2 === 0 ? LEFT_LIGHTS : RIGHT_LIGHTS;
+    for (const part of side) {
+      events.push(evt(part, t, t + cycleMs, { effect: 'blink', blinkSpeed: speed }));
+    }
   }
   return events;
 }
@@ -332,6 +332,25 @@ function flapSequence(startMs, params = {}) {
 // REGISTRY
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * "headlightPingPong" — Only headlights alternate L/R with blink.
+ * Params: { durationMs=4000, blinkSpeed=1, cycles=4 }
+ * Great for: clean L↔R headlight alternation. Minimal, impactful.
+ */
+function headlightPingPong(startMs, params = {}) {
+  const dur = params.durationMs || 4000;
+  const speed = params.blinkSpeed ?? 1;
+  const cycles = params.cycles || Math.max(2, Math.round(dur / 600));
+  const cycleMs = dur / cycles;
+  const events = [];
+  for (let i = 0; i < cycles; i++) {
+    const t = startMs + i * cycleMs;
+    const part = i % 2 === 0 ? 'light_left_front' : 'light_right_front';
+    events.push(evt(part, t, t + cycleMs, { effect: 'blink', blinkSpeed: speed }));
+  }
+  return events;
+}
+
 const PATTERNS = {
   breathing,
   pulse,
@@ -339,6 +358,7 @@ const PATTERNS = {
   strobe,
   wave,
   pingPong,
+  headlightPingPong,
   chase,
   escalation,
   cascade,
@@ -420,7 +440,8 @@ function getPatternCatalog() {
 - **fullPulse** — All 13 lights short burst. Params: {durationMs:300}. 13 events. Good for: strong beats, accents.
 - **strobe** — All 13 lights blink fast. Params: {durationMs:1000, blinkSpeed:2}. 13 events. Good for: peaks, climax.
 - **wave** — Sequential sweep front→back. Params: {stagger:200, holdMs:600, reverse:false}. 10 events. Good for: transitions.
-- **pingPong** — Left side blinks then right side blinks. Params: {durationMs:3000, blinkSpeed:1}. 10 events. Good for: rhythmic sections.
+- **pingPong** — Left/right sides alternate blinking back and forth (true L↔R bounce). Params: {durationMs:4000, blinkSpeed:1, cycles:4}. Good for: rhythmic sections. USE THIS A LOT with durationMs=3000-6000.
+- **headlightPingPong** — Only headlights alternate L/R blink (clean, minimal). Params: {durationMs:4000, blinkSpeed:1}. Good for: verses, moderate energy. USE THIS for clean headlight L↔R effect.
 - **chase** — Single light runs around the car. Params: {stepMs:150, holdMs:300, loops:1}. 11 events. Good for: buildups.
 - **escalation** — Blink speed 0→1→2 over 3 phases. Params: {phaseDurationMs:1000}. 18 events. Good for: buildups before drops.
 - **cascade** — Ultra-fast sweep all 13 parts. Params: {stagger:80}. 13 events. Good for: climax.

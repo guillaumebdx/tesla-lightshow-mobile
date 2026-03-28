@@ -236,7 +236,7 @@ export default function SupportChat({ onClose }) {
       )}
 
       {/* Input */}
-      <View style={[styles.inputArea, { paddingBottom: Platform.OS === 'android' ? 12 : Math.max(insets.bottom, 12) }]}>
+      <View style={[styles.inputArea, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <TextInput
           style={styles.textInput}
           value={input}

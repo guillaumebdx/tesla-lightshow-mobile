@@ -417,13 +417,14 @@ function buildUserPrompt({ waveform, durationMs, mood, trackTitle }) {
     ? rises.slice(0, 15).map(r => `${r.ms}ms`).join(', ')
     : 'no sharp rises';
 
-  // Target: ~0.6 pattern placement per beat (each pattern expands to ~10-18 events)
-  const targetPlacements = Math.min(150, Math.max(40, Math.round(beatGrid.length * 0.6)));
+  // Target: ~0.3 pattern placement per beat — prefer fewer sustained patterns over many short ones
+  const targetPlacements = Math.min(60, Math.max(25, Math.round(beatGrid.length * 0.3)));
 
   const prompt = `Create a choreography plan for "${trackTitle}" (${durationSec}s = ${durationMs}ms, mood: ${mood || 'auto'}).
 
-**Target: ${targetPlacements}+ pattern placements spread across the FULL ${durationMs}ms.**
-For sustained patterns (pingPong, blinkerRhythm, frontBack, symmetricPulse), use durationMs=2000-5000. Use blinkSpeed=2 for high energy, 1 for medium, 0 for low.
+**Target: ~${targetPlacements} pattern placements total (NOT more). Prefer FEWER sustained patterns (durationMs=3000-6000) over many short ones.**
+Favor pingPong, headlightPingPong, blinkerRhythm, symmetricPulse with long durationMs. Use "pulse" sparingly (only for single-beat accents).
+Use blinkSpeed=2 for high energy, 1 for medium, 0 for low.
 Remember: startMs is in MILLISECONDS. Last placements should be near ${durationMs - 3000}ms.
 
 # SONG STRUCTURE (fill EVERY section with patterns)
@@ -446,10 +447,11 @@ ${riseLine}
 
 # KEY REMINDERS
 - COVER THE FULL TRACK from 0ms to ${durationMs}ms. Every section above must have patterns.
-- Place "breathing" patterns to fill ALL quiet gaps — the car must NEVER be dark.
-- Layer patterns: a "breathing" base + "blinkerRhythm" on top = rich look. Do this often.
+- Use "breathing" (durationMs=5000-8000) to fill ALL quiet gaps — the car must NEVER be dark.
+- PREFER sustained blink patterns: pingPong, headlightPingPong (durationMs=3000-6000) over individual pulse events.
+- Layer patterns: "breathing" base + "pingPong" on top = rich look. Do this often.
 - Each section needs a different pattern mix.
-- For sustained patterns, set durationMs=2000-5000 to cover multiple beats per placement.
+- Keep total placements around ${targetPlacements}. Quality over quantity.
 - Place closures: trunkSequence in first half, windowsDance at chorus, flapSequence at breakdown, retroRoundtrip at peaks.`;
 
   return {

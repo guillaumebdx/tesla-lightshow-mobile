@@ -395,7 +395,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       if (data.cursorOffsetMs) setCursorOffsetMs(data.cursorOffsetMs);
       if (data.playbackSpeed) setPlaybackSpeed(data.playbackSpeed);
       if (data.timelineScale) setTimelineScale(data.timelineScale);
-      if (data.brightMode) setBrightMode(data.brightMode);
+      if (data.brightMode !== undefined) setBrightMode(data.brightMode);
       // Wait for AudioTimeline to be ready, then load track + events
       const waitForTimeline = setInterval(() => {
         if (audioTimelineRef.current) {
@@ -493,8 +493,8 @@ export default function ModelViewer({ showId, onGoHome }) {
   const spotLightsRef = useRef({}); // { light_left_front: SpotLight, ... }
   const dotSpritesRef = useRef([]); // white dot sprites on interactive parts
   const sceneLightsRef = useRef([]); // all scene lights for brightness toggle
-  const [brightMode, _setBrightMode] = useState(false);
-  const brightModeRef = useRef(false);
+  const [brightMode, _setBrightMode] = useState(true);
+  const brightModeRef = useRef(true);
   const setBrightMode = useCallback((v) => { _setBrightMode(v); brightModeRef.current = v; }, []);
   const isPlayingRef = useRef(false);
   const retroNodesRef = useRef({}); // { retro_left: { mesh, geoCenter, initMatrix }, ... }
@@ -1907,6 +1907,7 @@ export default function ModelViewer({ showId, onGoHome }) {
             >
               <Ionicons name="sparkles" size={20} color="#a855f7" />
               <Text style={[styles.menuItemText, { color: '#a855f7' }]}>{t('editor.aiGenerate')}</Text>
+              <View style={styles.betaBadge}><Text style={styles.betaBadgeText}>Beta</Text></View>
             </TouchableOpacity>
 
             <View style={styles.menuDivider} />
@@ -2750,6 +2751,18 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
+  },
+  betaBadge: {
+    backgroundColor: '#a855f7',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  betaBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   chatBadge: {
     backgroundColor: '#e94560',

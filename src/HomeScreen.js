@@ -42,9 +42,10 @@ function getTrackName(item) {
 }
 
 const CAR_MODEL_LABELS = {
-  model_3: 'Compact',
-  model_s: 'Sport',
-  model_x: 'SUV',
+  model_3: 'Model 3/Y',
+  model_s: 'Model S',
+  model_x: 'Model X',
+  cybertruck: 'Cybertruck',
 };
 
 export default function HomeScreen({ onNewShow, onOpenShow }) {

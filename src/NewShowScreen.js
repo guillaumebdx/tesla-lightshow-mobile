@@ -15,9 +15,10 @@ const CARD_WIDTH = SCREEN_WIDTH * 0.7;
 const CARD_MARGIN = 12;
 
 const CAR_MODELS = [
-  { id: 'model_s', label: 'Sport', available: false },
-  { id: 'model_3', label: 'Compact', available: true },
-  { id: 'model_x', label: 'SUV', available: false },
+  { id: 'model_s', label: 'Model S', available: false },
+  { id: 'model_3', label: 'Model 3/Y', available: true },
+  { id: 'model_x', label: 'Model X', available: false },
+  { id: 'cybertruck', label: 'Cybertruck', available: false },
 ];
 
 export default function NewShowScreen({ onBack, onCreated }) {
