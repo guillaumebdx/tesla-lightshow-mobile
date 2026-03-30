@@ -35,13 +35,17 @@
     "namePlaceholder": "My Light Show",
     "model": "Model",
     "comingSoon": "Coming soon",
-    "model3Compat": "Compatible with all sedans that support Light Show.",
+    "model3Compat": "Compatible with Tesla Model 3 and Model Y.",
     "model3Hint": "More models coming soon.",
     "create": "Create",
     "unavailable": "Unavailable",
-    "voteBtn": "Vote for this model!",
+    "voteBtn": "Vote for this model",
     "voteBtnDone": "Vote recorded ✓",
-    "voteHint": "Help us prioritize the next model"
+    "voteHint": "Vote to make this the next supported model",
+    "voteConfirmTitle": "Cast your vote",
+    "voteConfirmMessage": "Would you like to vote for this model to be supported next? Your vote helps us decide what to build.",
+    "voteConfirmOk": "Yes, vote",
+    "voteConfirmCancel": "Cancel"
   },
   "editor": {
     "loadingModel": "Loading model...",

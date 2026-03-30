@@ -258,11 +258,13 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
 
   const selectTrack = async (track, demoEvents, { keepEvents = false } = {}) => {
     setModalVisible(false);
-    trackEvent('music_selected', {
-      trackTitle: track.title || 'Unknown',
-      isBuiltin: !!track.file,
-      withDemo: !!(demoEvents && demoEvents.length > 0),
-    });
+    if (!keepEvents) {
+      trackEvent('music_selected', {
+        trackTitle: track.title || 'Unknown',
+        isBuiltin: !!track.file,
+        withDemo: !!(demoEvents && demoEvents.length > 0),
+      });
+    }
 
     if (soundRef.current) {
       await soundRef.current.unloadAsync();

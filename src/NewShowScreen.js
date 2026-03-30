@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput, Dimensions, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, TextInput, Dimensions, ScrollView, Alert,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { GLView } from 'expo-gl';
@@ -19,6 +19,7 @@ const CARD_MARGIN = 12;
 const CAR_MODELS = [
   { id: 'model_s', label: 'Model S', available: false },
   { id: 'model_3', label: 'Model 3/Y', available: true },
+  { id: 'model_y_juniper', label: 'Model Y Juniper', available: false },
   { id: 'model_x', label: 'Model X', available: false },
   { id: 'cybertruck', label: 'Cybertruck', available: false },
 ];
@@ -48,9 +49,21 @@ export default function NewShowScreen({ onBack, onCreated }) {
     fetchVotes().then(setVotedModels);
   }, []);
 
-  const handleVote = async (carModel) => {
-    const isNew = await voteForModel(carModel);
-    setVotedModels(prev => prev.includes(carModel) ? prev : [...prev, carModel]);
+  const handleVote = (carModel) => {
+    Alert.alert(
+      t('newShow.voteConfirmTitle'),
+      t('newShow.voteConfirmMessage'),
+      [
+        { text: t('newShow.voteConfirmCancel'), style: 'cancel' },
+        {
+          text: t('newShow.voteConfirmOk'),
+          onPress: async () => {
+            await voteForModel(carModel);
+            setVotedModels(prev => prev.includes(carModel) ? prev : [...prev, carModel]);
+          },
+        },
+      ]
+    );
   };
 
   // Scroll to default model on mount
@@ -281,17 +294,21 @@ export default function NewShowScreen({ onBack, onCreated }) {
                 )}
               </View>
             ) : (
-              <View style={styles.previewContainer}>
-                <Text style={styles.comingSoon}>{t('newShow.comingSoon')}</Text>
-                {votedModels.includes(car.id) ? (
-                  <Text style={styles.voteDone}>{t('newShow.voteBtnDone')}</Text>
-                ) : (
-                  <TouchableOpacity style={styles.voteBtn} onPress={() => handleVote(car.id)}>
-                    <Text style={styles.voteBtnText}>{t('newShow.voteBtn')}</Text>
-                  </TouchableOpacity>
-                )}
-                <Text style={styles.voteHint}>{t('newShow.voteHint')}</Text>
-              </View>
+              <>
+                <View style={styles.previewContainer}>
+                  <Text style={styles.comingSoon}>{t('newShow.comingSoon')}</Text>
+                </View>
+                <View style={styles.voteContainer}>
+                  {votedModels.includes(car.id) ? (
+                    <Text style={styles.voteDone}>{t('newShow.voteBtnDone')}</Text>
+                  ) : (
+                    <TouchableOpacity style={styles.voteBtn} onPress={() => handleVote(car.id)}>
+                      <Text style={styles.voteBtnText}>{t('newShow.voteBtn')}</Text>
+                    </TouchableOpacity>
+                  )}
+                  <Text style={styles.voteHint}>{t('newShow.voteHint')}</Text>
+                </View>
+              </>
             )}
             {idx === MODEL_3_INDEX && (
               <View style={styles.modelInfoBox}>
@@ -408,32 +425,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontStyle: 'italic',
   },
+  voteContainer: {
+    width: '100%',
+    marginTop: 14,
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
   voteBtn: {
-    marginTop: 12,
-    backgroundColor: 'rgba(233, 69, 96, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(233, 69, 96, 0.4)',
-    borderRadius: 10,
-    paddingVertical: 8,
+    width: '100%',
+    backgroundColor: '#e94560',
+    borderRadius: 12,
+    paddingVertical: 13,
     paddingHorizontal: 16,
+    alignItems: 'center',
   },
   voteBtnText: {
-    color: '#e94560',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
     textAlign: 'center',
   },
   voteDone: {
-    marginTop: 12,
     color: '#00b894',
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
   },
   voteHint: {
-    marginTop: 6,
-    color: '#444466',
-    fontSize: 11,
+    marginTop: 8,
+    color: '#aaaacc',
+    fontSize: 13,
     textAlign: 'center',
+    lineHeight: 18,
   },
   modelInfoBox: {
     marginTop: 10,

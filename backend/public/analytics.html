@@ -360,8 +360,8 @@
         container.innerHTML = '<div class="empty-state">No votes yet</div>';
         return;
       }
-      const labels = { model_s: 'Model S', model_x: 'Model X', cybertruck: 'Cybertruck' };
-      const emojis = { model_s: '🚗', model_x: '🚙', cybertruck: '🛻' };
+      const labels = { model_s: 'Model S', model_y_juniper: 'Model Y Juniper', model_x: 'Model X', cybertruck: 'Cybertruck' };
+      const emojis = { model_s: '🚗', model_y_juniper: '🚗', model_x: '🚙', cybertruck: '🛻' };
       const maxVotes = Math.max(...data.votes.map(v => v.votes));
       container.innerHTML = '<div class="day-grid">' + data.votes.map(v => `
         <div class="day-card">

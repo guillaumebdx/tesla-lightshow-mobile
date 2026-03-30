@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { voteForModel, getDeviceVotes } = require('../services/database');
 
-const VALID_MODELS = ['model_s', 'model_x', 'cybertruck'];
+const VALID_MODELS = ['model_s', 'model_y_juniper', 'model_x', 'cybertruck'];
 
 // POST /api/votes — Vote for a car model
 router.post('/', (req, res) => {

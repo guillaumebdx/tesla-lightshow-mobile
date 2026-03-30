@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import SupportChat from './SupportChat';
 import { hasEverSentMessage, fetchChatStatus } from './chatService';
 import FlashMessage from './FlashMessage';
+import { trackEvent } from './analyticsService';
 
 const LANGUAGES = [
   { code: 'fr', flag: '🇫🇷', label: 'Français' },
@@ -124,6 +125,7 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
   const handleCreateDemo = async () => {
     try {
       const show = await createDemoShow('star_wars_battle', 'Star Wars Demo');
+      trackEvent('demo_show_created', { trackId: 'star_wars_battle' });
       setSettingsVisible(false);
       onOpenShow(show.id);
     } catch (e) {

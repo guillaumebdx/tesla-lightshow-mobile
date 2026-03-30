@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { insertAnalyticsEvents } = require('../services/database');
 
-const VALID_EVENT_TYPES = ['show_created', 'fseq_exported', 'music_selected'];
+const VALID_EVENT_TYPES = ['show_created', 'fseq_exported', 'music_selected', 'demo_show_created'];
 
 // POST /api/analytics — Batch insert analytics events
 router.post('/', (req, res) => {

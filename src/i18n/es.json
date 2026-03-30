@@ -35,13 +35,17 @@
     "namePlaceholder": "Mi Light Show",
     "model": "Modelo",
     "comingSoon": "Próximamente",
-    "model3Compat": "Compatible con todas las berlinas que soportan Light Show.",
+    "model3Compat": "Compatible con Tesla Model 3 y Model Y.",
     "model3Hint": "Más modelos próximamente.",
     "create": "Crear",
     "unavailable": "No disponible",
-    "voteBtn": "¡Vota por este modelo!",
+    "voteBtn": "Votar por este modelo",
     "voteBtnDone": "Voto registrado ✓",
-    "voteHint": "Ayúdanos a elegir el próximo modelo"
+    "voteHint": "Vota para que este sea el próximo modelo disponible",
+    "voteConfirmTitle": "Confirmar voto",
+    "voteConfirmMessage": "¿Quieres votar para que este modelo sea el próximo en desarrollarse? Tu voto nos ayuda a decidir.",
+    "voteConfirmOk": "Sí, votar",
+    "voteConfirmCancel": "Cancelar"
   },
   "editor": {
     "loadingModel": "Cargando modelo...",
