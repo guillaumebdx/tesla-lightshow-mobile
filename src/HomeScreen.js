@@ -281,10 +281,10 @@ export default function HomeScreen({ onNewShow, onOpenShow }) {
             </Text>
             <TouchableOpacity
               style={styles.aboutMailBtn}
-              onPress={() => Linking.openURL('mailto:guillaumeharari@hotmail.com?subject=Light%20Studio%20-%20Suggestion')}
+              onPress={() => Linking.openURL('mailto:contact@lightshowstud.io?subject=LightShow%20Studio%20-%20Suggestion')}
             >
               <Ionicons name="mail-outline" size={18} color="#44aaff" />
-              <Text style={styles.aboutMailText}>guillaumeharari@hotmail.com</Text>
+              <Text style={styles.aboutMailText}>contact@lightshowstud.io</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.aboutCloseBtn} onPress={() => { setAboutVisible(false); setTimeout(() => setSettingsVisible(true), 300); }}>
               <Text style={styles.aboutCloseBtnText}>{t('settings.close')}</Text>

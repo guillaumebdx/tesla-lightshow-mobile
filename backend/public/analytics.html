@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics — LightShow Studio</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --bg-card: #1a1d27;
+      --bg-card-hover: #222632;
+      --bg-input: #14161e;
+      --border: #2a2e3a;
+      --text: #e4e6ed;
+      --text-muted: #8b8fa3;
+      --accent: #6c5ce7;
+      --accent-light: #a29bfe;
+      --success: #00b894;
+      --warning: #fdcb6e;
+      --danger: #e17055;
+      --info: #74b9ff;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+
+    .header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header h1 { font-size: 20px; font-weight: 700; background: linear-gradient(135deg, var(--accent-light), var(--accent)); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-badge { background: var(--accent); color: white; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+    .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; transition: border-color 0.2s; }
+    .stat-card:hover { border-color: var(--accent); }
+    .stat-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: 700; }
+    .stat-value.accent { color: var(--accent-light); }
+    .stat-value.success { color: var(--success); }
+    .stat-value.warning { color: var(--warning); }
+    .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+    .panel-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .panel-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .btn { padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-muted); font-family: var(--font); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+    .btn:hover { border-color: var(--accent); color: var(--text); }
+    .btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 12px 16px; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); background: var(--bg-input); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    tr:hover td { background: var(--bg-card-hover); }
+
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-show { background: rgba(108, 92, 231, 0.15); color: var(--accent-light); }
+    .badge-export { background: rgba(0, 184, 148, 0.15); color: var(--success); }
+    .badge-music { background: rgba(253, 203, 110, 0.15); color: var(--warning); }
+
+    .day-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; }
+    .day-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .day-date { font-size: 14px; font-weight: 700; color: var(--accent-light); }
+    .day-total { font-size: 12px; color: var(--text-muted); }
+    .day-breakdown { display: flex; gap: 12px; flex-wrap: wrap; }
+    .day-event { font-size: 12px; color: var(--text-muted); }
+    .day-event strong { color: var(--text); }
+    .day-grid { display: grid; gap: 12px; }
+
+    .pagination { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 16px; }
+    .page-info { font-size: 12px; color: var(--text-muted); }
+
+    select { padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-input); color: var(--text); font-family: var(--font); font-size: 12px; }
+
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 14px; }
+
+    @media (max-width: 768px) {
+      .container { padding: 12px; gap: 16px; }
+      .header { padding: 12px 16px; }
+      .header h1 { font-size: 16px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .stat-card { padding: 14px; }
+      .stat-value { font-size: 22px; }
+      td, th { padding: 8px 10px; font-size: 11px; }
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .stat-card, .panel { animation: fadeIn 0.3s ease; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <a href="/admin/" style="color:var(--text-muted);text-decoration:none;font-size:18px;margin-right:10px;">←</a>
+    <h1>📊 App Analytics</h1>
+    <span class="header-badge">Live</span>
+  </div>
+  <div style="font-size:12px;color:var(--text-muted)" id="lastUpdate"></div>
+</div>
+
+<div class="container">
+  <!-- Stats Overview -->
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card">
+      <div class="stat-label">Total Events</div>
+      <div class="stat-value accent" id="statTotal">—</div>
+      <div class="stat-sub" id="statToday"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Unique Devices</div>
+      <div class="stat-value success" id="statDevices">—</div>
+      <div class="stat-sub">all time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Shows Created</div>
+      <div class="stat-value warning" id="statShows">—</div>
+      <div class="stat-sub" id="statShowsToday"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">FSEQ Exports</div>
+      <div class="stat-value" style="color:var(--success)" id="statExports">—</div>
+      <div class="stat-sub" id="statExportsToday"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Music Selected</div>
+      <div class="stat-value" style="color:var(--info)" id="statMusic">—</div>
+      <div class="stat-sub" id="statMusicToday"></div>
+    </div>
+  </div>
+
+  <!-- Model Votes -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">🗳️ Model Votes</div>
+      <div class="panel-actions">
+        <button class="btn" onclick="loadVotes()">↻ Refresh</button>
+      </div>
+    </div>
+    <div style="padding: 16px;" id="votesContainer">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Daily Summary -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">📅 Daily Breakdown (last 14 days)</div>
+      <div class="panel-actions">
+        <button class="btn" onclick="loadDaily()">↻ Refresh</button>
+      </div>
+    </div>
+    <div style="padding: 16px;" id="dailyContainer">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Events Table -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">🔍 Events</div>
+      <div class="panel-actions">
+        <select id="filterType" onchange="evtPage=0; loadEvents();">
+          <option value="">All types</option>
+          <option value="show_created">show_created</option>
+          <option value="fseq_exported">fseq_exported</option>
+          <option value="music_selected">music_selected</option>
+        </select>
+        <input type="date" id="filterDate" onchange="evtPage=0; loadEvents();" style="padding:6px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-family:var(--font);font-size:12px;">
+        <button class="btn" onclick="document.getElementById('filterDate').value=''; evtPage=0; loadEvents();">Clear date</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Time</th>
+            <th>Device</th>
+            <th>Event</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="eventsTableBody">
+          <tr><td colspan="5" class="empty-state">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <button class="btn" id="evtPrevBtn" onclick="evtPagePrev()" disabled>← Prev</button>
+      <span class="page-info" id="evtPageInfo">Page 1</span>
+      <span class="page-info" id="evtTotalBadge"></span>
+      <button class="btn" id="evtNextBtn" onclick="evtPageNext()">Next →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const PAGE_SIZE = 50;
+  let evtPage = 0;
+  let evtTotal = 0;
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  function shortId(id) { return id?.length > 14 ? id.slice(0, 8) + '…' + id.slice(-4) : (id || '—'); }
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    return new Date(iso + 'Z').toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  }
+  function fmtDay(d) {
+    const dt = new Date(d + 'T00:00:00');
+    const today = new Date(); today.setHours(0,0,0,0);
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+    if (dt.getTime() === today.getTime()) return "Today";
+    if (dt.getTime() === yesterday.getTime()) return "Yesterday";
+    return dt.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  }
+
+  function eventBadge(type) {
+    const map = { show_created: 'badge-show', fseq_exported: 'badge-export', music_selected: 'badge-music' };
+    return `<span class="badge ${map[type] || ''}">${esc(type)}</span>`;
+  }
+
+  function metadataText(meta) {
+    try {
+      const obj = typeof meta === 'string' ? JSON.parse(meta) : meta;
+      const parts = [];
+      if (obj.carModel) parts.push('Car: ' + obj.carModel);
+      if (obj.trackTitle) parts.push(obj.trackTitle);
+      if (obj.isBuiltin !== undefined) parts.push(obj.isBuiltin ? 'Built-in' : 'Imported');
+      if (obj.withDemo) parts.push('+ Demo');
+      return parts.join(' · ') || '—';
+    } catch { return '—'; }
+  }
+
+  // --- Load Stats ---
+  async function loadStats() {
+    try {
+      const res = await fetch('/admin/api/analytics/stats');
+      const s = await res.json();
+      document.getElementById('statTotal').textContent = s.total.toLocaleString();
+      document.getElementById('statToday').textContent = `${s.today} today`;
+      document.getElementById('statDevices').textContent = s.uniqueDevices.toLocaleString();
+
+      const byType = {};
+      s.byType.forEach(r => byType[r.event_type] = r.count);
+      const todayByType = {};
+      s.todayByType.forEach(r => todayByType[r.event_type] = r.count);
+
+      document.getElementById('statShows').textContent = (byType['show_created'] || 0).toLocaleString();
+      document.getElementById('statShowsToday').textContent = `${todayByType['show_created'] || 0} today`;
+      document.getElementById('statExports').textContent = (byType['fseq_exported'] || 0).toLocaleString();
+      document.getElementById('statExportsToday').textContent = `${todayByType['fseq_exported'] || 0} today`;
+      document.getElementById('statMusic').textContent = (byType['music_selected'] || 0).toLocaleString();
+      document.getElementById('statMusicToday').textContent = `${todayByType['music_selected'] || 0} today`;
+
+      document.getElementById('lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    } catch (e) { console.error('Stats error:', e); }
+  }
+
+  // --- Load Daily Summary ---
+  async function loadDaily() {
+    try {
+      const res = await fetch('/admin/api/analytics/daily?days=14');
+      const data = await res.json();
+      const container = document.getElementById('dailyContainer');
+
+      if (!data.summary || data.summary.length === 0) {
+        container.innerHTML = '<div class="empty-state">No data yet</div>';
+        return;
+      }
+
+      // Group by day
+      const days = {};
+      data.summary.forEach(r => {
+        if (!days[r.day]) days[r.day] = { total: 0, events: [] };
+        days[r.day].total += r.count;
+        days[r.day].events.push(r);
+      });
+
+      container.innerHTML = '<div class="day-grid">' + Object.entries(days).map(([day, d]) => `
+        <div class="day-card">
+          <div class="day-header">
+            <span class="day-date">${fmtDay(day)} <span style="color:var(--text-muted);font-weight:400;font-size:12px">${day}</span></span>
+            <span class="day-total">${d.total} events</span>
+          </div>
+          <div class="day-breakdown">
+            ${d.events.map(e => `
+              <div class="day-event">
+                ${eventBadge(e.event_type)}
+                <strong>${e.count}</strong> (${e.unique_devices} devices)
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('') + '</div>';
+    } catch (e) { console.error('Daily error:', e); }
+  }
+
+  // --- Load Events (paginated) ---
+  async function loadEvents() {
+    try {
+      const offset = evtPage * PAGE_SIZE;
+      const type = document.getElementById('filterType').value;
+      const date = document.getElementById('filterDate').value;
+      let url = `/admin/api/analytics/events?limit=${PAGE_SIZE}&offset=${offset}`;
+      if (type) url += `&event_type=${type}`;
+      if (date) url += `&date=${date}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+      evtTotal = data.total || 0;
+      renderEvents(data.events || []);
+    } catch (e) { console.error('Events error:', e); }
+  }
+
+  function renderEvents(events) {
+    const tbody = document.getElementById('eventsTableBody');
+    const totalPages = Math.max(1, Math.ceil(evtTotal / PAGE_SIZE));
+
+    document.getElementById('evtPageInfo').textContent = `Page ${evtPage + 1} / ${totalPages}`;
+    document.getElementById('evtTotalBadge').textContent = `${evtTotal} total`;
+    document.getElementById('evtPrevBtn').disabled = evtPage <= 0;
+    document.getElementById('evtNextBtn').disabled = evtPage >= totalPages - 1;
+
+    if (events.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No events found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = events.map(e => `
+      <tr>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--text-muted)">${e.id}</td>
+        <td>${fmtTime(e.created_at)}</td>
+        <td title="${esc(e.device_id)}" style="font-family:var(--mono);font-size:11px">${shortId(e.device_id)}</td>
+        <td>${eventBadge(e.event_type)}</td>
+        <td style="color:var(--text-muted);font-size:12px">${metadataText(e.metadata)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function evtPagePrev() { if (evtPage > 0) { evtPage--; loadEvents(); } }
+  function evtPageNext() { const tp = Math.ceil(evtTotal / PAGE_SIZE); if (evtPage < tp - 1) { evtPage++; loadEvents(); } }
+
+  // --- Load Votes ---
+  async function loadVotes() {
+    try {
+      const res = await fetch('/admin/api/votes');
+      const data = await res.json();
+      const container = document.getElementById('votesContainer');
+      if (!data.votes || data.votes.length === 0) {
+        container.innerHTML = '<div class="empty-state">No votes yet</div>';
+        return;
+      }
+      const labels = { model_s: 'Model S', model_x: 'Model X', cybertruck: 'Cybertruck' };
+      const emojis = { model_s: '🚗', model_x: '🚙', cybertruck: '🛻' };
+      const maxVotes = Math.max(...data.votes.map(v => v.votes));
+      container.innerHTML = '<div class="day-grid">' + data.votes.map(v => `
+        <div class="day-card">
+          <div class="day-header">
+            <span class="day-date">${emojis[v.car_model] || '🚘'} ${labels[v.car_model] || v.car_model}</span>
+            <span class="day-total"><strong style="font-size:20px;color:var(--accent-light)">${v.votes}</strong> vote${v.votes > 1 ? 's' : ''}</span>
+          </div>
+          <div style="margin-top:8px;background:var(--border);border-radius:4px;height:8px;overflow:hidden">
+            <div style="width:${Math.round(v.votes / maxVotes * 100)}%;height:100%;background:var(--accent);border-radius:4px;transition:width 0.3s"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${v.unique_voters} unique device${v.unique_voters > 1 ? 's' : ''}</div>
+        </div>
+      `).join('') + '</div>';
+    } catch (e) { console.error('Votes error:', e); }
+  }
+
+  // --- Init ---
+  loadStats();
+  loadDaily();
+  loadEvents();
+  loadVotes();
+  setInterval(loadStats, 15000);
+  setInterval(loadDaily, 30000);
+</script>
+</body>
+</html>

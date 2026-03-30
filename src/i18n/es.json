@@ -38,7 +38,10 @@
     "model3Compat": "Compatible con todas las berlinas que soportan Light Show.",
     "model3Hint": "Más modelos próximamente.",
     "create": "Crear",
-    "unavailable": "No disponible"
+    "unavailable": "No disponible",
+    "voteBtn": "¡Vota por este modelo!",
+    "voteBtnDone": "Voto registrado ✓",
+    "voteHint": "Ayúdanos a elegir el próximo modelo"
   },
   "editor": {
     "loadingModel": "Cargando modelo...",
@@ -59,8 +62,9 @@
     "playbackSpeed": "Velocidad de reproducción",
     "timelineHeight": "Altura de la línea de tiempo",
     "brightMode": "Aumentar iluminación",
-    "contactDev": "¿Necesitas más funciones?",
-    "contactDevSub": "¡Pregúntale al desarrollador!",
+    "contactDev": "¿Necesitas ayuda o tienes ideas?",
+    "contactDevChat": "Chat en vivo con el dev",
+    "contactDevMail": "Enviar un email",
     "community": "Comunidad",
     "share": "Compartir el Light Show",
     "load": "Cargar un Light Show",

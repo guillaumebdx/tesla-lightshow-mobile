@@ -11,6 +11,8 @@ const { initPush } = require('./services/pushService');
 const generateShowRoute = require('./routes/generateShow');
 const adminRoute = require('./routes/admin');
 const chatRoute = require('./routes/chat');
+const analyticsRoute = require('./routes/analytics');
+const votesRoute = require('./routes/votes');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -59,6 +61,26 @@ app.use('/api/generate-show', verifyAppCheck, generateShowRoute);
 
 // Chat routes — no App Check (secured by device ID + rate limiting)
 app.use('/api/chat', chatRoute);
+
+// Analytics routes — no App Check, rate limited
+const analyticsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many analytics requests, slow down.' },
+});
+app.use('/api/analytics', analyticsLimiter, analyticsRoute);
+
+// Votes routes — no App Check, rate limited
+const votesLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many vote requests, slow down.' },
+});
+app.use('/api/votes', votesLimiter, votesRoute);
 
 // Error handler
 app.use((err, req, res, next) => {

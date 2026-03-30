@@ -38,7 +38,10 @@
     "model3Compat": "Compatible with all sedans that support Light Show.",
     "model3Hint": "More models coming soon.",
     "create": "Create",
-    "unavailable": "Unavailable"
+    "unavailable": "Unavailable",
+    "voteBtn": "Vote for this model!",
+    "voteBtnDone": "Vote recorded ✓",
+    "voteHint": "Help us prioritize the next model"
   },
   "editor": {
     "loadingModel": "Loading model...",
@@ -59,8 +62,9 @@
     "playbackSpeed": "Playback speed",
     "timelineHeight": "Timeline height",
     "brightMode": "Boost lighting",
-    "contactDev": "Need more features?",
-    "contactDevSub": "Ask the developer!",
+    "contactDev": "Need help or ideas?",
+    "contactDevChat": "Live chat with the dev",
+    "contactDevMail": "Send an email",
     "community": "Community",
     "share": "Share Light Show",
     "load": "Load a Light Show",

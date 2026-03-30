@@ -9,6 +9,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { Asset } from 'expo-asset';
 import { getShowCount, createShow } from './storage';
+import { trackEvent } from './analyticsService';
+import { getCachedVotes, fetchVotes, voteForModel } from './voteService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.7;
@@ -34,12 +36,22 @@ export default function NewShowScreen({ onBack, onCreated }) {
   const frameIdRef = useRef(null);
   const rotationRef = useRef(0);
 
+  const [votedModels, setVotedModels] = useState([]);
+
   useEffect(() => {
     (async () => {
       const count = await getShowCount();
       setShowName(`Light Show #${count + 1}`);
     })();
+    // Load cached votes then sync with server
+    getCachedVotes().then(setVotedModels);
+    fetchVotes().then(setVotedModels);
   }, []);
+
+  const handleVote = async (carModel) => {
+    const isNew = await voteForModel(carModel);
+    setVotedModels(prev => prev.includes(carModel) ? prev : [...prev, carModel]);
+  };
 
   // Scroll to default model on mount
   useEffect(() => {
@@ -69,6 +81,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
         name: showName.trim() || `Light Show`,
         carModel: model.id,
       });
+      trackEvent('show_created', { carModel: model.id });
       onCreated(show.id);
     } catch (e) {
       alert(e.message);
@@ -270,6 +283,14 @@ export default function NewShowScreen({ onBack, onCreated }) {
             ) : (
               <View style={styles.previewContainer}>
                 <Text style={styles.comingSoon}>{t('newShow.comingSoon')}</Text>
+                {votedModels.includes(car.id) ? (
+                  <Text style={styles.voteDone}>{t('newShow.voteBtnDone')}</Text>
+                ) : (
+                  <TouchableOpacity style={styles.voteBtn} onPress={() => handleVote(car.id)}>
+                    <Text style={styles.voteBtnText}>{t('newShow.voteBtn')}</Text>
+                  </TouchableOpacity>
+                )}
+                <Text style={styles.voteHint}>{t('newShow.voteHint')}</Text>
               </View>
             )}
             {idx === MODEL_3_INDEX && (
@@ -386,6 +407,33 @@ const styles = StyleSheet.create({
     color: '#444466',
     fontSize: 15,
     fontStyle: 'italic',
+  },
+  voteBtn: {
+    marginTop: 12,
+    backgroundColor: 'rgba(233, 69, 96, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(233, 69, 96, 0.4)',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  voteBtnText: {
+    color: '#e94560',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  voteDone: {
+    marginTop: 12,
+    color: '#00b894',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  voteHint: {
+    marginTop: 6,
+    color: '#444466',
+    fontSize: 11,
+    textAlign: 'center',
   },
   modelInfoBox: {
     marginTop: 10,

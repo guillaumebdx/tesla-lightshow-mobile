@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
-const { getGenerations, getGenerationsCount, getTopUsers, getStats, savePushSubscription, removePushSubscription } = require('../services/database');
+const { getGenerations, getGenerationsCount, getTopUsers, getStats, savePushSubscription, removePushSubscription, getAnalyticsEvents, getAnalyticsDailySummary, getAnalyticsStats, getModelVotes } = require('../services/database');
 const { getVapidPublicKey } = require('../services/pushService');
 const { addClient, getRecentLogs } = require('../services/logBroadcaster');
 const { adminAuth, adminLogin, adminCheck } = require('../middleware/adminAuth');
@@ -80,6 +80,40 @@ router.get('/api/logs', (req, res) => {
   const count = Math.min(parseInt(req.query.count) || 100, 500);
   const logs = getRecentLogs(count);
   res.json({ logs });
+});
+
+// Analytics page
+router.get('/analytics', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'public', 'analytics.html'));
+});
+
+// API: Analytics stats
+router.get('/api/analytics/stats', (req, res) => {
+  const stats = getAnalyticsStats();
+  res.json(stats);
+});
+
+// API: Analytics events (paginated, filterable)
+router.get('/api/analytics/events', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  const offset = parseInt(req.query.offset) || 0;
+  const date = req.query.date || null;
+  const eventType = req.query.event_type || null;
+  const result = getAnalyticsEvents({ date, eventType, limit, offset });
+  res.json({ ...result, limit, offset });
+});
+
+// API: Analytics daily summary
+router.get('/api/analytics/daily', (req, res) => {
+  const days = Math.min(parseInt(req.query.days) || 14, 90);
+  const summary = getAnalyticsDailySummary({ days });
+  res.json({ summary });
+});
+
+// API: Model votes
+router.get('/api/votes', (req, res) => {
+  const votes = getModelVotes();
+  res.json({ votes });
 });
 
 // Push: Get VAPID public key (no auth needed for service worker registration)

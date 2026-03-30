@@ -19,6 +19,7 @@ import { PART_ICONS, PART_COLORS, EFFECT_TYPES, CLOSURE_LIMITS, closureCommandCo
 import { pickAndImportAudio, loadCachedWaveform, resolveAudioUri } from './audioPicker';
 import { DEMO_SHOWS } from './demoShows';
 import { useTranslation } from 'react-i18next';
+import { trackEvent } from './analyticsService';
 import { Ionicons } from '@expo/vector-icons';
 
 const LONG_PRESS_MS = 350;
@@ -257,6 +258,11 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
 
   const selectTrack = async (track, demoEvents, { keepEvents = false } = {}) => {
     setModalVisible(false);
+    trackEvent('music_selected', {
+      trackTitle: track.title || 'Unknown',
+      isBuiltin: !!track.file,
+      withDemo: !!(demoEvents && demoEvents.length > 0),
+    });
 
     if (soundRef.current) {
       await soundRef.current.unloadAsync();

@@ -72,6 +72,31 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_conversations_status ON conversations(status);
 `);
 
+// Analytics events table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS analytics_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    metadata TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_analytics_device ON analytics_events(device_id);
+  CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics_events(event_type);
+  CREATE INDEX IF NOT EXISTS idx_analytics_date ON analytics_events(created_at);
+`);
+
+// Model votes table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS model_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    car_model TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(device_id, car_model)
+  );
+`);
+
 // Push subscriptions table
 db.exec(`
   CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -275,6 +300,86 @@ function setConversationStatus(conversationId, status) {
     .run(status, conversationId);
 }
 
+// ─── Model vote helpers ───
+
+function voteForModel(deviceId, carModel) {
+  const existing = db.prepare('SELECT id FROM model_votes WHERE device_id = ? AND car_model = ?').get(deviceId, carModel);
+  if (existing) return { alreadyVoted: true };
+  db.prepare('INSERT INTO model_votes (device_id, car_model) VALUES (?, ?)').run(deviceId, carModel);
+  return { alreadyVoted: false };
+}
+
+function getModelVotes() {
+  return db.prepare(`
+    SELECT car_model, COUNT(*) as votes, COUNT(DISTINCT device_id) as unique_voters
+    FROM model_votes GROUP BY car_model ORDER BY votes DESC
+  `).all();
+}
+
+function hasVotedForModel(deviceId, carModel) {
+  return !!db.prepare('SELECT id FROM model_votes WHERE device_id = ? AND car_model = ?').get(deviceId, carModel);
+}
+
+function getDeviceVotes(deviceId) {
+  return db.prepare('SELECT car_model FROM model_votes WHERE device_id = ?').all(deviceId).map(r => r.car_model);
+}
+
+// ─── Analytics helpers ───
+
+function insertAnalyticsEvents(events) {
+  const stmt = db.prepare(`
+    INSERT INTO analytics_events (device_id, event_type, metadata, created_at)
+    VALUES (?, ?, ?, COALESCE(?, datetime('now')))
+  `);
+  const insertMany = db.transaction((evts) => {
+    for (const e of evts) {
+      stmt.run(e.deviceId, e.eventType, JSON.stringify(e.metadata || {}), e.timestamp || null);
+    }
+  });
+  insertMany(events);
+}
+
+function getAnalyticsEvents({ date, eventType, limit = 50, offset = 0 } = {}) {
+  let where = 'WHERE 1=1';
+  const params = [];
+  if (date) { where += ` AND date(created_at) = ?`; params.push(date); }
+  if (eventType) { where += ` AND event_type = ?`; params.push(eventType); }
+  const rows = db.prepare(`SELECT * FROM analytics_events ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+    .all(...params, limit, offset);
+  const total = db.prepare(`SELECT COUNT(*) as count FROM analytics_events ${where}`)
+    .get(...params).count;
+  return { events: rows, total };
+}
+
+function getAnalyticsDailySummary({ days = 14 } = {}) {
+  return db.prepare(`
+    SELECT date(created_at) as day,
+           event_type,
+           COUNT(*) as count,
+           COUNT(DISTINCT device_id) as unique_devices
+    FROM analytics_events
+    WHERE created_at >= datetime('now', ?)
+    GROUP BY day, event_type
+    ORDER BY day DESC, count DESC
+  `).all(`-${days} days`);
+}
+
+function getAnalyticsStats() {
+  const total = db.prepare('SELECT COUNT(*) as count FROM analytics_events').get().count;
+  const today = db.prepare(`SELECT COUNT(*) as count FROM analytics_events WHERE date(created_at) = date('now')`).get().count;
+  const uniqueDevices = db.prepare('SELECT COUNT(DISTINCT device_id) as count FROM analytics_events').get().count;
+  const byType = db.prepare(`
+    SELECT event_type, COUNT(*) as count, COUNT(DISTINCT device_id) as unique_devices
+    FROM analytics_events GROUP BY event_type ORDER BY count DESC
+  `).all();
+  const todayByType = db.prepare(`
+    SELECT event_type, COUNT(*) as count
+    FROM analytics_events WHERE date(created_at) = date('now')
+    GROUP BY event_type ORDER BY count DESC
+  `).all();
+  return { total, today, uniqueDevices, byType, todayByType };
+}
+
 // ─── Push subscription helpers ───
 
 function savePushSubscription(subscription) {
@@ -317,4 +422,14 @@ module.exports = {
   savePushSubscription,
   getAllPushSubscriptions,
   removePushSubscription,
+  // Analytics
+  insertAnalyticsEvents,
+  getAnalyticsEvents,
+  getAnalyticsDailySummary,
+  getAnalyticsStats,
+  // Model votes
+  voteForModel,
+  getModelVotes,
+  hasVotedForModel,
+  getDeviceVotes,
 };

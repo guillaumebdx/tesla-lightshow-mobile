@@ -38,7 +38,10 @@
     "model3Compat": "Kompatibel mit allen Limousinen, die Light Show unterstützen.",
     "model3Hint": "Weitere Modelle folgen in Kürze.",
     "create": "Erstellen",
-    "unavailable": "Nicht verfügbar"
+    "unavailable": "Nicht verfügbar",
+    "voteBtn": "Stimme für dieses Modell!",
+    "voteBtnDone": "Stimme registriert ✓",
+    "voteHint": "Hilf uns, das nächste Modell zu priorisieren"
   },
   "editor": {
     "loadingModel": "Modell wird geladen...",
@@ -59,8 +62,9 @@
     "playbackSpeed": "Wiedergabegeschwindigkeit",
     "timelineHeight": "Timeline-Höhe",
     "brightMode": "Beleuchtung erhöhen",
-    "contactDev": "Brauchst du mehr Funktionen?",
-    "contactDevSub": "Frag den Entwickler!",
+    "contactDev": "Brauchst du Hilfe oder hast Ideen?",
+    "contactDevChat": "Live-Chat mit dem Entwickler",
+    "contactDevMail": "E-Mail senden",
     "community": "Community",
     "share": "Light Show teilen",
     "load": "Light Show laden",

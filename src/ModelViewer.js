@@ -26,6 +26,7 @@ import FlashMessage from './FlashMessage';
 import TutorialOverlay from './TutorialOverlay';
 import { Ionicons } from '@expo/vector-icons';
 import { generateAIShow } from './aiService';
+import { trackEvent } from './analyticsService';
 import AiPromptModal from './AiPromptModal';
 import SupportChat from './SupportChat';
 import { hasEverSentMessage, fetchChatStatus } from './chatService';
@@ -2118,13 +2119,25 @@ export default function ModelViewer({ showId, onGoHome }) {
               <View style={styles.menuDivider} />
 
               {/* Contact développeur */}
-              <TouchableOpacity
-                style={styles.contactDevSection}
-                onPress={() => Linking.openURL('mailto:guillaumeharari@hotmail.com?subject=LightShow Studio')}
-              >
+              <View style={styles.contactDevSection}>
                 <Text style={styles.contactDevText}>{t('editor.contactDev')}</Text>
-                <Text style={styles.contactDevSub}>{t('editor.contactDevSub')} ✉️</Text>
-              </TouchableOpacity>
+                <View style={styles.contactDevRow}>
+                  <TouchableOpacity
+                    style={styles.contactDevBtn}
+                    onPress={() => { setSettingsVisible(false); setTimeout(() => setChatVisible(true), 300); }}
+                  >
+                    <Text style={styles.contactDevBtnIcon}>💬</Text>
+                    <Text style={styles.contactDevBtnText}>{t('editor.contactDevChat')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.contactDevBtnMail}
+                    onPress={() => Linking.openURL('mailto:contact@lightshowstud.io?subject=LightShow Studio')}
+                  >
+                    <Text style={styles.contactDevBtnIcon}>✉️</Text>
+                    <Text style={styles.contactDevBtnMailText}>{t('editor.contactDevMail')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </ScrollView>
           </Pressable>
         </KeyboardAvoidingView>
@@ -2241,6 +2254,7 @@ export default function ModelViewer({ showId, onGoHome }) {
           try {
             const duration = playbackDurationRef.current;
             const result = await exportFseq(eventsRef.current, duration);
+            trackEvent('fseq_exported', { eventCount: eventsRef.current.length });
           } catch (e) {
             console.error('Export error:', e);
             alert(t('editor.exportError') + e.message);
@@ -2603,12 +2617,50 @@ const styles = StyleSheet.create({
   contactDevText: {
     color: '#8888aa',
     fontSize: 13,
+    marginBottom: 10,
   },
-  contactDevSub: {
+  contactDevRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  contactDevBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(68, 170, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(68, 170, 255, 0.3)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  contactDevBtnIcon: {
+    fontSize: 16,
+  },
+  contactDevBtnText: {
     color: '#44aaff',
     fontSize: 13,
     fontWeight: '600',
-    marginTop: 4,
+  },
+  contactDevBtnMail: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(136, 136, 170, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(136, 136, 170, 0.25)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  contactDevBtnMailText: {
+    color: '#8888aa',
+    fontSize: 13,
+    fontWeight: '600',
   },
   settingsOverlay: {
     flex: 1,
