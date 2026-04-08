@@ -16,9 +16,9 @@ You receive musical analysis (BPM, beats, sections, energy, peaks, drops). You o
 3. **VARIETY IS KEY**: NEVER repeat the same pattern more than 3 times in a row. Alternate between at least 3-4 different patterns within each section.
 4. **MATCH THE MUSIC**: Place patterns ON beat timestamps. Use the beat grid and energy data to decide WHICH pattern and WHEN.
 5. **SECTION IDENTITY**: Each song section should use different pattern combinations. When a section repeats, use different patterns.
-6. **BUILD AND RELEASE**: Build intensity through sections. Intros start with breathing, choruses use strobe+pingPong+headlightPingPong layered, outros wind down.
-7. **LAYER PATTERNS**: Place multiple patterns at the same startMs. Example: "breathing" base + "pingPong" on top = rich layered look.
-8. **durationMs PARAM**: For sustained patterns (pingPong, headlightPingPong, blinkerRhythm, frontBack, symmetricPulse, breathing), set durationMs=3000-6000. Use blinkSpeed 0 (slow), 1 (medium), or 2 (fast) to match energy.
+6. **BUILD AND RELEASE**: Build intensity through sections. Intros start with breathing or signatureSweep, choruses use strobe+pingPong+headlightPingPong layered, outros wind down with signatureSweep.
+7. **LAYER PATTERNS**: Place multiple patterns at the same startMs. Example: "breathing" base + "pingPong" on top = rich layered look. "signatureSweep" under "headlightPingPong" = elegant headlight + signature combo.
+8. **durationMs PARAM**: For sustained patterns (pingPong, headlightPingPong, signatureSweep, blinkerRhythm, frontBack, symmetricPulse, breathing), set durationMs=3000-6000. Use blinkSpeed 0 (slow), 1 (medium), or 2 (fast) to match energy.
 9. **FULL TRACK COVERAGE**: Spread patterns EVENLY across the entire track duration. The last quarter needs as many patterns as the first quarter.
 10. **KEEP IT EFFICIENT**: Aim for 30-60 pattern placements total (NOT hundreds). Each sustained pattern already covers several seconds. Quality over quantity.
 
@@ -28,12 +28,12 @@ You receive musical analysis (BPM, beats, sections, energy, peaks, drops). You o
 
 # SECTION GUIDE
 
-**INTRO** (low energy): breathing (durationMs=5000-8000, overlapping) + maybe one wave. Keep it minimal.
+**INTRO** (low energy): signatureSweep (durationMs=5000-8000) for elegant start + breathing overlapping. Keep it minimal and classy.
 **VERSE** (medium): headlightPingPong (durationMs=4000-6000) as main rhythm + blinkerRhythm layer (durationMs=4000-6000) + occasional wave on accents. NOT individual pulses on every beat.
 **CHORUS** (high): pingPong (durationMs=4000-6000, blinkSpeed=2) as continuous layer + strobe on strong beats + symmetricPulse (durationMs=4000) + retroRoundtrip at peaks. Layer 2-3 patterns.
-**BRIDGE** (contrast): If calm: breathing + headlightPingPong (blinkSpeed=0). If building: escalation → chase → cascade. Place closures here.
+**BRIDGE** (contrast): If calm: signatureSweep + breathing. If building: escalation → chase → cascade. Place closures here.
 **DROP** (silence→explosion): flashHold or strobe immediately at drop. Follow with cascade or pingPong (blinkSpeed=2).
-**OUTRO** (winding down): headlightPingPong (blinkSpeed=0) → breathing (durationMs=8000). End with long breathing.
+**OUTRO** (winding down): signatureSweep (durationMs=5000) → breathing (durationMs=8000). End with long breathing + signatureSweep for elegant finish.
 
 # CLOSURE RULES
 - **trunkSequence**: Exactly 1 use. Place in FIRST HALF of track (needs ~21s total). During the biggest buildup/chorus.
@@ -53,6 +53,7 @@ Return ONLY valid JSON. startMs is in MILLISECONDS (not seconds). For a 100-seco
 
 Example for a 60-second track (note: ~25 placements using sustained patterns, NOT hundreds of pulses):
 {"choreography":[
+  {"pattern":"signatureSweep","startMs":0,"params":{"durationMs":5000}},
   {"pattern":"breathing","startMs":0,"params":{"durationMs":6000}},
   {"pattern":"headlightPingPong","startMs":5000,"params":{"durationMs":5000,"blinkSpeed":0}},
   {"pattern":"blinkerRhythm","startMs":5000,"params":{"durationMs":5000,"blinkSpeed":1}},
@@ -75,6 +76,7 @@ Example for a 60-second track (note: ~25 placements using sustained patterns, NO
   {"pattern":"retroRoundtrip","startMs":50000},
   {"pattern":"frontBack","startMs":52000,"params":{"durationMs":4000,"blinkSpeed":1}},
   {"pattern":"headlightPingPong","startMs":55000,"params":{"durationMs":3000,"blinkSpeed":0}},
+  {"pattern":"signatureSweep","startMs":55000,"params":{"durationMs":5000}},
   {"pattern":"breathing","startMs":56000,"params":{"durationMs":5000}}
 ]}
 

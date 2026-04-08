@@ -5,16 +5,19 @@
  */
 
 // ─── Part groups ───
-const LEFT_LIGHTS = ['light_left_front', 'light_left_back', 'blink_front_left', 'blink_back_left', 'side_repeater_left'];
-const RIGHT_LIGHTS = ['light_right_front', 'light_right_back', 'blink_front_right', 'blink_back_right', 'side_repeater_right'];
+const LEFT_LIGHTS = ['left_high_light', 'left_signature_light', 'light_left_back', 'blink_front_left', 'blink_back_left', 'side_repeater_left'];
+const RIGHT_LIGHTS = ['right_high_light', 'right_signature_light', 'light_right_back', 'blink_front_right', 'blink_back_right', 'side_repeater_right'];
 const ALL_LIGHTS = [
-  'light_left_front', 'light_right_front', 'light_left_back', 'light_right_back',
+  'left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light',
+  'light_left_back', 'light_right_back',
   'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
   'side_repeater_left', 'side_repeater_right', 'license_plate', 'brake_lights', 'rear_fog',
 ];
-const FRONT_LIGHTS = ['light_left_front', 'light_right_front', 'blink_front_left', 'blink_front_right'];
+const FRONT_LIGHTS = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light', 'blink_front_left', 'blink_front_right'];
 const BACK_LIGHTS = ['light_left_back', 'light_right_back', 'blink_back_left', 'blink_back_right', 'brake_lights', 'rear_fog', 'license_plate'];
-const HEADLIGHTS = ['light_left_front', 'light_right_front'];
+const HEADLIGHTS = ['left_high_light', 'right_high_light'];
+const SIGNATURES = ['left_signature_light', 'right_signature_light'];
+const ALL_HEADLIGHTS = [...HEADLIGHTS, ...SIGNATURES];
 const TAILLIGHTS = ['light_left_back', 'light_right_back'];
 const BLINKERS = ['blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right'];
 const SIDES = ['side_repeater_left', 'side_repeater_right'];
@@ -22,7 +25,7 @@ const ALL_WINDOWS = ['window_left_front', 'window_right_front', 'window_left_bac
 
 // Wave sweep sequence front → back
 const WAVE_SEQUENCE = [
-  HEADLIGHTS,                                         // front headlights
+  ALL_HEADLIGHTS,                                      // front headlights + signatures
   ['blink_front_left', 'blink_front_right'],          // front blinkers
   SIDES,                                              // side repeaters
   TAILLIGHTS,                                         // tail lights
@@ -31,10 +34,10 @@ const WAVE_SEQUENCE = [
 
 // Chase sequence around the car
 const CHASE_SEQUENCE = [
-  'light_left_front', 'blink_front_left', 'side_repeater_left',
+  'left_high_light', 'left_signature_light', 'blink_front_left', 'side_repeater_left',
   'light_left_back', 'blink_back_left', 'license_plate',
   'blink_back_right', 'light_right_back', 'side_repeater_right',
-  'blink_front_right', 'light_right_front',
+  'blink_front_right', 'right_high_light', 'right_signature_light',
 ];
 
 // ─── Helper ───
@@ -67,7 +70,7 @@ function evt(part, startMs, endMs, opts = {}) {
 function breathing(startMs, params = {}) {
   const dur = params.durationMs || 3000;
   const events = [];
-  for (const part of [...HEADLIGHTS, ...TAILLIGHTS]) {
+  for (const part of [...ALL_HEADLIGHTS, ...TAILLIGHTS]) {
     events.push(evt(part, startMs, startMs + dur, { easeIn: true, easeOut: true }));
   }
   return events;
@@ -81,7 +84,7 @@ function breathing(startMs, params = {}) {
 function pulse(startMs, params = {}) {
   const dur = params.durationMs || 300;
   const events = [];
-  for (const part of [...HEADLIGHTS, ...TAILLIGHTS]) {
+  for (const part of [...ALL_HEADLIGHTS, ...TAILLIGHTS]) {
     events.push(evt(part, startMs, startMs + dur));
   }
   return events;
@@ -177,7 +180,7 @@ function chase(startMs, params = {}) {
 function escalation(startMs, params = {}) {
   const phaseMs = params.phaseDurationMs || 1000;
   const events = [];
-  const parts = [...HEADLIGHTS, ...BLINKERS];
+  const parts = [...ALL_HEADLIGHTS, ...BLINKERS];
   [0, 1, 2].forEach((speed, phase) => {
     const t = startMs + phase * phaseMs;
     for (const part of parts) {
@@ -252,7 +255,7 @@ function symmetricPulse(startMs, params = {}) {
   const speed = params.blinkSpeed ?? 1;
   const events = [];
   // Main lights blink at requested speed
-  for (const part of [...HEADLIGHTS, ...TAILLIGHTS]) {
+  for (const part of [...ALL_HEADLIGHTS, ...TAILLIGHTS]) {
     events.push(evt(part, startMs, startMs + dur, { effect: 'blink', blinkSpeed: speed }));
   }
   // Sides + blinkers blink at faster speed for contrast
@@ -345,8 +348,27 @@ function headlightPingPong(startMs, params = {}) {
   const events = [];
   for (let i = 0; i < cycles; i++) {
     const t = startMs + i * cycleMs;
-    const part = i % 2 === 0 ? 'light_left_front' : 'light_right_front';
-    events.push(evt(part, t, t + cycleMs, { effect: 'blink', blinkSpeed: speed }));
+    const isLeft = i % 2 === 0;
+    events.push(evt(isLeft ? 'left_high_light' : 'right_high_light', t, t + cycleMs, { effect: 'blink', blinkSpeed: speed }));
+    events.push(evt(isLeft ? 'left_signature_light' : 'right_signature_light', t, t + cycleMs, { effect: 'blink', blinkSpeed: speed }));
+  }
+  return events;
+}
+
+/**
+ * "signatureSweep" — Signature lights alternate L/R with gentle eased solid.
+ * Params: { durationMs=4000, cycles=4 }
+ * Great for: elegant intros, calm sections, DRL-style ambient lighting.
+ */
+function signatureSweep(startMs, params = {}) {
+  const dur = params.durationMs || 4000;
+  const cycles = params.cycles || Math.max(2, Math.round(dur / 800));
+  const cycleMs = dur / cycles;
+  const events = [];
+  for (let i = 0; i < cycles; i++) {
+    const t = startMs + i * cycleMs;
+    const part = i % 2 === 0 ? 'left_signature_light' : 'right_signature_light';
+    events.push(evt(part, t, t + cycleMs, { easeIn: true, easeOut: true }));
   }
   return events;
 }
@@ -359,6 +381,7 @@ const PATTERNS = {
   wave,
   pingPong,
   headlightPingPong,
+  signatureSweep,
   chase,
   escalation,
   cascade,
@@ -435,20 +458,21 @@ function expandChoreography(plan, durationMs) {
 function getPatternCatalog() {
   return `
 ## LIGHT PATTERNS (effect on lights only, no moving parts)
-- **breathing** — Gentle headlight+taillight fade in/out. Params: {durationMs:3000}. 4 events. Good for: intros, outros, quiet.
-- **pulse** — Short headlight+taillight burst. Params: {durationMs:300}. 4 events. Good for: marking single beats.
-- **fullPulse** — All 13 lights short burst. Params: {durationMs:300}. 13 events. Good for: strong beats, accents.
-- **strobe** — All 13 lights blink fast. Params: {durationMs:1000, blinkSpeed:2}. 13 events. Good for: peaks, climax.
-- **wave** — Sequential sweep front→back. Params: {stagger:200, holdMs:600, reverse:false}. 10 events. Good for: transitions.
+- **breathing** — Gentle headlight+signature+taillight fade in/out. Params: {durationMs:3000}. 6 events. Good for: intros, outros, quiet.
+- **pulse** — Short headlight+signature+taillight burst. Params: {durationMs:300}. 6 events. Good for: marking single beats.
+- **fullPulse** — All 15 lights short burst. Params: {durationMs:300}. 15 events. Good for: strong beats, accents.
+- **strobe** — All 15 lights blink fast. Params: {durationMs:1000, blinkSpeed:2}. 15 events. Good for: peaks, climax.
+- **wave** — Sequential sweep front→back. Params: {stagger:200, holdMs:600, reverse:false}. 12 events. Good for: transitions.
 - **pingPong** — Left/right sides alternate blinking back and forth (true L↔R bounce). Params: {durationMs:4000, blinkSpeed:1, cycles:4}. Good for: rhythmic sections. USE THIS A LOT with durationMs=3000-6000.
-- **headlightPingPong** — Only headlights alternate L/R blink (clean, minimal). Params: {durationMs:4000, blinkSpeed:1}. Good for: verses, moderate energy. USE THIS for clean headlight L↔R effect.
-- **chase** — Single light runs around the car. Params: {stepMs:150, holdMs:300, loops:1}. 11 events. Good for: buildups.
-- **escalation** — Blink speed 0→1→2 over 3 phases. Params: {phaseDurationMs:1000}. 18 events. Good for: buildups before drops.
-- **cascade** — Ultra-fast sweep all 13 parts. Params: {stagger:80}. 13 events. Good for: climax.
-- **flashHold** — All lights solid sustained. Params: {durationMs:500}. 13 events. Good for: impact after drops.
+- **headlightPingPong** — Headlights + signature alternate L/R blink (clean, impactful). Params: {durationMs:4000, blinkSpeed:1}. Good for: verses, moderate energy. USE THIS for clean headlight L↔R effect.
+- **signatureSweep** — Signature lights only alternate L/R with gentle eased solid. Params: {durationMs:4000, cycles:4}. Good for: elegant intros, calm sections, ambient DRL-style. USE THIS for subtle, classy effects.
+- **chase** — Single light runs around the car. Params: {stepMs:150, holdMs:300, loops:1}. 13 events. Good for: buildups.
+- **escalation** — Blink speed 0→1→2 over 3 phases. Params: {phaseDurationMs:1000}. 22 events. Good for: buildups before drops.
+- **cascade** — Ultra-fast sweep all 15 parts. Params: {stagger:80}. 15 events. Good for: climax.
+- **flashHold** — All lights solid sustained. Params: {durationMs:500}. 15 events. Good for: impact after drops.
 - **blinkerRhythm** — 4 blinkers blinking sustained. Params: {durationMs:3000, blinkSpeed:1}. 4 events. Good for: verse rhythm layer.
-- **frontBack** — Front blinks then back blinks. Params: {durationMs:3000, blinkSpeed:1}. 11 events. Good for: verse variation.
-- **symmetricPulse** — Headlights+taillights blink + sides blink faster. Params: {durationMs:3000, blinkSpeed:1}. 8 events. Good for: chorus.
+- **frontBack** — Front blinks then back blinks. Params: {durationMs:3000, blinkSpeed:1}. 13 events. Good for: verse variation.
+- **symmetricPulse** — Headlights+signature+taillights blink + sides blink faster. Params: {durationMs:3000, blinkSpeed:1}. 10 events. Good for: chorus.
 
 ## CLOSURE PATTERNS (moving parts — use sparingly)
 - **windowsDance** — All 4 windows dance together. Params: {durationMs:15000}. Max 1-2 uses per show.

@@ -6,7 +6,8 @@ export const INTERACTIVE_PARTS = [
   'window_left_back', 'window_right_back',
   'retro_left', 'retro_right',
   'flap', 'trunk',
-  'light_left_front', 'light_right_front',
+  'left_high_light', 'right_high_light',
+  'left_signature_light', 'right_signature_light',
   'light_left_back', 'light_right_back',
   'blink_front_left', 'blink_front_right',
   'blink_back_left', 'blink_back_right',
@@ -26,8 +27,10 @@ export const PART_LABELS = {
   retro_right: 'Rétro droit',
   flap: 'Trappe de charge',
   trunk: 'Coffre',
-  light_left_front: 'Phare AV gauche',
-  light_right_front: 'Phare AV droit',
+  left_high_light: 'Phare AV gauche',
+  right_high_light: 'Phare AV droit',
+  left_signature_light: 'Signature AV gauche',
+  right_signature_light: 'Signature AV droite',
   light_left_back: 'Feu AR gauche',
   light_right_back: 'Feu AR droit',
   blink_front_left: 'Clignotant AV gauche',
@@ -43,8 +46,10 @@ export const PART_LABELS = {
 
 // Icon images per part type
 export const PART_ICONS = {
-  light_left_front: require('../assets/icons/front_light.png'),
-  light_right_front: require('../assets/icons/front_light.png'),
+  left_high_light: require('../assets/icons/front_light.png'),
+  right_high_light: require('../assets/icons/front_light.png'),
+  left_signature_light: require('../assets/icons/front_light.png'),
+  right_signature_light: require('../assets/icons/front_light.png'),
   light_left_back: require('../assets/icons/back_light.png'),
   light_right_back: require('../assets/icons/back_light.png'),
   window_left_front: require('../assets/icons/window.png'),
@@ -68,8 +73,10 @@ export const PART_ICONS = {
 
 // Color per part type (for event rectangles on waveform)
 export const PART_COLORS = {
-  light_left_front: '#ffffff',
-  light_right_front: '#ffffff',
+  left_high_light: '#ffffff',
+  right_high_light: '#ffffff',
+  left_signature_light: '#aaddff',
+  right_signature_light: '#aaddff',
   light_left_back: '#ff4444',
   light_right_back: '#ff4444',
   window_left_front: '#44aaff',

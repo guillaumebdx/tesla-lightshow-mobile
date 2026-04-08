@@ -119,7 +119,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       const next = prev + 1;
       // Moving to step 1 (options) — auto-select a headlight if nothing selected
       if (next === 1 && !selectedPart) {
-        selectPart('light_left_front');
+        selectPart('left_high_light');
       }
       // Step 4: open the burger menu
       if (next === 4) {
@@ -150,7 +150,8 @@ export default function ModelViewer({ showId, onGoHome }) {
   const aiFakeIntervalRef = useRef(null);
 
   // Light parts for random animation during AI generation
-  const AI_LIGHT_PARTS = ['light_left_front', 'light_right_front', 'light_left_back', 'light_right_back',
+  const AI_LIGHT_PARTS = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light',
+    'light_left_back', 'light_right_back',
     'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
     'license_plate', 'brake_lights', 'rear_fog', 'side_repeater_left', 'side_repeater_right'];
 
@@ -554,7 +555,8 @@ export default function ModelViewer({ showId, onGoHome }) {
     // Find and select new (match by userData.interactiveName)
     model.traverse((child) => {
       if (child.isMesh && child.userData.interactiveName === meshName) {
-        child.material = meshName === 'flap' ? highlightMaterialNoDepthRef.current : highlightMaterialRef.current;
+        const needsNoDepth = meshName === 'flap' || child.renderOrder > 0;
+        child.material = needsNoDepth ? highlightMaterialNoDepthRef.current : highlightMaterialRef.current;
         selectedMeshRef.current = child;
         setSelectedPart(meshName);
         // Reset event options for the part type
@@ -826,6 +828,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       'anti_fog_back_left': 'rear_fog',
       'anti_fog_back_right': 'rear_fog',
       'side_clignoant_left': 'side_repeater_left',
+      'side_clignotant_left': 'side_repeater_left',
       'side_clignotant_right': 'side_repeater_right',
     };
 
@@ -836,7 +839,10 @@ export default function ModelViewer({ showId, onGoHome }) {
       window_right_back: windowMaterial,
       windshield_front: windowMaterial,
       windshield_back: windowMaterial,
-      light_left_front: headlightMaterial,
+      left_high_light: headlightMaterial,
+      right_high_light: headlightMaterial,
+      left_signature_light: headlightMaterial,
+      right_signature_light: headlightMaterial,
       light_right_front: headlightMaterial,
       light_left_back: taillightMaterial,
       light_right_back: taillightMaterial,
@@ -853,7 +859,7 @@ export default function ModelViewer({ showId, onGoHome }) {
 
     // Load GLB model
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_20260303_geo.glb'));
+      const asset = Asset.fromModule(require('../assets/models/tesla_2_front_light_v2_geo.glb'));
       await asset.downloadAsync();
 
       const fileUri = asset.localUri || asset.uri;
@@ -878,6 +884,7 @@ export default function ModelViewer({ showId, onGoHome }) {
         return null;
       };
 
+      const frontLightParts = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light'];
       model.traverse((child) => {
         if (child.isMesh) {
           const partName = getPartName(child);
@@ -888,6 +895,12 @@ export default function ModelViewer({ showId, onGoHome }) {
           meshMaterialsRef.current.set(key, mat);
           // Only tag interactive parts (not cosmetic like windshields)
           child.userData.interactiveName = INTERACTIVE_PARTS.includes(partName) ? partName : null;
+          // Front light sub-parts are recessed inside the body — render on top
+          if (frontLightParts.includes(partName)) {
+            child.renderOrder = 1;
+            child.material = child.material.clone();
+            child.material.depthTest = false;
+          }
         }
       });
 
@@ -912,8 +925,10 @@ export default function ModelViewer({ showId, onGoHome }) {
 
       // Create SpotLights at each light/blinker mesh position
       const lightDefs = {
-        light_left_front:  { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
-        light_right_front: { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
+        left_high_light:       { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
+        right_high_light:      { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
+        left_signature_light:  { color: 0xaaddff, dir: new THREE.Vector3(0, -0.3, 1) },
+        right_signature_light: { color: 0xaaddff, dir: new THREE.Vector3(0, -0.3, 1) },
         light_left_back:   { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
         light_right_back:  { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
         blink_front_left:  { color: 0xffaa00, dir: new THREE.Vector3(-0.5, -0.3, 1) },
@@ -1148,7 +1163,8 @@ export default function ModelViewer({ showId, onGoHome }) {
     const WINDOW_REST_OPEN = 0.7;
     const retroPartNames = ['retro_left', 'retro_right'];
     const windowPartNames = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
-    const lightPartNames = ['light_left_front', 'light_right_front', 'light_left_back', 'light_right_back',
+    const lightPartNames = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light',
+      'light_left_back', 'light_right_back',
       'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
       'license_plate', 'brake_lights', 'rear_fog', 'side_repeater_left', 'side_repeater_right'];
     const _activeMap = new Map();
@@ -1301,8 +1317,10 @@ export default function ModelViewer({ showId, onGoHome }) {
                 continue;
               }
 
+              const isFrontLight = partName.includes('front') || partName === 'license_plate'
+                || partName.includes('high_light') || partName.includes('signature_light');
               const litMat = isBlink ? litBlinkerMatRef.current
-                           : (partName.includes('front') || partName === 'license_plate') ? litHeadlightMatRef.current
+                           : isFrontLight ? litHeadlightMatRef.current
                            : litTaillightMatRef.current;
               if (!litMat) continue;
               const originalMat = meshMaterialsRef.current.get(partName);
@@ -1311,6 +1329,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               const intensity = active.intensity;
               if (!child.userData._dynamicMat) {
                 child.userData._dynamicMat = litMat.clone();
+                if (child.renderOrder > 0) child.userData._dynamicMat.depthTest = false;
               }
               const mat = child.userData._dynamicMat;
               const litColor = litMat.color;

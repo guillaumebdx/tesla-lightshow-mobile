@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \":*)",
+      "Bash(node -e ':*)",
+      "Bash(grep -n \"light_left_front\\\\|light_right_front\" /c/Users/guill/CascadeProjects/tesla-3d-viewer/src/demoShows/*.json)",
+      "Bash(grep -n \"left_signature_light\\\\|right_signature_light\" /c/Users/guill/CascadeProjects/tesla-3d-viewer/src/demoShows/*.json)",
+      "Bash(grep -n \"DemoViewer\\\\|createDemoShow\" /c/Users/guill/CascadeProjects/tesla-3d-viewer/src/*.js)",
+      "Bash(grep -n \"light_left_front\\\\|light_right_front\\\\|left_high_light\\\\|right_high_light\\\\|left_signature_light\\\\|right_signature_light\" /c/Users/guill/CascadeProjects/tesla-3d-viewer/src/i18n/*.json)"
+    ]
+  }
+}

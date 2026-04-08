@@ -34,7 +34,19 @@ export async function loadShow(id) {
   try {
     const raw = await AsyncStorage.getItem(SHOW_PREFIX + id);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const show = JSON.parse(raw);
+    // Migrate old light_left_front/light_right_front to new part names
+    if (show.events && show.events.length > 0) {
+      let migrated = false;
+      for (const evt of show.events) {
+        if (evt.part === 'light_left_front') { evt.part = 'left_high_light'; migrated = true; }
+        else if (evt.part === 'light_right_front') { evt.part = 'right_high_light'; migrated = true; }
+      }
+      if (migrated) {
+        await AsyncStorage.setItem(SHOW_PREFIX + id, JSON.stringify(show));
+      }
+    }
+    return show;
   } catch (e) {
     console.error('loadShow error:', e);
     return null;

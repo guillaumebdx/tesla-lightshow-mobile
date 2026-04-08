@@ -9,8 +9,10 @@ import { BLINK_SPEEDS, RETRO_MODES, TRUNK_MODES, FLAP_MODES, WINDOW_MODES, isRet
 // Channel mapping (0-indexed) — confirmed via retro-engineering
 // Each part maps to an array of channels that should all activate together
 const CHANNEL_MAP = {
-  light_left_front:  [0, 2, 4, 6, 8, 10],   // DRL + low beam + 4 segments haut gauche
-  light_right_front: [1, 3, 5, 7, 9, 11],   // DRL + low beam + 4 segments haut droit
+  left_high_light:       [0, 2],              // DRL + low beam gauche (Outer + Inner Main Beam)
+  right_high_light:      [1, 3],              // DRL + low beam droit (Outer + Inner Main Beam)
+  left_signature_light:  [4, 6, 8, 10],       // Signature gauche (4 segments haut)
+  right_signature_light: [5, 7, 9, 11],       // Signature droite (4 segments haut)
   light_left_back:   [25],                   // feu AR gauche (signature gauche uniquement)
   light_right_back:  [26],                   // feu AR droit (signature droit uniquement)
   blink_front_left:  [12],                   // clignotant AV gauche

@@ -150,7 +150,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
     scene.add(backLowLight);
 
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_20260303_geo.glb'));
+      const asset = Asset.fromModule(require('../assets/models/tesla_2_front_light_v2_geo.glb'));
       await asset.downloadAsync();
       const loader = new GLTFLoader();
       const gltf = await new Promise((resolve, reject) => {
@@ -177,7 +177,9 @@ export default function NewShowScreen({ onBack, onCreated }) {
         window_left_front: windowMat, window_right_front: windowMat,
         window_left_back: windowMat, window_right_back: windowMat,
         windshield_front: windowMat, windshield_back: windowMat,
-        light_left_front: headOn, light_right_front: headOn,
+        left_high_light: headOn, right_high_light: headOn,
+        left_signature_light: headOn, right_signature_light: headOn,
+        light_right_front: headOn,
         light_left_back: tailOn, light_right_back: tailOn,
         blink_front_left: blinkOn, blink_front_right: blinkOn,
         blink_back_left: blinkOn, blink_back_right: blinkOn,
@@ -196,6 +198,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
         'anti_fog_back_left': 'rear_fog',
         'anti_fog_back_right': 'rear_fog',
         'side_clignoant_left': 'side_repeater_left',
+        'side_clignotant_left': 'side_repeater_left',
         'side_clignotant_right': 'side_repeater_right',
       };
       const getPartName = (mesh) => {
@@ -207,10 +210,16 @@ export default function NewShowScreen({ onBack, onCreated }) {
         }
         return null;
       };
+      const frontLightParts = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light'];
       model.traverse((child) => {
         if (child.isMesh) {
           const pn = getPartName(child);
           child.material = (pn && partMats[pn]) || bodyMat;
+          if (frontLightParts.includes(pn)) {
+            child.renderOrder = 1;
+            child.material = child.material.clone();
+            child.material.depthTest = false;
+          }
         }
       });
 

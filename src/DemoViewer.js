@@ -24,7 +24,7 @@ function makeMats() {
 }
 
 const WINDOW_PARTS = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
-const HEAD_PARTS = ['light_left_front', 'light_right_front'];
+const HEAD_PARTS = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light'];
 const TAIL_PARTS = ['light_left_back', 'light_right_back'];
 const BLINK_PARTS = ['blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right'];
 const EXTRA_LIGHT_PARTS = ['license_plate', 'brake_lights', 'rear_fog'];
@@ -71,7 +71,7 @@ export default function DemoViewer({ style }) {
     const partMeshes = {}; // partName -> mesh
 
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_20260303_geo.glb'));
+      const asset = Asset.fromModule(require('../assets/models/tesla_2_front_light_v2_geo.glb'));
       await asset.downloadAsync();
       const loader = new GLTFLoader();
       const gltf = await new Promise((resolve, reject) => {
@@ -91,7 +91,9 @@ export default function DemoViewer({ style }) {
         window_left_front: mats.window, window_right_front: mats.window,
         window_left_back: mats.window, window_right_back: mats.window,
         windshield_front: mats.window, windshield_back: mats.window,
-        light_left_front: mats.headOff, light_right_front: mats.headOff,
+        left_high_light: mats.headOff, right_high_light: mats.headOff,
+        left_signature_light: mats.headOff, right_signature_light: mats.headOff,
+        light_right_front: mats.headOff,
         light_left_back: mats.tailOff, light_right_back: mats.tailOff,
         blink_front_left: mats.blinkOff, blink_front_right: mats.blinkOff,
         blink_back_left: mats.blinkOff, blink_back_right: mats.blinkOff,
@@ -111,6 +113,7 @@ export default function DemoViewer({ style }) {
         'anti_fog_back_left': 'rear_fog',
         'anti_fog_back_right': 'rear_fog',
         'side_clignoant_left': 'side_repeater_left',
+        'side_clignotant_left': 'side_repeater_left',
         'side_clignotant_right': 'side_repeater_right',
       };
       const getPartName = (mesh) => {
@@ -122,12 +125,20 @@ export default function DemoViewer({ style }) {
         }
         return null;
       };
+      const frontLightParts = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light'];
+      // Pre-clone on/off materials with depthTest disabled for recessed front lights
+      const frontHeadOn = mats.headOn.clone(); frontHeadOn.depthTest = false;
+      const frontHeadOff = mats.headOff.clone(); frontHeadOff.depthTest = false;
       model.traverse((child) => {
         if (child.isMesh) {
           const pn = getPartName(child);
           child.material = (pn && fixedMats[pn]) || mats.body;
           if (pn && ALL_KNOWN_PARTS.includes(pn)) {
             partMeshes[pn] = child;
+          }
+          if (frontLightParts.includes(pn)) {
+            child.renderOrder = 1;
+            child.material = frontHeadOff;
           }
         }
       });
@@ -181,9 +192,12 @@ export default function DemoViewer({ style }) {
         LIGHT_PARTS.forEach((p, i) => {
           if (!partMeshes[p]) return;
           const on = Math.sin(time * lightSpeed[i] + lightPhase[i]) > 0;
+          const isFront = frontLightParts.includes(p);
           const isHead = HEAD_PARTS.includes(p) || p === 'license_plate';
           const isTail = TAIL_PARTS.includes(p) || p === 'brake_lights' || p === 'rear_fog';
-          if (isHead) {
+          if (isFront) {
+            partMeshes[p].material = on ? frontHeadOn : frontHeadOff;
+          } else if (isHead) {
             partMeshes[p].material = on ? mats.headOn : mats.headOff;
           } else if (isTail) {
             partMeshes[p].material = on ? mats.tailOn : mats.tailOff;
