@@ -14,7 +14,7 @@ import { getDeviceId } from './deviceId';
  */
 export async function generateAIShow({ waveform, durationMs, mood, trackTitle, userPrompt }) {
   // Get App Check token (skipped in dev if not initialized)
-  let headers = { 'Content-Type': 'application/json' };
+  let headers = { 'Content-Type': 'application/json', 'X-App-Version': '1.15' };
   try {
     const token = await getAppCheckToken();
     if (token) headers['X-Firebase-AppCheck'] = token;

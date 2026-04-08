@@ -92,7 +92,30 @@ router.post('/', async (req, res) => {
     log('📤 Sending response to client');
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    res.json({ events: result.events });
+    // Backward compatibility: convert new part names for old app versions
+    const appVersion = parseFloat(req.headers['x-app-version'] || '0');
+    let events = result.events;
+    if (appVersion < 1.15) {
+      const LEGACY_MAP = {
+        'left_high_light': 'light_left_front',
+        'right_high_light': 'light_right_front',
+        'left_signature_light': 'light_left_front',
+        'right_signature_light': 'light_right_front',
+      };
+      // Deduplicate: multiple new parts map to same legacy part at same time
+      const seen = new Set();
+      events = events.reduce((acc, e) => {
+        const legacyPart = LEGACY_MAP[e.part] || e.part;
+        const key = `${legacyPart}_${e.startMs}_${e.endMs}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          acc.push({ ...e, part: legacyPart });
+        }
+        return acc;
+      }, []);
+    }
+
+    res.json({ events });
   } catch (err) {
     log(`💥 ERROR: ${err.message}`);
     console.error('[generateShow] Error:', err.message);

@@ -475,12 +475,21 @@ ${riseLine}
 function sanitizeEvents(events, durationMs) {
   const VALID_PARTS = [
     'left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light',
+    'light_left_front', 'light_right_front', // legacy names (old app versions)
     'light_left_back', 'light_right_back',
     'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
     'side_repeater_left', 'side_repeater_right', 'license_plate', 'brake_lights', 'rear_fog',
     'window_left_front', 'window_right_front', 'window_left_back', 'window_right_back',
     'retro_left', 'retro_right', 'trunk', 'flap',
   ];
+
+  // Map new part names to legacy names for backward compatibility with old app versions
+  const PART_COMPAT = {
+    'left_high_light': 'light_left_front',
+    'right_high_light': 'light_right_front',
+    'left_signature_light': 'light_left_front',
+    'right_signature_light': 'light_right_front',
+  };
 
   const VALID_EFFECTS = ['solid', 'blink'];
   const VALID_RETRO = ['close', 'open', 'roundtrip'];
