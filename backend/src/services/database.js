@@ -1,5 +1,6 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const FIRST_NAMES_POOL = require('../data/firstNames.json');
 
 const DB_PATH = path.join(__dirname, '..', '..', 'data', 'lightshow.db');
 
@@ -108,6 +109,16 @@ db.exec(`
   );
 `);
 
+// Device names table — each device gets a human-readable first name
+db.exec(`
+  CREATE TABLE IF NOT EXISTS device_names (
+    device_id TEXT PRIMARY KEY,
+    first_name TEXT NOT NULL UNIQUE,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_device_names_first_name ON device_names(first_name);
+`);
+
 // Migration: add device_id column if it doesn't exist
 try {
   db.prepare(`SELECT device_id FROM generations LIMIT 1`).get();
@@ -125,6 +136,7 @@ function createGeneration({ requestId, trackTitle, durationMs, mood, model, ipAd
     VALUES (?, ?, ?, ?, ?, 'processing', ?, ?)
   `);
   const result = stmt.run(requestId, trackTitle, durationMs, mood || 'auto', model, ipAddress || '', deviceId || '');
+  if (deviceId) { try { getOrAssignDeviceName(deviceId); } catch {} }
   return result.lastInsertRowid;
 }
 
@@ -247,6 +259,7 @@ function getOrCreateConversation(deviceId, deviceInfo) {
     db.prepare('UPDATE conversations SET device_info = ? WHERE id = ?')
       .run(JSON.stringify(deviceInfo), deviceId);
   }
+  try { getOrAssignDeviceName(deviceId); } catch {}
   return conv;
 }
 
@@ -306,14 +319,22 @@ function voteForModel(deviceId, carModel) {
   const existing = db.prepare('SELECT id FROM model_votes WHERE device_id = ? AND car_model = ?').get(deviceId, carModel);
   if (existing) return { alreadyVoted: true };
   db.prepare('INSERT INTO model_votes (device_id, car_model) VALUES (?, ?)').run(deviceId, carModel);
+  try { getOrAssignDeviceName(deviceId); } catch {}
   return { alreadyVoted: false };
 }
 
 function getModelVotes() {
   return db.prepare(`
-    SELECT car_model, COUNT(*) as votes, COUNT(DISTINCT device_id) as unique_voters
+    SELECT car_model,
+           COUNT(*) as votes,
+           COUNT(DISTINCT device_id) as unique_voters,
+           SUM(CASE WHEN date(created_at) = date('now') THEN 1 ELSE 0 END) as votes_today
     FROM model_votes GROUP BY car_model ORDER BY votes DESC
   `).all();
+}
+
+function getVotesTodayTotal() {
+  return db.prepare(`SELECT COUNT(*) as count FROM model_votes WHERE date(created_at) = date('now')`).get().count;
 }
 
 function hasVotedForModel(deviceId, carModel) {
@@ -322,6 +343,61 @@ function hasVotedForModel(deviceId, carModel) {
 
 function getDeviceVotes(deviceId) {
   return db.prepare('SELECT car_model FROM model_votes WHERE device_id = ?').all(deviceId).map(r => r.car_model);
+}
+
+// ─── Device name helpers ───
+
+function getDeviceName(deviceId) {
+  if (!deviceId) return null;
+  const row = db.prepare('SELECT first_name FROM device_names WHERE device_id = ?').get(deviceId);
+  return row ? row.first_name : null;
+}
+
+function getOrAssignDeviceName(deviceId) {
+  if (!deviceId) return null;
+  const existing = getDeviceName(deviceId);
+  if (existing) return existing;
+
+  const usedRows = db.prepare('SELECT first_name FROM device_names').all();
+  const used = new Set(usedRows.map(r => r.first_name));
+  const available = FIRST_NAMES_POOL.filter(n => !used.has(n));
+
+  let name;
+  if (available.length > 0) {
+    name = available[Math.floor(Math.random() * available.length)];
+  } else {
+    // Pool exhausted — append numeric suffix to a random name
+    const base = FIRST_NAMES_POOL[Math.floor(Math.random() * FIRST_NAMES_POOL.length)];
+    name = `${base}-${Math.floor(Math.random() * 99999)}`;
+  }
+
+  try {
+    db.prepare('INSERT INTO device_names (device_id, first_name) VALUES (?, ?)').run(deviceId, name);
+    return name;
+  } catch {
+    // Race condition (device_id already inserted or first_name taken) — re-query and retry once
+    const retryExisting = getDeviceName(deviceId);
+    if (retryExisting) return retryExisting;
+    const fallback = `${FIRST_NAMES_POOL[0]}-${Date.now()}`;
+    try {
+      db.prepare('INSERT INTO device_names (device_id, first_name) VALUES (?, ?)').run(deviceId, fallback);
+      return fallback;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function getAllKnownDeviceIds() {
+  const sets = [
+    db.prepare("SELECT DISTINCT device_id FROM analytics_events WHERE device_id != ''").all(),
+    db.prepare("SELECT DISTINCT device_id FROM model_votes WHERE device_id != ''").all(),
+    db.prepare("SELECT DISTINCT id as device_id FROM conversations").all(),
+    db.prepare("SELECT DISTINCT device_id FROM generations WHERE device_id != ''").all(),
+  ];
+  const all = new Set();
+  sets.forEach(rows => rows.forEach(r => r.device_id && all.add(r.device_id)));
+  return [...all];
 }
 
 // ─── Analytics helpers ───
@@ -337,18 +413,36 @@ function insertAnalyticsEvents(events) {
     }
   });
   insertMany(events);
+  // Assign a name to each unique device seen in this batch (outside transaction)
+  const uniqueDevices = [...new Set(events.map(e => e.deviceId).filter(Boolean))];
+  for (const did of uniqueDevices) {
+    try { getOrAssignDeviceName(did); } catch {}
+  }
 }
 
 function getAnalyticsEvents({ date, eventType, limit = 50, offset = 0 } = {}) {
   let where = 'WHERE 1=1';
   const params = [];
-  if (date) { where += ` AND date(created_at) = ?`; params.push(date); }
-  if (eventType) { where += ` AND event_type = ?`; params.push(eventType); }
-  const rows = db.prepare(`SELECT * FROM analytics_events ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
-    .all(...params, limit, offset);
-  const total = db.prepare(`SELECT COUNT(*) as count FROM analytics_events ${where}`)
+  if (date) { where += ` AND date(a.created_at) = ?`; params.push(date); }
+  if (eventType) { where += ` AND a.event_type = ?`; params.push(eventType); }
+  const rows = db.prepare(`
+    SELECT a.*,
+      (SELECT COUNT(*) FROM analytics_events WHERE device_id = a.device_id) as device_total,
+      (SELECT first_name FROM device_names WHERE device_id = a.device_id) as first_name
+    FROM analytics_events a
+    ${where} ORDER BY a.created_at DESC LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
+  const total = db.prepare(`SELECT COUNT(*) as count FROM analytics_events a ${where}`)
     .get(...params).count;
   return { events: rows, total };
+}
+
+function getDeviceAnalyticsEvents(deviceId) {
+  const events = db.prepare(`
+    SELECT * FROM analytics_events WHERE device_id = ? ORDER BY created_at DESC LIMIT 200
+  `).all(deviceId);
+  const firstName = getDeviceName(deviceId);
+  return { events, firstName };
 }
 
 function getAnalyticsDailySummary({ days = 14 } = {}) {
@@ -368,6 +462,7 @@ function getAnalyticsStats() {
   const total = db.prepare('SELECT COUNT(*) as count FROM analytics_events').get().count;
   const today = db.prepare(`SELECT COUNT(*) as count FROM analytics_events WHERE date(created_at) = date('now')`).get().count;
   const uniqueDevices = db.prepare('SELECT COUNT(DISTINCT device_id) as count FROM analytics_events').get().count;
+  const todayUniqueDevices = db.prepare(`SELECT COUNT(DISTINCT device_id) as count FROM analytics_events WHERE date(created_at) = date('now')`).get().count;
   const byType = db.prepare(`
     SELECT event_type, COUNT(*) as count, COUNT(DISTINCT device_id) as unique_devices
     FROM analytics_events GROUP BY event_type ORDER BY count DESC
@@ -377,7 +472,7 @@ function getAnalyticsStats() {
     FROM analytics_events WHERE date(created_at) = date('now')
     GROUP BY event_type ORDER BY count DESC
   `).all();
-  return { total, today, uniqueDevices, byType, todayByType };
+  return { total, today, uniqueDevices, todayUniqueDevices, byType, todayByType };
 }
 
 // ─── Push subscription helpers ───
@@ -425,11 +520,17 @@ module.exports = {
   // Analytics
   insertAnalyticsEvents,
   getAnalyticsEvents,
+  getDeviceAnalyticsEvents,
   getAnalyticsDailySummary,
   getAnalyticsStats,
   // Model votes
   voteForModel,
   getModelVotes,
+  getVotesTodayTotal,
   hasVotedForModel,
   getDeviceVotes,
+  // Device names
+  getDeviceName,
+  getOrAssignDeviceName,
+  getAllKnownDeviceIds,
 };

@@ -89,6 +89,22 @@ router.post('/', async (req, res) => {
     db.completeGeneration(dbId, result.meta);
     log('💾 Generation saved to DB');
 
+    // Track as analytics event
+    if (deviceId) {
+      try {
+        db.insertAnalyticsEvents([{
+          deviceId,
+          eventType: 'ai_generation',
+          metadata: {
+            trackTitle: trackTitle || 'Unknown Track',
+            durationMs,
+            mood: mood || 'auto',
+            eventsCount: result.events.length,
+          },
+        }]);
+      } catch {}
+    }
+
     log('📤 Sending response to client');
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 

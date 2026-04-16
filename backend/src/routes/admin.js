@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
-const { getGenerations, getGenerationsCount, getTopUsers, getStats, savePushSubscription, removePushSubscription, getAnalyticsEvents, getAnalyticsDailySummary, getAnalyticsStats, getModelVotes } = require('../services/database');
+const { getGenerations, getGenerationsCount, getTopUsers, getStats, savePushSubscription, removePushSubscription, getAnalyticsEvents, getDeviceAnalyticsEvents, getAnalyticsDailySummary, getAnalyticsStats, getModelVotes, getVotesTodayTotal } = require('../services/database');
 const { getVapidPublicKey } = require('../services/pushService');
 const { addClient, getRecentLogs } = require('../services/logBroadcaster');
 const { adminAuth, adminLogin, adminCheck } = require('../middleware/adminAuth');
@@ -90,6 +90,7 @@ router.get('/analytics', (req, res) => {
 // API: Analytics stats
 router.get('/api/analytics/stats', (req, res) => {
   const stats = getAnalyticsStats();
+  stats.votesTodayTotal = getVotesTodayTotal();
   res.json(stats);
 });
 
@@ -101,6 +102,14 @@ router.get('/api/analytics/events', (req, res) => {
   const eventType = req.query.event_type || null;
   const result = getAnalyticsEvents({ date, eventType, limit, offset });
   res.json({ ...result, limit, offset });
+});
+
+// API: Device analytics history
+router.get('/api/analytics/device/:deviceId', (req, res) => {
+  const { deviceId } = req.params;
+  if (!deviceId) return res.status(400).json({ error: 'Missing deviceId' });
+  const { events, firstName } = getDeviceAnalyticsEvents(deviceId);
+  res.json({ deviceId, firstName, events });
 });
 
 // API: Analytics daily summary
