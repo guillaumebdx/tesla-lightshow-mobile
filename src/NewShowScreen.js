@@ -11,6 +11,7 @@ import { Asset } from 'expo-asset';
 import { getShowCount, createShow } from './storage';
 import { trackEvent } from './analyticsService';
 import { getCachedVotes, fetchVotes, voteForModel } from './voteService';
+import { getGlbModule } from './carModels';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.7;
@@ -19,10 +20,15 @@ const CARD_MARGIN = 12;
 const CAR_MODELS = [
   { id: 'model_s', label: 'Model S', available: false },
   { id: 'model_3', label: 'Model 3/Y', available: true },
-  { id: 'model_y_juniper', label: 'Model Y Juniper', available: false },
+  { id: 'model_y_juniper', label: 'Model Y Juniper', available: true },
   { id: 'model_x', label: 'Model X', available: false },
   { id: 'cybertruck', label: 'Cybertruck', available: false },
 ];
+
+// Indices of models that render a live 3D preview in their carousel card
+const PREVIEW_MODEL_INDICES = CAR_MODELS
+  .map((m, i) => (m.available ? i : -1))
+  .filter((i) => i >= 0);
 
 export default function NewShowScreen({ onBack, onCreated }) {
   const { t } = useTranslation();
@@ -83,6 +89,11 @@ export default function NewShowScreen({ onBack, onCreated }) {
     const idx = Math.round(x / (CARD_WIDTH + CARD_MARGIN * 2));
     if (idx !== selectedIndex && idx >= 0 && idx < CAR_MODELS.length) {
       setSelectedIndex(idx);
+      if (frameIdRef.current) {
+        cancelAnimationFrame(frameIdRef.current);
+        frameIdRef.current = null;
+      }
+      modelRef.current = null;
     }
   };
 
@@ -150,7 +161,8 @@ export default function NewShowScreen({ onBack, onCreated }) {
     scene.add(backLowLight);
 
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_2_front_light_v2_geo.glb'));
+      const currentCarId = CAR_MODELS[selectedIndex]?.id || 'model_3';
+      const asset = Asset.fromModule(getGlbModule(currentCarId));
       await asset.downloadAsync();
       const loader = new GLTFLoader();
       const gltf = await new Promise((resolve, reject) => {
@@ -295,8 +307,9 @@ export default function NewShowScreen({ onBack, onCreated }) {
             <Text style={styles.carLabel}>{car.label}</Text>
             {car.available ? (
               <View style={styles.previewContainer}>
-                {idx === MODEL_3_INDEX && (
+                {idx === selectedIndex && (
                   <GLView
+                    key={car.id}
                     style={styles.glView}
                     onContextCreate={onContextCreate}
                   />

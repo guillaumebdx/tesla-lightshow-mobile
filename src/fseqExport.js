@@ -1,10 +1,12 @@
 // .fseq V2 export for Light Show
-// Generates an uncompressed .fseq file from timeline events
-// Frame interval: 20ms, channelCount: 48 (only 4 used for V1)
+// Generates an uncompressed .fseq file from timeline events.
+// Frame interval: 20ms. Channel count is 48 on pre-Juniper vehicles and 200
+// on Model Y Juniper (validator.py accepts both) — see carModels.js.
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { shareAsync } from 'expo-sharing';
 import { BLINK_SPEEDS, RETRO_MODES, TRUNK_MODES, FLAP_MODES, WINDOW_MODES, isRetro, isWindow, isTrunk, isFlap, isClosure } from './constants';
+import { getChannelCount } from './carModels';
 
 // Channel mapping (0-indexed) — confirmed via retro-engineering
 // Each part maps to an array of channels that should all activate together
@@ -51,7 +53,6 @@ const CLOSURE_CMD = {
 };
 
 const STEP_TIME_MS = 20;
-const CHANNEL_COUNT = 48; // enough to cover all mapped channels
 
 /**
  * Compute the intensity (0–1) of a light event at a given time position.
@@ -122,11 +123,11 @@ function getClosureCommand(evt) {
 /**
  * Write a closure command byte to a channel for a time range.
  */
-function writeClosure(data, ch, startMs, endMs, cmdValue, frameCount) {
+function writeClosure(data, ch, startMs, endMs, cmdValue, frameCount, channelCount) {
   const sf = Math.floor(startMs / STEP_TIME_MS);
   const ef = Math.min(Math.floor(endMs / STEP_TIME_MS), frameCount);
   for (let f = sf; f < ef; f++) {
-    data[f * CHANNEL_COUNT + ch] = cmdValue;
+    data[f * channelCount + ch] = cmdValue;
   }
 }
 
@@ -134,9 +135,9 @@ function writeClosure(data, ch, startMs, endMs, cmdValue, frameCount) {
  * Compile events into a frame×channel matrix.
  * Returns a Uint8Array of size frameCount × channelCount.
  */
-function compileFrameData(events, durationMs) {
+function compileFrameData(events, durationMs, channelCount) {
   const frameCount = Math.ceil(durationMs / STEP_TIME_MS);
-  const data = new Uint8Array(frameCount * CHANNEL_COUNT); // initialized to 0
+  const data = new Uint8Array(frameCount * channelCount); // initialized to 0
 
   // Separate light and closure events
   const lightEvents = events.filter((evt) => CHANNEL_MAP[evt.part] !== undefined);
@@ -152,7 +153,7 @@ function compileFrameData(events, durationMs) {
         const channels = CHANNEL_MAP[evt.part];
         const value = Math.round(intensity * 255);
         for (const ch of channels) {
-          const offset = frame * CHANNEL_COUNT + ch;
+          const offset = frame * channelCount + ch;
           data[offset] = Math.max(data[offset], value);
         }
       }
@@ -167,13 +168,13 @@ function compileFrameData(events, durationMs) {
 
     if (cmd.type === 'single') {
       // Write a single command for the event duration
-      writeClosure(data, ch, evt.startMs, evt.endMs, cmd.value, frameCount);
+      writeClosure(data, ch, evt.startMs, evt.endMs, cmd.value, frameCount, channelCount);
     } else if (cmd.type === 'roundtrip') {
       // First half: close (fold), second half: open (unfold back)
       // Retros start unfolded, so roundtrip = fold in → fold out
       const midMs = evt.startMs + Math.floor((evt.endMs - evt.startMs) / 2);
-      writeClosure(data, ch, evt.startMs, midMs, CLOSURE_CMD.CLOSE, frameCount);
-      writeClosure(data, ch, midMs, evt.endMs, CLOSURE_CMD.OPEN, frameCount);
+      writeClosure(data, ch, evt.startMs, midMs, CLOSURE_CMD.CLOSE, frameCount, channelCount);
+      writeClosure(data, ch, midMs, evt.endMs, CLOSURE_CMD.OPEN, frameCount, channelCount);
     }
   }
 
@@ -183,7 +184,7 @@ function compileFrameData(events, durationMs) {
 /**
  * Build the .fseq V2 binary header (32 bytes).
  */
-function buildHeader(frameCount) {
+function buildHeader(frameCount, channelCount) {
   const header = new Uint8Array(32);
   const view = new DataView(header.buffer);
 
@@ -204,7 +205,7 @@ function buildHeader(frameCount) {
   view.setUint16(8, 32, true);
 
   // Channel count per frame (uint32 LE)
-  view.setUint32(10, CHANNEL_COUNT, true);
+  view.setUint32(10, channelCount, true);
 
   // Frame count (uint32 LE)
   view.setUint32(14, frameCount, true);
@@ -240,15 +241,17 @@ function buildHeader(frameCount) {
  * Export events to a .fseq file and trigger sharing/download.
  * @param {Array} events - Timeline events
  * @param {number} durationMs - Total audio duration in ms
+ * @param {{ carModel?: string }} opts - carModel decides channel count (48 or 200)
  * @returns {Promise<void>}
  */
-export async function exportFseq(events, durationMs) {
+export async function exportFseq(events, durationMs, opts = {}) {
   if (!durationMs || durationMs <= 0) {
     throw new Error('No audio track loaded');
   }
 
-  const { data, frameCount } = compileFrameData(events, durationMs);
-  const header = buildHeader(frameCount);
+  const channelCount = getChannelCount(opts.carModel);
+  const { data, frameCount } = compileFrameData(events, durationMs, channelCount);
+  const header = buildHeader(frameCount, channelCount);
 
   // Combine header + data
   const totalSize = header.length + data.length;
@@ -272,7 +275,7 @@ export async function exportFseq(events, durationMs) {
     UTI: 'public.data',
   });
 
-  return { frameCount, channelCount: CHANNEL_COUNT, fileSize: totalSize };
+  return { frameCount, channelCount, fileSize: totalSize };
 }
 
 /**

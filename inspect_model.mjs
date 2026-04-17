@@ -5,7 +5,7 @@ import fs from 'fs';
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 
 // Inspect
-const doc = await io.read('assets/models/tesla_20260303.glb');
+const doc = await io.read('assets/models/model_y_juniper.glb');
 
 console.log('=== NODES ===');
 function printNode(node, depth = 0) {
@@ -38,6 +38,6 @@ doc.getRoot().listMaterials().forEach(mat => {
   mat.setMetallicRoughnessTexture(null);
 });
 
-await io.write('assets/models/tesla_20260303_geo.glb', doc);
-const s = fs.statSync('assets/models/tesla_20260303_geo.glb');
+await io.write('assets/models/model_y_juniper_geo.glb', doc);
+const s = fs.statSync('assets/models/model_y_juniper_geo.glb');
 console.log('\nStripped -> Size:', (s.size / 1024).toFixed(1), 'KB');

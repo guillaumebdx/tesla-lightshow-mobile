@@ -20,6 +20,7 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { MP3_TRACKS } from '../assets/mp3/index';
 import { exportFseq } from './fseqExport';
+import { getGlbModule } from './carModels';
 import { loadShow, saveShow } from './storage';
 import ExportModal from './ExportModal';
 import FlashMessage from './FlashMessage';
@@ -857,9 +858,22 @@ export default function ModelViewer({ showId, onGoHome }) {
       side_repeater_right: blinkerMaterial,
     };
 
-    // Load GLB model
+    // Load GLB model — per-show based on carModel. If the show hasn't finished
+    // loading yet (AsyncStorage race), wait briefly for showDataRef to populate.
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_2_front_light_v2_geo.glb'));
+      if (showId && !showDataRef.current) {
+        await new Promise((resolve) => {
+          const start = Date.now();
+          const check = setInterval(() => {
+            if (showDataRef.current || Date.now() - start > 3000) {
+              clearInterval(check);
+              resolve();
+            }
+          }, 30);
+        });
+      }
+      const carModelId = showDataRef.current?.carModel || 'model_3';
+      const asset = Asset.fromModule(getGlbModule(carModelId));
       await asset.downloadAsync();
 
       const fileUri = asset.localUri || asset.uri;
@@ -2272,8 +2286,9 @@ export default function ModelViewer({ showId, onGoHome }) {
         onExportFseq={async () => {
           try {
             const duration = playbackDurationRef.current;
-            const result = await exportFseq(eventsRef.current, duration);
-            trackEvent('fseq_exported', { eventCount: eventsRef.current.length });
+            const carModel = showDataRef.current?.carModel || 'model_3';
+            const result = await exportFseq(eventsRef.current, duration, { carModel });
+            trackEvent('fseq_exported', { eventCount: eventsRef.current.length, carModel });
           } catch (e) {
             console.error('Export error:', e);
             alert(t('editor.exportError') + e.message);
