@@ -186,6 +186,10 @@
     "side_repeater_left": "Répétiteur gauche",
     "side_repeater_right": "Répétiteur droit",
     "interior_front_door_right": "LED intérieur — porte AV droite",
+    "interior_front_door_left": "LED intérieur — porte AV gauche",
+    "interior_front_central": "LED intérieur — centrale AV",
+    "interior_back_door_left": "LED intérieur — porte AR gauche",
+    "interior_back_door_right": "LED intérieur — porte AR droite",
     "rgbColor": "Couleur",
     "rgbRainbow": "Arc-en-ciel",
     "rgbSync": "Sync feux extérieurs"

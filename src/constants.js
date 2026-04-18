@@ -20,6 +20,10 @@ export const INTERACTIVE_PARTS = [
   'reversing_lights',
   'side_repeater_left', 'side_repeater_right',
   'interior_front_door_right',
+  'interior_front_door_left',
+  'interior_front_central',
+  'interior_back_door_left',
+  'interior_back_door_right',
 ];
 
 // French labels for each part
@@ -53,6 +57,10 @@ export const PART_LABELS = {
   side_repeater_left: 'Répétiteur gauche',
   side_repeater_right: 'Répétiteur droit',
   interior_front_door_right: 'LED intérieur porte AV droite',
+  interior_front_door_left: 'LED intérieur porte AV gauche',
+  interior_front_central: 'LED intérieur centrale AV',
+  interior_back_door_left: 'LED intérieur porte AR gauche',
+  interior_back_door_right: 'LED intérieur porte AR droite',
 };
 
 // Icon images per part type
@@ -86,6 +94,10 @@ export const PART_ICONS = {
   side_repeater_left: require('../assets/icons/front_light.png'),
   side_repeater_right: require('../assets/icons/front_light.png'),
   interior_front_door_right: require('../assets/icons/window.png'),
+  interior_front_door_left: require('../assets/icons/window.png'),
+  interior_front_central: require('../assets/icons/window.png'),
+  interior_back_door_left: require('../assets/icons/window.png'),
+  interior_back_door_right: require('../assets/icons/window.png'),
 };
 
 // Color per part type (for event rectangles on waveform)
@@ -119,6 +131,10 @@ export const PART_COLORS = {
   side_repeater_left: '#ffaa00',
   side_repeater_right: '#ffaa00',
   interior_front_door_right: '#cc66ff',
+  interior_front_door_left: '#cc66ff',
+  interior_front_central: '#cc66ff',
+  interior_back_door_left: '#cc66ff',
+  interior_back_door_right: '#cc66ff',
 };
 
 // Effect types for events (extensible later with fade, pulse, etc.)
@@ -212,12 +228,26 @@ export const PULSE_SPEEDS = [
 
 // Parts that support the PULSE effect (need fine per-channel brightness).
 // Only the Juniper front light bar qualifies today.
-export const PULSE_PARTS = new Set(['light_center_front', 'light_center_back', 'interior_front_door_right']);
+export const PULSE_PARTS = new Set([
+  'light_center_front',
+  'light_center_back',
+  'interior_front_door_right',
+  'interior_front_door_left',
+  'interior_front_central',
+  'interior_back_door_left',
+  'interior_back_door_right',
+]);
 
 export const supportsPulse = (part) => PULSE_PARTS.has(part);
 
 // Parts that are interior RGB LEDs (3 channels each: R, G, B with fine PWM).
-export const RGB_PARTS = new Set(['interior_front_door_right']);
+export const RGB_PARTS = new Set([
+  'interior_front_door_right',
+  'interior_front_door_left',
+  'interior_front_central',
+  'interior_back_door_left',
+  'interior_back_door_right',
+]);
 export const isRgb = (part) => RGB_PARTS.has(part);
 
 // Preset color palette for the interior RGB LED picker.

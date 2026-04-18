@@ -186,6 +186,10 @@
     "side_repeater_left": "Repetidor izquierdo",
     "side_repeater_right": "Repetidor derecho",
     "interior_front_door_right": "LED interior — puerta del. dcha.",
+    "interior_front_door_left": "LED interior — puerta del. izq.",
+    "interior_front_central": "LED interior — central del.",
+    "interior_back_door_left": "LED interior — puerta tras. izq.",
+    "interior_back_door_right": "LED interior — puerta tras. dcha.",
     "rgbColor": "Color",
     "rgbRainbow": "Arcoíris",
     "rgbSync": "Sync luces exteriores"

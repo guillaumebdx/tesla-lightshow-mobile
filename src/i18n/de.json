@@ -186,6 +186,10 @@
     "side_repeater_left": "Seitenblinker links",
     "side_repeater_right": "Seitenblinker rechts",
     "interior_front_door_right": "Innen-LED — Tür vorne rechts",
+    "interior_front_door_left": "Innen-LED — Tür vorne links",
+    "interior_front_central": "Innen-LED — vorne Mitte",
+    "interior_back_door_left": "Innen-LED — Tür hinten links",
+    "interior_back_door_right": "Innen-LED — Tür hinten rechts",
     "rgbColor": "Farbe",
     "rgbRainbow": "Regenbogen",
     "rgbSync": "Mit Außenlichtern synchronisieren"

@@ -610,17 +610,19 @@ export default function ModelViewer({ showId, onGoHome }) {
       }
     });
 
+    // In interior view, only RGB LED parts are selectable.
+    const interiorOnly = showInteriorRef.current;
+    const isSelectable = (name) => !!name && (!interiorOnly || isRgb(name));
+
     const intersects = raycaster.intersectObjects(allMeshes, false);
     if (intersects.length > 0) {
       const hit = intersects[0].object;
       const interactiveName = hit.userData.interactiveName;
-      if (interactiveName) {
+      if (isSelectable(interactiveName)) {
         selectPart(interactiveName);
       } else {
-        // Hit the car body — find the nearest interactive part using the dot's
-        // world position (what the user visually sees). This handles Juniper
-        // meshes whose bbox centers stack (e.g. reversing_lights, rear_fog,
-        // license_plate all share the same geometric center).
+        // Hit the car body (or a non-selectable interactive) — find the
+        // nearest selectable part using dot world positions.
         const hitPoint = intersects[0].point;
         let nearest = null;
         let nearestDist = Infinity;
@@ -628,7 +630,7 @@ export default function ModelViewer({ showId, onGoHome }) {
         for (const dot of dotSpritesRef.current) {
           const parent = dot.parent;
           const name = parent?.userData?.interactiveName;
-          if (!name) continue;
+          if (!isSelectable(name)) continue;
           dot.getWorldPosition(dotWorldPos);
           const dist = hitPoint.distanceTo(dotWorldPos);
           if (dist < nearestDist) {
@@ -855,12 +857,25 @@ export default function ModelViewer({ showId, onGoHome }) {
       'side_clignoant_left': 'side_repeater_left',
       'side_clignotant_left': 'side_repeater_left',
       'side_clignotant_right': 'side_repeater_right',
-      // Juniper interior RGB LED (right front door). Three.js PropertyBinding
-      // strips `.` entirely in node names → `GEO_DOOR_R_INT_SUB6.001` becomes
-      // `GEO_DOOR_R_INT_SUB6001`. That's the name we actually get at runtime.
+      // Juniper interior RGB LEDs. Three.js PropertyBinding strips `.`
+      // entirely from node names at runtime (e.g. `GEO_DOOR_R_INT_SUB6.001`
+      // → `GEO_DOOR_R_INT_SUB6001`). We include every plausible variant
+      // (sanitized, original, underscore) so lookup always succeeds.
       'GEO_DOOR_R_INT_SUB6001': 'interior_front_door_right',
       'GEO_DOOR_R_INT_SUB6.001': 'interior_front_door_right',
       'GEO_DOOR_R_INT_SUB6_001': 'interior_front_door_right',
+      'GEO_DOOR_L_INT_SUB5002': 'interior_front_door_left',
+      'GEO_DOOR_L_INT_SUB5.002': 'interior_front_door_left',
+      'GEO_DOOR_L_INT_SUB5_002': 'interior_front_door_left',
+      'GEO_Cockpit_HR_SUB14002': 'interior_front_central',
+      'GEO_Cockpit_HR_SUB14.002': 'interior_front_central',
+      'GEO_Cockpit_HR_SUB14_002': 'interior_front_central',
+      'GEO_DOOR_L2_INT_SUB3002': 'interior_back_door_left',
+      'GEO_DOOR_L2_INT_SUB3.002': 'interior_back_door_left',
+      'GEO_DOOR_L2_INT_SUB3_002': 'interior_back_door_left',
+      'GEO_DOOR_R2_INT_SUB6002': 'interior_back_door_right',
+      'GEO_DOOR_R2_INT_SUB6.002': 'interior_back_door_right',
+      'GEO_DOOR_R2_INT_SUB6_002': 'interior_back_door_right',
     };
 
     const fixedPartMaterials = {
@@ -892,6 +907,10 @@ export default function ModelViewer({ showId, onGoHome }) {
       side_repeater_left: blinkerMaterial,
       side_repeater_right: blinkerMaterial,
       interior_front_door_right: rgbMaterial,
+      interior_front_door_left: rgbMaterial,
+      interior_front_central: rgbMaterial,
+      interior_back_door_left: rgbMaterial,
+      interior_back_door_right: rgbMaterial,
     };
 
     // Load GLB model — per-show based on carModel. If the show hasn't finished
@@ -955,20 +974,29 @@ export default function ModelViewer({ showId, onGoHome }) {
         'license_plate', 'brake_lights', 'rear_fog',
         'reversing_lights',
         'interior_front_door_right',
+        'interior_front_door_left',
+        'interior_front_central',
+        'interior_back_door_left',
+        'interior_back_door_right',
       ]);
       // Patterns that mark a mesh as part of the cabin interior. Used by the
       // interior/exterior view toggle to hide the exterior body & shell so
       // interior RGB LEDs become easy to reach.
       const INTERIOR_PATTERNS = [/_INT(\b|_|\d|\.|$)/i, /COCKPIT/i, /SEAT/i, /DASHBOARD/i, /STEERING/i, /INTERIOR/i];
-      const isInteriorChain = (mesh) => {
+      // Cockpit sub-meshes that englobe exterior-looking geometry (roof liner,
+      // rear shelf, body shell) — force-hidden in interior view.
+      const INTERIOR_HIDE_PATTERNS = [/Cockpit_HR_SUB5/i, /Cockpit_HR_SUB6/i];
+      const matchesAny = (mesh, patterns) => {
         let n = mesh;
         while (n) {
           const nm = n.name || '';
-          for (const pat of INTERIOR_PATTERNS) if (pat.test(nm)) return true;
+          for (const pat of patterns) if (pat.test(nm)) return true;
           n = n.parent;
         }
         return false;
       };
+      const isInteriorChain = (mesh) => matchesAny(mesh, INTERIOR_PATTERNS);
+      const isHiddenInInterior = (mesh) => matchesAny(mesh, INTERIOR_HIDE_PATTERNS);
       model.traverse((child) => {
         if (child.isMesh) {
           const partName = getPartName(child);
@@ -981,7 +1009,7 @@ export default function ModelViewer({ showId, onGoHome }) {
           child.userData.interactiveName = INTERACTIVE_PARTS.includes(partName) ? partName : null;
           // Tag interior meshes (for the interior/exterior view toggle). RGB
           // LED parts are always flagged interior regardless of name heuristics.
-          child.userData.isInterior = (partName && isRgb(partName)) || isInteriorChain(child);
+          child.userData.isInterior = ((partName && isRgb(partName)) || isInteriorChain(child)) && !isHiddenInInterior(child);
           // Interior meshes opt in to layer 2 so the RGB PointLight (which
           // lives on layer 2) only illuminates them — exterior stays unlit.
           if (child.userData.isInterior) child.layers.enable(2);
@@ -1513,8 +1541,10 @@ export default function ModelViewer({ showId, onGoHome }) {
           });
         }
 
-        // Show/hide dot sprites based on playback state + camera facing
+        // Show/hide dot sprites based on playback state + camera facing.
+        // In interior view only RGB LED dots are kept, all others are hidden.
         const playing = isPlayingRef.current;
+        const interiorView = showInteriorRef.current;
         if (playing) {
           for (const dot of dotSpritesRef.current) {
             dot.visible = false;
@@ -1523,6 +1553,11 @@ export default function ModelViewer({ showId, onGoHome }) {
           const camPos = cameraRef.current.position;
           const modelPos = modelRef.current.position;
           for (const dot of dotSpritesRef.current) {
+            const partName = dot.parent?.userData?.interactiveName;
+            if (interiorView && !isRgb(partName)) {
+              dot.visible = false;
+              continue;
+            }
             dot.getWorldPosition(_dotWorldPos);
             _toCenter.subVectors(_dotWorldPos, modelPos);
             _toCam.subVectors(camPos, _dotWorldPos);
