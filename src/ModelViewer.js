@@ -1104,18 +1104,47 @@ export default function ModelViewer({ showId, onGoHome }) {
           child.geometry.computeBoundingBox();
           const geoBBox = child.geometry.boundingBox;
 
-          // Pivot in geometry space (before the 0.001 scale)
-          // Hinge at min X (roof edge), center Y (symmetric), max Z (top)
-          const pivotLocal = new THREE.Vector3(
-            geoBBox.min.x,                          // front edge (roof side)
-            (geoBBox.min.y + geoBBox.max.y) / 2,   // center Y (symmetric left-right)
-            geoBBox.max.z                           // top edge
-          );
+          let pivotLocal, rotationAxis;
+          if (carModelId === 'model_y_juniper') {
+            // Juniper trunk: node has R_y(+90°), so local +X → world -Z.
+            // The bbox corners don't sit on real vertices — the hinge is
+            // inside the bbox, not at a corner. Detect it by clustering the
+            // topmost vertices: their X gives the hinge line position, and
+            // they span laterally across the whole trunk (the hinge line
+            // itself). Only Y and Z of the pivot matter for anchoring — X
+            // lies along the rotation axis so it has no effect on translation.
+            const pos = child.geometry.getAttribute('position');
+            const ySpan = geoBBox.max.y - geoBBox.min.y;
+            const yThreshold = geoBBox.max.y - ySpan * 0.05;
+            let sumX = 0, sumZ = 0, count = 0;
+            for (let i = 0; i < pos.count; i++) {
+              if (pos.getY(i) >= yThreshold) {
+                sumX += pos.getX(i);
+                sumZ += pos.getZ(i);
+                count++;
+              }
+            }
+            const hingeX = count > 0 ? sumX / count : (geoBBox.min.x + geoBBox.max.x) / 2;
+            const hingeZ = count > 0 ? sumZ / count : (geoBBox.min.z + geoBBox.max.z) / 2;
+            pivotLocal = new THREE.Vector3(hingeX, geoBBox.max.y, hingeZ);
+            rotationAxis = new THREE.Vector3(0, 0, -1);
+          } else {
+            // Model 3 original convention. From mesh logs:
+            //   X=1479..2211 (front-back), Y=-688..671 (left-right), Z=918..1230 (up-down)
+            // Hinge = min X (front/roof side), center Y, max Z (top) — around local Y.
+            pivotLocal = new THREE.Vector3(
+              geoBBox.min.x,
+              (geoBBox.min.y + geoBBox.max.y) / 2,
+              geoBBox.max.z,
+            );
+            rotationAxis = new THREE.Vector3(0, 1, 0);
+          }
 
           trunkNodeRef.current = {
             mesh: child,
             initMatrix: child.matrix.clone(),
-            pivotLocal: pivotLocal,
+            pivotLocal,
+            rotationAxis,
           };
         }
       });
@@ -1593,7 +1622,7 @@ export default function ModelViewer({ showId, onGoHome }) {
           } else {
             const p = trunkData.pivotLocal;
             _tmpMat4a.makeTranslation(-p.x, -p.y, -p.z);
-            _tmpMat4b.makeRotationAxis(_yAxis, TRUNK_OPEN_ANGLE * progress);
+            _tmpMat4b.makeRotationAxis(trunkData.rotationAxis, TRUNK_OPEN_ANGLE * progress);
             _tmpMat4c.makeTranslation(p.x, p.y, p.z);
             _tmpMat4e.copy(trunkData.initMatrix)
               .multiply(_tmpMat4c)
