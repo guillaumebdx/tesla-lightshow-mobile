@@ -166,6 +166,8 @@
     "right_high_light": "Phare AV droit",
     "left_signature_light": "Signature AV gauche",
     "right_signature_light": "Signature AV droite",
+    "light_left_front": "Phare AV gauche",
+    "light_right_front": "Phare AV droit",
     "light_left_back": "Feu AR gauche",
     "light_right_back": "Feu AR droit",
     "blink_front_left": "Clignotant AV gauche",
@@ -175,6 +177,7 @@
     "license_plate": "Éclairage plaque",
     "brake_lights": "Feux stop",
     "rear_fog": "Antibrouillard AR",
+    "reversing_lights": "Feux de recul",
     "side_repeater_left": "Répétiteur gauche",
     "side_repeater_right": "Répétiteur droit"
   },

@@ -166,6 +166,8 @@
     "right_high_light": "Scheinwerfer vorne rechts",
     "left_signature_light": "Signatur vorne links",
     "right_signature_light": "Signatur vorne rechts",
+    "light_left_front": "Scheinwerfer vorne links",
+    "light_right_front": "Scheinwerfer vorne rechts",
     "light_left_back": "Rücklicht hinten links",
     "light_right_back": "Rücklicht hinten rechts",
     "blink_front_left": "Blinker vorne links",
@@ -175,6 +177,7 @@
     "license_plate": "Kennzeichenbeleuchtung",
     "brake_lights": "Bremslichter",
     "rear_fog": "Nebelschlussleuchte",
+    "reversing_lights": "Rückfahrlichter",
     "side_repeater_left": "Seitenblinker links",
     "side_repeater_right": "Seitenblinker rechts"
   },

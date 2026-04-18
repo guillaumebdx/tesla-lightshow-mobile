@@ -154,7 +154,8 @@ export default function ModelViewer({ showId, onGoHome }) {
   const AI_LIGHT_PARTS = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light',
     'light_left_back', 'light_right_back',
     'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
-    'license_plate', 'brake_lights', 'rear_fog', 'side_repeater_left', 'side_repeater_right'];
+    'license_plate', 'brake_lights', 'rear_fog', 'reversing_lights',
+    'side_repeater_left', 'side_repeater_right'];
 
   const startAiAnimation = useCallback((trackDurationMs) => {
     aiGeneratingRef.current = true;
@@ -611,28 +612,25 @@ export default function ModelViewer({ showId, onGoHome }) {
       if (interactiveName) {
         selectPart(interactiveName);
       } else {
-        // Hit the car body — find the nearest interactive part using bbox center
+        // Hit the car body — find the nearest interactive part using the dot's
+        // world position (what the user visually sees). This handles Juniper
+        // meshes whose bbox centers stack (e.g. reversing_lights, rear_fog,
+        // license_plate all share the same geometric center).
         const hitPoint = intersects[0].point;
         let nearest = null;
         let nearestDist = Infinity;
-        const seenNames = new Set();
-        model.traverse((child) => {
-          if (!child.isMesh || !child.userData.interactiveName) return;
-          const name = child.userData.interactiveName;
-          if (seenNames.has(name)) return;
-          seenNames.add(name);
-          // Use bounding box center in world space (more accurate than mesh origin)
-          child.geometry.computeBoundingBox();
-          const localCenter = new THREE.Vector3();
-          child.geometry.boundingBox.getCenter(localCenter);
-          const worldCenter = localCenter.clone();
-          child.localToWorld(worldCenter);
-          const dist = hitPoint.distanceTo(worldCenter);
+        const dotWorldPos = new THREE.Vector3();
+        for (const dot of dotSpritesRef.current) {
+          const parent = dot.parent;
+          const name = parent?.userData?.interactiveName;
+          if (!name) continue;
+          dot.getWorldPosition(dotWorldPos);
+          const dist = hitPoint.distanceTo(dotWorldPos);
           if (dist < nearestDist) {
             nearestDist = dist;
             nearest = name;
           }
-        });
+        }
         if (nearest && nearestDist < 1.5) {
           selectPart(nearest);
         } else {
@@ -745,6 +743,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       emissiveIntensity: 1.0,
       transparent: true,
       opacity: 0.92,
+      side: THREE.DoubleSide,
     });
     highlightMaterialRef.current = highlightMaterial;
 
@@ -758,6 +757,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       depthTest: false,
       transparent: true,
       opacity: 0.85,
+      side: THREE.DoubleSide,
     });
     highlightMaterialNoDepthRef.current = highlightMaterialNoDepth;
 
@@ -776,6 +776,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       roughness: 0.15,
       emissive: 0x000000,
       emissiveIntensity: 0,
+      side: THREE.DoubleSide,
     });
 
     const taillightMaterial = new THREE.MeshStandardMaterial({
@@ -784,6 +785,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       roughness: 0.15,
       emissive: 0x000000,
       emissiveIntensity: 0,
+      side: THREE.DoubleSide,
     });
 
     // Lights ON (bright emissive)
@@ -793,6 +795,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       roughness: 0.05,
       emissive: 0xffffff,
       emissiveIntensity: 1.5,
+      side: THREE.DoubleSide,
     });
     litHeadlightMatRef.current = litHeadlightMat;
 
@@ -802,12 +805,14 @@ export default function ModelViewer({ showId, onGoHome }) {
       roughness: 0.05,
       emissive: 0xff0000,
       emissiveIntensity: 1.5,
+      side: THREE.DoubleSide,
     });
     litTaillightMatRef.current = litTaillightMat;
 
     // Turn signal (blinker) materials — amber
     const blinkerMaterial = new THREE.MeshBasicMaterial({
       color: 0x332200,
+      side: THREE.DoubleSide,
     });
 
     const litBlinkerMat = new THREE.MeshStandardMaterial({
@@ -816,6 +821,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       roughness: 0.05,
       emissive: 0xffaa00,
       emissiveIntensity: 1.5,
+      side: THREE.DoubleSide,
     });
     litBlinkerMatRef.current = litBlinkerMat;
 
@@ -840,10 +846,12 @@ export default function ModelViewer({ showId, onGoHome }) {
       window_right_back: windowMaterial,
       windshield_front: windowMaterial,
       windshield_back: windowMaterial,
+      unactivate_glasses: windowMaterial,
       left_high_light: headlightMaterial,
       right_high_light: headlightMaterial,
       left_signature_light: headlightMaterial,
       right_signature_light: headlightMaterial,
+      light_left_front: headlightMaterial,
       light_right_front: headlightMaterial,
       light_left_back: taillightMaterial,
       light_right_back: taillightMaterial,
@@ -854,6 +862,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       license_plate: headlightMaterial,
       brake_lights: taillightMaterial,
       rear_fog: taillightMaterial,
+      reversing_lights: headlightMaterial,
       side_repeater_left: blinkerMaterial,
       side_repeater_right: blinkerMaterial,
     };
@@ -899,6 +908,17 @@ export default function ModelViewer({ showId, onGoHome }) {
       };
 
       const frontLightParts = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light'];
+      // Parts that must always render on top of the body (avoid occlusion/z-fighting)
+      const alwaysOnTopParts = new Set([
+        ...frontLightParts,
+        'light_left_front', 'light_right_front',
+        'light_left_back', 'light_right_back',
+        'blink_front_left', 'blink_front_right',
+        'blink_back_left', 'blink_back_right',
+        'side_repeater_left', 'side_repeater_right',
+        'license_plate', 'brake_lights', 'rear_fog',
+        'reversing_lights',
+      ]);
       model.traverse((child) => {
         if (child.isMesh) {
           const partName = getPartName(child);
@@ -909,8 +929,8 @@ export default function ModelViewer({ showId, onGoHome }) {
           meshMaterialsRef.current.set(key, mat);
           // Only tag interactive parts (not cosmetic like windshields)
           child.userData.interactiveName = INTERACTIVE_PARTS.includes(partName) ? partName : null;
-          // Front light sub-parts are recessed inside the body — render on top
-          if (frontLightParts.includes(partName)) {
+          // Lights & blinkers may be recessed inside the body — render on top
+          if (alwaysOnTopParts.has(partName)) {
             child.renderOrder = 1;
             child.material = child.material.clone();
             child.material.depthTest = false;
@@ -943,6 +963,8 @@ export default function ModelViewer({ showId, onGoHome }) {
         right_high_light:      { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
         left_signature_light:  { color: 0xaaddff, dir: new THREE.Vector3(0, -0.3, 1) },
         right_signature_light: { color: 0xaaddff, dir: new THREE.Vector3(0, -0.3, 1) },
+        light_left_front:      { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
+        light_right_front:     { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
         light_left_back:   { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
         light_right_back:  { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
         blink_front_left:  { color: 0xffaa00, dir: new THREE.Vector3(-0.5, -0.3, 1) },
@@ -952,6 +974,7 @@ export default function ModelViewer({ showId, onGoHome }) {
         license_plate:     { color: 0xffffff, dir: new THREE.Vector3(0, -1, -0.3) },
         brake_lights:      { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
         rear_fog:          { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
+        reversing_lights:  { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, -1) },
         side_repeater_left:  { color: 0xffaa00, dir: new THREE.Vector3(-1, -0.3, 0) },
         side_repeater_right: { color: 0xffaa00, dir: new THREE.Vector3(1, -0.3, 0) },
       };
@@ -966,7 +989,7 @@ export default function ModelViewer({ showId, onGoHome }) {
         const worldPos = new THREE.Vector3();
         child.getWorldPosition(worldPos);
 
-        const isSmallLight = partName.includes('blink') || partName.includes('repeater') || partName === 'license_plate' || partName === 'rear_fog' || partName === 'brake_lights';
+        const isSmallLight = partName.includes('blink') || partName.includes('repeater') || partName === 'license_plate' || partName === 'rear_fog' || partName === 'brake_lights' || partName === 'reversing_lights';
         const spot = new THREE.SpotLight(def.color, 0, isSmallLight ? 8 : 12, isSmallLight ? Math.PI / 6 : Math.PI / 5, 0.6, 1.5);
         spot.position.copy(worldPos);
         // Target = position + direction
@@ -983,41 +1006,73 @@ export default function ModelViewer({ showId, onGoHome }) {
         }
       });
 
-      // Find retro mirror meshes and store initial state
+      // Find retro mirror meshes and store initial state.
+      // Fold rotation must happen around world-up and slide along world-lateral,
+      // but meshes may be rotated (Juniper windows/retros have a 90° Y-rotation).
+      // Compute these axes in mesh-local space so the same animation code works
+      // for both Model 3 (local Z = up, local X = lateral) and Juniper (local Y
+      // = up, local Z = lateral).
       const retroNames = ['retro_left', 'retro_right'];
       model.traverse((child) => {
         if (!child.isMesh) return;
         const interactiveName = child.userData.interactiveName;
         if (retroNames.includes(interactiveName) && !retroNodesRef.current[interactiveName]) {
-          // Store the mesh geometry's bounding box center to use as rotation pivot
           child.geometry.computeBoundingBox();
           const geoBBox = child.geometry.boundingBox;
           const geoCenter = new THREE.Vector3();
           geoBBox.getCenter(geoCenter);
 
+          const worldQuat = new THREE.Quaternion();
+          child.getWorldQuaternion(worldQuat);
+          const invQuat = worldQuat.clone().invert();
+          const foldAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(invQuat);
+          const slideAxis = new THREE.Vector3(1, 0, 0).applyQuaternion(invQuat);
+
           retroNodesRef.current[interactiveName] = {
             mesh: child,
             geoCenter: geoCenter,
             initMatrix: child.matrix.clone(),
+            foldAxis,
+            slideAxis,
           };
         }
       });
 
-      // Find window meshes and store initial state + travel distance
+      // Find window meshes and store initial state + travel distance.
+      // Model 3 windows are oriented so local -Z = world down; Juniper windows
+      // are rotated 90° around Y so local -Y = world down. Detect the axis
+      // dynamically by projecting world-down into mesh local space, then use
+      // the geometry extent along that axis as the travel distance.
       const windowNames = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
+      model.updateMatrixWorld(true);
       model.traverse((child) => {
         if (!child.isMesh) return;
         const interactiveName = child.userData.interactiveName;
         if (windowNames.includes(interactiveName) && !windowNodesRef.current[interactiveName]) {
           child.geometry.computeBoundingBox();
           const geoBBox = child.geometry.boundingBox;
-          // Travel distance = height of the window geometry (Z extent = vertical on screen)
-          const travelZ = geoBBox.max.z - geoBBox.min.z;
+
+          const worldQuat = new THREE.Quaternion();
+          child.getWorldQuaternion(worldQuat);
+          const localDown = new THREE.Vector3(0, -1, 0).applyQuaternion(worldQuat.invert());
+          const absX = Math.abs(localDown.x), absY = Math.abs(localDown.y), absZ = Math.abs(localDown.z);
+          let travelAxis, travelLength;
+          if (absY >= absX && absY >= absZ) {
+            travelAxis = new THREE.Vector3(0, Math.sign(localDown.y) || -1, 0);
+            travelLength = geoBBox.max.y - geoBBox.min.y;
+          } else if (absZ >= absX) {
+            travelAxis = new THREE.Vector3(0, 0, Math.sign(localDown.z) || -1);
+            travelLength = geoBBox.max.z - geoBBox.min.z;
+          } else {
+            travelAxis = new THREE.Vector3(Math.sign(localDown.x) || -1, 0, 0);
+            travelLength = geoBBox.max.x - geoBBox.min.x;
+          }
 
           windowNodesRef.current[interactiveName] = {
             mesh: child,
             initMatrix: child.matrix.clone(),
-            travelZ: travelZ,
+            travelAxis,
+            travelLength,
           };
         }
       });
@@ -1103,12 +1158,23 @@ export default function ModelViewer({ showId, onGoHome }) {
         depthTest: false,
         depthWrite: false,
       });
+      // Juniper-specific: reversing_lights and rear_fog are modeled as wide
+      // horizontal strips whose local bbox center coincides with the license plate
+      // position. Shift their dots in world space so the 3 rear-center dots don't
+      // stack on top of each other.
+      const juniperWorldOffsets = carModelId === 'model_y_juniper' ? {
+        reversing_lights: new THREE.Vector3(-0.60, -0.02, 0),
+        rear_fog:         new THREE.Vector3(-0.48, 0.02, 0),
+      } : null;
+      const juniperHiddenDots = new Set();
+
       const seenParts = new Set();
       model.traverse((child) => {
         if (!child.isMesh) return;
         const partName = child.userData.interactiveName;
         if (!partName || seenParts.has(partName)) return;
         seenParts.add(partName);
+        if (juniperHiddenDots.has(partName)) return;
 
         // Compute center of bounding box in local space
         child.geometry.computeBoundingBox();
@@ -1126,6 +1192,15 @@ export default function ModelViewer({ showId, onGoHome }) {
           dotPosition.y -= 120; // shift left (more negative Y = away from taillight)
           dotPosition.z -= 80;  // shift down slightly
         }
+        // Apply per-part world-space offset (converted to mesh-local)
+        const worldOffset = juniperWorldOffsets?.[partName];
+        if (worldOffset) {
+          child.updateWorldMatrix(true, false);
+          const worldPos = dotPosition.clone().applyMatrix4(child.matrixWorld);
+          worldPos.add(worldOffset);
+          const invMatrix = new THREE.Matrix4().copy(child.matrixWorld).invert();
+          dotPosition.copy(worldPos).applyMatrix4(invMatrix);
+        }
 
         const dot = new THREE.Mesh(dotGeo, dotBaseMat.clone());
         dot.position.copy(dotPosition);
@@ -1137,6 +1212,8 @@ export default function ModelViewer({ showId, onGoHome }) {
         dot.scale.set(fixedSize, fixedSize, fixedSize);
         dot.raycast = () => {}; // Dots don't intercept raycasts
         dot.userData.isDot = true;
+        // Draw dots on top of light meshes (which now use renderOrder=1)
+        dot.renderOrder = 2;
         child.add(dot);
         dotSpritesRef.current.push(dot);
       });
@@ -1178,9 +1255,11 @@ export default function ModelViewer({ showId, onGoHome }) {
     const retroPartNames = ['retro_left', 'retro_right'];
     const windowPartNames = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
     const lightPartNames = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light',
+      'light_left_front', 'light_right_front',
       'light_left_back', 'light_right_back',
       'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
-      'license_plate', 'brake_lights', 'rear_fog', 'side_repeater_left', 'side_repeater_right'];
+      'license_plate', 'brake_lights', 'rear_fog', 'reversing_lights',
+      'side_repeater_left', 'side_repeater_right'];
     const _activeMap = new Map();
 
     // Build a direct-lookup map: partName → [mesh, ...] (avoids model.traverse every frame)
@@ -1332,6 +1411,7 @@ export default function ModelViewer({ showId, onGoHome }) {
               }
 
               const isFrontLight = partName.includes('front') || partName === 'license_plate'
+                || partName === 'reversing_lights'
                 || partName.includes('high_light') || partName.includes('signature_light');
               const litMat = isBlink ? litBlinkerMatRef.current
                            : isFrontLight ? litHeadlightMatRef.current
@@ -1413,10 +1493,11 @@ export default function ModelViewer({ showId, onGoHome }) {
             mesh.matrix.copy(retroData.initMatrix);
           } else {
             const c = retroData.geoCenter;
+            const sa = retroData.slideAxis;
             _tmpMat4a.makeTranslation(-c.x, -c.y, -c.z);
-            _tmpMat4b.makeRotationAxis(_zAxis, angle);
+            _tmpMat4b.makeRotationAxis(retroData.foldAxis, angle);
             _tmpMat4c.makeTranslation(c.x, c.y, c.z);
-            _tmpMat4d.makeTranslation(slideX, 0, 0);
+            _tmpMat4d.makeTranslation(sa.x * slideX, sa.y * slideX, sa.z * slideX);
             _tmpMat4e.copy(retroData.initMatrix)
               .multiply(_tmpMat4d)
               .multiply(_tmpMat4c)
@@ -1453,7 +1534,12 @@ export default function ModelViewer({ showId, onGoHome }) {
           if (progress === 0) {
             mesh.matrix.copy(winData.initMatrix);
           } else {
-            _tmpMat4a.makeTranslation(0, 0, -winData.travelZ * progress);
+            const d = winData.travelLength * progress;
+            _tmpMat4a.makeTranslation(
+              winData.travelAxis.x * d,
+              winData.travelAxis.y * d,
+              winData.travelAxis.z * d,
+            );
             _tmpMat4e.copy(winData.initMatrix).multiply(_tmpMat4a);
             mesh.matrix.copy(_tmpMat4e);
           }

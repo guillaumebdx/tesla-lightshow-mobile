@@ -15,6 +15,9 @@ const CHANNEL_MAP = {
   right_high_light:      [1, 3],              // DRL + low beam droit (Outer + Inner Main Beam)
   left_signature_light:  [4, 6, 8, 10],       // Signature gauche (4 segments haut)
   right_signature_light: [5, 7, 9, 11],       // Signature droite (4 segments haut)
+  // Juniper combined headlights — fire all left/right front channels together
+  light_left_front:  [0, 2, 4, 6, 8, 10],    // Main beam + signature gauche combinés
+  light_right_front: [1, 3, 5, 7, 9, 11],    // Main beam + signature droit combinés
   light_left_back:   [25],                   // feu AR gauche (signature gauche uniquement)
   light_right_back:  [26],                   // feu AR droit (signature droit uniquement)
   blink_front_left:  [12],                   // clignotant AV gauche
@@ -24,6 +27,7 @@ const CHANNEL_MAP = {
   license_plate:     [29],                   // éclairage plaque
   brake_lights:      [24],                   // feux stop (les 3 ensemble)
   rear_fog:          [28],                   // antibrouillard AR
+  reversing_lights:  [27],                   // feux de recul (les 2) — blancs, Juniper only
   side_repeater_left:  [20],                 // répétiteur clignotant gauche
   side_repeater_right: [21],                 // répétiteur clignotant droit
 };

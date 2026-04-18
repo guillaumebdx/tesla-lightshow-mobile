@@ -166,6 +166,8 @@
     "right_high_light": "Front right headlight",
     "left_signature_light": "Front left signature",
     "right_signature_light": "Front right signature",
+    "light_left_front": "Front left headlight",
+    "light_right_front": "Front right headlight",
     "light_left_back": "Rear left taillight",
     "light_right_back": "Rear right taillight",
     "blink_front_left": "Front left turn signal",
@@ -175,6 +177,7 @@
     "license_plate": "License plate light",
     "brake_lights": "Brake lights",
     "rear_fog": "Rear fog light",
+    "reversing_lights": "Reverse lights",
     "side_repeater_left": "Left side repeater",
     "side_repeater_right": "Right side repeater"
   },
