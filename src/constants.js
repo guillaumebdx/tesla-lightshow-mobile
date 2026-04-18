@@ -19,6 +19,7 @@ export const INTERACTIVE_PARTS = [
   'rear_fog',
   'reversing_lights',
   'side_repeater_left', 'side_repeater_right',
+  'interior_front_door_right',
 ];
 
 // French labels for each part
@@ -51,6 +52,7 @@ export const PART_LABELS = {
   reversing_lights: 'Feux de recul',
   side_repeater_left: 'Répétiteur gauche',
   side_repeater_right: 'Répétiteur droit',
+  interior_front_door_right: 'LED intérieur porte AV droite',
 };
 
 // Icon images per part type
@@ -83,6 +85,7 @@ export const PART_ICONS = {
   reversing_lights: require('../assets/icons/back_light.png'),
   side_repeater_left: require('../assets/icons/front_light.png'),
   side_repeater_right: require('../assets/icons/front_light.png'),
+  interior_front_door_right: require('../assets/icons/window.png'),
 };
 
 // Color per part type (for event rectangles on waveform)
@@ -115,6 +118,7 @@ export const PART_COLORS = {
   reversing_lights: '#ffffff',
   side_repeater_left: '#ffaa00',
   side_repeater_right: '#ffaa00',
+  interior_front_door_right: '#cc66ff',
 };
 
 // Effect types for events (extensible later with fade, pulse, etc.)
@@ -208,9 +212,30 @@ export const PULSE_SPEEDS = [
 
 // Parts that support the PULSE effect (need fine per-channel brightness).
 // Only the Juniper front light bar qualifies today.
-export const PULSE_PARTS = new Set(['light_center_front', 'light_center_back']);
+export const PULSE_PARTS = new Set(['light_center_front', 'light_center_back', 'interior_front_door_right']);
 
 export const supportsPulse = (part) => PULSE_PARTS.has(part);
+
+// Parts that are interior RGB LEDs (3 channels each: R, G, B with fine PWM).
+export const RGB_PARTS = new Set(['interior_front_door_right']);
+export const isRgb = (part) => RGB_PARTS.has(part);
+
+// Preset color palette for the interior RGB LED picker.
+// 12 values spread across the hue wheel + white.
+export const RGB_PRESETS = [
+  '#ffffff',
+  '#ff2222',
+  '#ff7700',
+  '#ffcc00',
+  '#88ff22',
+  '#22ff88',
+  '#22ddff',
+  '#2277ff',
+  '#8822ff',
+  '#ee22ff',
+  '#ff2288',
+  '#ffaadd',
+];
 
 // Maximum number of events per show
 export const MAX_EVENTS = 5000;
@@ -229,10 +254,14 @@ export const DEFAULT_EVENT_OPTIONS = {
   windowDurationMs: 5000,             // Duration of window dance
   trunkMode: 'trunk_open',            // Default trunk mode
   flapMode: 'flap_open',              // Default flap mode
+  // RGB LED (interior) options — only used when part is an RGB LED
+  rgbColor: '#ffffff',     // HEX color
+  rgbRainbow: false,       // Rainbow overrides rgbColor
+  rgbSync: false,          // Sync with exterior lights (overrides color/rainbow)
 };
 
 // Helper: is this part a light?
-export const isLight = (part) => part && (part.includes('light') || part === 'license_plate' || part === 'rear_fog');
+export const isLight = (part) => part && (part.includes('light') || part === 'license_plate' || part === 'rear_fog' || isRgb(part));
 
 // Helper: is this part a turn signal (blinker)?
 export const isBlinker = (part) => part && (part.includes('blink') || part.includes('repeater'));

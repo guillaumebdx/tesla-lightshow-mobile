@@ -49,6 +49,8 @@
   },
   "editor": {
     "loadingModel": "Cargando modelo...",
+    "showInterior": "Interior",
+    "showExterior": "Exterior",
     "home": "Inicio",
     "advancedSettings": "Ajustes avanzados",
     "resetEvents": "Borrar eventos",
@@ -182,7 +184,11 @@
     "rear_fog": "Antiniebla trasero",
     "reversing_lights": "Luces de marcha atrás",
     "side_repeater_left": "Repetidor izquierdo",
-    "side_repeater_right": "Repetidor derecho"
+    "side_repeater_right": "Repetidor derecho",
+    "interior_front_door_right": "LED interior — puerta del. dcha.",
+    "rgbColor": "Color",
+    "rgbRainbow": "Arcoíris",
+    "rgbSync": "Sync luces exteriores"
   },
   "export": {
     "page1Title": "Importar en tu vehículo",

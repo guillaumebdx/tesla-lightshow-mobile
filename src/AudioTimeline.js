@@ -547,6 +547,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
         effect: eventOptions?.effect || EFFECT_TYPES.SOLID,
         power: eventOptions?.power ?? 100,
         blinkSpeed: eventOptions?.blinkSpeed ?? 0,
+        pulseSpeed: eventOptions?.pulseSpeed ?? 0,
         easeIn: eventOptions?.easeIn ?? false,
         easeOut: eventOptions?.easeOut ?? false,
         retroMode: eventOptions?.retroMode ?? 'roundtrip',
@@ -554,6 +555,9 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
         windowDurationMs: eventOptions?.windowDurationMs ?? 3000,
         trunkMode: eventOptions?.trunkMode ?? 'trunk_open',
         flapMode: eventOptions?.flapMode ?? 'flap_open',
+        rgbColor: eventOptions?.rgbColor ?? '#ffffff',
+        rgbRainbow: eventOptions?.rgbRainbow ?? false,
+        rgbSync: eventOptions?.rgbSync ?? false,
       };
 
       // Block trunk DANCE if no prior OPEN exists, or if placed too early

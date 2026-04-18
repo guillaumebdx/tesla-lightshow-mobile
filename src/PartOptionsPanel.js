@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Switch, TouchableOpacity, TextInput, Modal, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Slider from '@react-native-community/slider';
-import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, PULSE_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, supportsPulse, isLight, isBlinker, isRetro, isWindow, isTrunk, isFlap, isClosure } from './constants';
+import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, PULSE_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, supportsPulse, isLight, isBlinker, isRetro, isWindow, isTrunk, isFlap, isClosure, isRgb, RGB_PRESETS } from './constants';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent, onDeleteEvent, events = [] }) {
@@ -51,6 +51,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
   const isBlink = eventOptions.effect === EFFECT_TYPES.BLINK;
   const isPulse = eventOptions.effect === EFFECT_TYPES.PULSE;
   const canPulse = supportsPulse(selectedPart);
+  const rgbPart = isRgb(selectedPart);
   // Parts with fine PWM brightness (Juniper light bar) allow the full 0-100%
   // range. Other light channels are ramping-encoded on the vehicle, so we
   // keep the floor at 80% (matches the Tesla ramping table — D = 80%).
@@ -146,6 +147,55 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
                 />
               </View>
             </View>
+
+            {/* Interior RGB LED: color picker + rainbow + exterior sync.
+                Sync > rainbow > color (sync overrides rainbow which overrides color). */}
+            {rgbPart && (
+              <View style={styles.rgbSection}>
+                <View style={styles.blinkRow}>
+                  <Text style={styles.optionLabel}>{t('parts.rgbSync')}</Text>
+                  <Switch
+                    value={!!eventOptions.rgbSync}
+                    onValueChange={(val) => onOptionsChange({ ...eventOptions, rgbSync: val })}
+                    trackColor={{ false: '#2a2a4a', true: 'rgba(68, 170, 255, 0.5)' }}
+                    thumbColor={eventOptions.rgbSync ? '#44aaff' : '#555577'}
+                  />
+                </View>
+                <View style={styles.blinkRow}>
+                  <Text style={[styles.optionLabel, eventOptions.rgbSync && styles.optionLabelDisabled]}>
+                    {t('parts.rgbRainbow')}
+                  </Text>
+                  <Switch
+                    value={!!eventOptions.rgbRainbow && !eventOptions.rgbSync}
+                    disabled={!!eventOptions.rgbSync}
+                    onValueChange={(val) => onOptionsChange({ ...eventOptions, rgbRainbow: val })}
+                    trackColor={{ false: '#2a2a4a', true: 'rgba(233, 69, 96, 0.5)' }}
+                    thumbColor={(eventOptions.rgbRainbow && !eventOptions.rgbSync) ? '#e94560' : '#555577'}
+                  />
+                </View>
+                {!eventOptions.rgbSync && !eventOptions.rgbRainbow && (
+                  <View style={styles.rgbColorGroup}>
+                    <Text style={styles.optionLabel}>{t('parts.rgbColor')}</Text>
+                    <View style={styles.rgbSwatchGrid}>
+                      {RGB_PRESETS.map((hex) => {
+                        const active = (eventOptions.rgbColor || '#ffffff').toLowerCase() === hex.toLowerCase();
+                        return (
+                          <TouchableOpacity
+                            key={hex}
+                            style={[
+                              styles.rgbSwatch,
+                              { backgroundColor: hex },
+                              active && styles.rgbSwatchActive,
+                            ]}
+                            onPress={() => onOptionsChange({ ...eventOptions, rgbColor: hex })}
+                          />
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Blink OR Pulse toggle + speed on same line. Pulse replaces blink
                 for parts with fine PWM brightness (Juniper front light bar). */}
@@ -673,5 +723,34 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  rgbSection: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#2a2a4a',
+  },
+  optionLabelDisabled: {
+    color: '#555577',
+  },
+  rgbColorGroup: {
+    marginTop: 8,
+  },
+  rgbSwatchGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  rgbSwatch: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#2a2a4a',
+  },
+  rgbSwatchActive: {
+    borderColor: '#ffffff',
+    borderWidth: 3,
   },
 });

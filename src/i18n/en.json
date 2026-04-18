@@ -49,6 +49,8 @@
   },
   "editor": {
     "loadingModel": "Loading model...",
+    "showInterior": "Interior",
+    "showExterior": "Exterior",
     "home": "Home",
     "advancedSettings": "Advanced settings",
     "resetEvents": "Reset events",
@@ -182,7 +184,11 @@
     "rear_fog": "Rear fog light",
     "reversing_lights": "Reverse lights",
     "side_repeater_left": "Left side repeater",
-    "side_repeater_right": "Right side repeater"
+    "side_repeater_right": "Right side repeater",
+    "interior_front_door_right": "Interior LED — front right door",
+    "rgbColor": "Color",
+    "rgbRainbow": "Rainbow",
+    "rgbSync": "Sync with exterior lights"
   },
   "export": {
     "page1Title": "Import into your vehicle",

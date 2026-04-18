@@ -49,6 +49,8 @@
   },
   "editor": {
     "loadingModel": "Chargement du modèle...",
+    "showInterior": "Intérieur",
+    "showExterior": "Extérieur",
     "home": "Home",
     "advancedSettings": "Paramètres avancés",
     "resetEvents": "RAZ événements",
@@ -182,7 +184,11 @@
     "rear_fog": "Antibrouillard AR",
     "reversing_lights": "Feux de recul",
     "side_repeater_left": "Répétiteur gauche",
-    "side_repeater_right": "Répétiteur droit"
+    "side_repeater_right": "Répétiteur droit",
+    "interior_front_door_right": "LED intérieur — porte AV droite",
+    "rgbColor": "Couleur",
+    "rgbRainbow": "Arc-en-ciel",
+    "rgbSync": "Sync feux extérieurs"
   },
   "export": {
     "page1Title": "Importer dans ton véhicule",

@@ -49,6 +49,8 @@
   },
   "editor": {
     "loadingModel": "Modell wird geladen...",
+    "showInterior": "Innenraum",
+    "showExterior": "Außen",
     "home": "Startseite",
     "advancedSettings": "Erweiterte Einstellungen",
     "resetEvents": "Ereignisse zurücksetzen",
@@ -182,7 +184,11 @@
     "rear_fog": "Nebelschlussleuchte",
     "reversing_lights": "Rückfahrlichter",
     "side_repeater_left": "Seitenblinker links",
-    "side_repeater_right": "Seitenblinker rechts"
+    "side_repeater_right": "Seitenblinker rechts",
+    "interior_front_door_right": "Innen-LED — Tür vorne rechts",
+    "rgbColor": "Farbe",
+    "rgbRainbow": "Regenbogen",
+    "rgbSync": "Mit Außenlichtern synchronisieren"
   },
   "export": {
     "page1Title": "In dein Fahrzeug importieren",

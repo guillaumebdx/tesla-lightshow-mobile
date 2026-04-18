@@ -63,6 +63,82 @@ const CLOSURE_CMD = {
   STOP: 255,
 };
 
+// Interior RGB LED channels (Juniper only). Each segment = 3 bytes (R, G, B).
+// Right Front door panel RGB = channels 182-184 (1-indexed) → 181-183 (0-indexed).
+const RGB_MAP = {
+  interior_front_door_right: { r: 181, g: 182, b: 183 },
+};
+
+// Colors contributed by exterior lights when the RGB "sync" mode is active.
+// Mirrors the SYNC_COLORS in ModelViewer.js — keep in sync.
+const SYNC_COLORS = {
+  brake_lights:          { r: 1.0, g: 0.05, b: 0.05 },
+  light_left_back:       { r: 0.8, g: 0.02, b: 0.02 },
+  light_right_back:      { r: 0.8, g: 0.02, b: 0.02 },
+  light_center_back:     { r: 0.8, g: 0.02, b: 0.02 },
+  rear_fog:              { r: 0.8, g: 0.02, b: 0.02 },
+  blink_front_left:      { r: 1.0, g: 0.5, b: 0.0 },
+  blink_front_right:     { r: 1.0, g: 0.5, b: 0.0 },
+  blink_back_left:       { r: 1.0, g: 0.5, b: 0.0 },
+  blink_back_right:      { r: 1.0, g: 0.5, b: 0.0 },
+  side_repeater_left:    { r: 1.0, g: 0.5, b: 0.0 },
+  side_repeater_right:   { r: 1.0, g: 0.5, b: 0.0 },
+  left_high_light:       { r: 1.0, g: 1.0, b: 1.0 },
+  right_high_light:      { r: 1.0, g: 1.0, b: 1.0 },
+  left_signature_light:  { r: 0.6, g: 0.85, b: 1.0 },
+  right_signature_light: { r: 0.6, g: 0.85, b: 1.0 },
+  light_left_front:      { r: 1.0, g: 1.0, b: 1.0 },
+  light_right_front:     { r: 1.0, g: 1.0, b: 1.0 },
+  light_center_front:    { r: 1.0, g: 1.0, b: 1.0 },
+  license_plate:         { r: 1.0, g: 1.0, b: 1.0 },
+  reversing_lights:      { r: 1.0, g: 1.0, b: 1.0 },
+};
+
+const RAINBOW_CYCLE_MS = 2500;
+
+function hexToRgb01(hex) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return { r: ((n >> 16) & 0xff) / 255, g: ((n >> 8) & 0xff) / 255, b: (n & 0xff) / 255 };
+}
+
+function hslToRgb01(h, s, l) {
+  // Standard HSL → RGB, h/s/l in [0,1]
+  if (s === 0) return { r: l, g: l, b: l };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const hue2rgb = (t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  return { r: hue2rgb(h + 1 / 3), g: hue2rgb(h), b: hue2rgb(h - 1 / 3) };
+}
+
+function computeRgbColor(evt, posMs, lightEvents) {
+  if (evt.rgbSync) {
+    let r = 0, g = 0, b = 0;
+    for (const e of lightEvents) {
+      const col = SYNC_COLORS[e.part];
+      if (!col) continue;
+      const i = computeIntensity(e, posMs);
+      if (i <= 0) continue;
+      if (col.r * i > r) r = col.r * i;
+      if (col.g * i > g) g = col.g * i;
+      if (col.b * i > b) b = col.b * i;
+    }
+    return { r, g, b };
+  }
+  if (evt.rgbRainbow) {
+    const elapsed = posMs - evt.startMs;
+    const h = ((elapsed / RAINBOW_CYCLE_MS) % 1 + 1) % 1;
+    return hslToRgb01(h, 1, 0.5);
+  }
+  return hexToRgb01(evt.rgbColor || '#ffffff');
+}
+
 const STEP_TIME_MS = 20;
 
 /**
@@ -159,9 +235,10 @@ function compileFrameData(events, durationMs, channelCount) {
   const frameCount = Math.ceil(durationMs / STEP_TIME_MS);
   const data = new Uint8Array(frameCount * channelCount); // initialized to 0
 
-  // Separate light and closure events
+  // Separate light, closure, and RGB events
   const lightEvents = events.filter((evt) => CHANNEL_MAP[evt.part] !== undefined);
   const closureEvents = events.filter((evt) => CLOSURE_MAP[evt.part] !== undefined);
+  const rgbEvents = events.filter((evt) => RGB_MAP[evt.part] !== undefined);
 
   // Process light events (brightness 0-255)
   for (let frame = 0; frame < frameCount; frame++) {
@@ -176,6 +253,30 @@ function compileFrameData(events, durationMs, channelCount) {
           const offset = frame * channelCount + ch;
           data[offset] = Math.max(data[offset], value);
         }
+      }
+    }
+  }
+
+  // Process RGB events (3 channels per event: R, G, B).
+  // Runs per-frame so rainbow/sync modes can animate over time.
+  if (rgbEvents.length > 0) {
+    for (let frame = 0; frame < frameCount; frame++) {
+      const posMs = frame * STEP_TIME_MS;
+      for (const evt of rgbEvents) {
+        if (posMs < evt.startMs || posMs >= evt.endMs) continue;
+        const intensity = computeIntensity(evt, posMs);
+        if (intensity <= 0) continue;
+        const col = computeRgbColor(evt, posMs, lightEvents);
+        const ch = RGB_MAP[evt.part];
+        const rVal = Math.round(col.r * intensity * 255);
+        const gVal = Math.round(col.g * intensity * 255);
+        const bVal = Math.round(col.b * intensity * 255);
+        const rOff = frame * channelCount + ch.r;
+        const gOff = frame * channelCount + ch.g;
+        const bOff = frame * channelCount + ch.b;
+        if (rVal > data[rOff]) data[rOff] = rVal;
+        if (gVal > data[gOff]) data[gOff] = gVal;
+        if (bVal > data[bOff]) data[bOff] = bVal;
       }
     }
   }

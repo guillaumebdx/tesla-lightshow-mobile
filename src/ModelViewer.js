@@ -14,7 +14,7 @@ import {
 } from 'react-native-gesture-handler';
 import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
-import { INTERACTIVE_PARTS, PART_LABELS, PART_COLORS, EFFECT_TYPES, BLINK_SPEEDS, PULSE_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isRetro, isWindow, isLight, isBlinker, isTrunk, isFlap, isClosure } from './constants';
+import { INTERACTIVE_PARTS, PART_LABELS, PART_COLORS, EFFECT_TYPES, BLINK_SPEEDS, PULSE_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isRetro, isWindow, isLight, isBlinker, isTrunk, isFlap, isClosure, isRgb } from './constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -38,6 +38,9 @@ export default function ModelViewer({ showId, onGoHome }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
+  const [showInterior, setShowInterior] = useState(false);
+  const showInteriorRef = useRef(false);
+  const [carModel, setCarModel] = useState('model_3');
   const eventsRef = useRef([]);
   const undoStackRef = useRef([]);   // Array of event snapshots
   const redoStackRef = useRef([]);
@@ -388,6 +391,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       const data = await loadShow(showId);
       if (!data) return;
       showDataRef.current = data;
+      if (data.carModel) setCarModel(data.carModel);
       if (data.name) setShowName(data.name);
       if (data.bodyColor) {
         activeColorRef.current = data.bodyColor;
@@ -495,6 +499,7 @@ export default function ModelViewer({ showId, onGoHome }) {
   const litTaillightMatRef = useRef(null);
   const litBlinkerMatRef = useRef(null);
   const spotLightsRef = useRef({}); // { light_left_front: SpotLight, ... }
+  const rgbPointLightsRef = useRef({}); // { interior_front_door_right: PointLight }
   const dotSpritesRef = useRef([]); // white dot sprites on interactive parts
   const sceneLightsRef = useRef([]); // all scene lights for brightness toggle
   const [brightMode, _setBrightMode] = useState(true);
@@ -825,6 +830,19 @@ export default function ModelViewer({ showId, onGoHome }) {
     });
     litBlinkerMatRef.current = litBlinkerMat;
 
+    // Interior RGB LED base material (off state: dim dark gray strip).
+    // `toneMapped: false` bypasses the scene's ACES compression so the emissive
+    // can actually look fully saturated/bright instead of getting crushed.
+    const rgbMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1a1a1a,
+      metalness: 0.1,
+      roughness: 0.6,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+
     // Map non-standard Blender node names to clean part names
     const nodeNameMap = {
       'blink_front_left002': 'blink_front_left',
@@ -837,6 +855,12 @@ export default function ModelViewer({ showId, onGoHome }) {
       'side_clignoant_left': 'side_repeater_left',
       'side_clignotant_left': 'side_repeater_left',
       'side_clignotant_right': 'side_repeater_right',
+      // Juniper interior RGB LED (right front door). Three.js PropertyBinding
+      // strips `.` entirely in node names → `GEO_DOOR_R_INT_SUB6.001` becomes
+      // `GEO_DOOR_R_INT_SUB6001`. That's the name we actually get at runtime.
+      'GEO_DOOR_R_INT_SUB6001': 'interior_front_door_right',
+      'GEO_DOOR_R_INT_SUB6.001': 'interior_front_door_right',
+      'GEO_DOOR_R_INT_SUB6_001': 'interior_front_door_right',
     };
 
     const fixedPartMaterials = {
@@ -867,6 +891,7 @@ export default function ModelViewer({ showId, onGoHome }) {
       reversing_lights: headlightMaterial,
       side_repeater_left: blinkerMaterial,
       side_repeater_right: blinkerMaterial,
+      interior_front_door_right: rgbMaterial,
     };
 
     // Load GLB model — per-show based on carModel. If the show hasn't finished
@@ -898,13 +923,20 @@ export default function ModelViewer({ showId, onGoHome }) {
 
       const model = gltf.scene;
 
-      // Apply materials per mesh - find the part name by walking up the hierarchy
+      // Apply materials per mesh - find the part name by walking up the hierarchy.
+      // Fallback: check geometry.name (preserves glTF mesh name, useful when
+      // Blender assigned a generic node name but a clean mesh name).
       const getPartName = (mesh) => {
         let node = mesh;
         while (node) {
           const mapped = nodeNameMap[node.name] || node.name;
           if (INTERACTIVE_PARTS.includes(mapped) || fixedPartMaterials[mapped]) return mapped;
           node = node.parent;
+        }
+        const gname = mesh.geometry?.name;
+        if (gname) {
+          const mapped = nodeNameMap[gname] || gname;
+          if (INTERACTIVE_PARTS.includes(mapped) || fixedPartMaterials[mapped]) return mapped;
         }
         return null;
       };
@@ -922,7 +954,21 @@ export default function ModelViewer({ showId, onGoHome }) {
         'side_repeater_left', 'side_repeater_right',
         'license_plate', 'brake_lights', 'rear_fog',
         'reversing_lights',
+        'interior_front_door_right',
       ]);
+      // Patterns that mark a mesh as part of the cabin interior. Used by the
+      // interior/exterior view toggle to hide the exterior body & shell so
+      // interior RGB LEDs become easy to reach.
+      const INTERIOR_PATTERNS = [/_INT(\b|_|\d|\.|$)/i, /COCKPIT/i, /SEAT/i, /DASHBOARD/i, /STEERING/i, /INTERIOR/i];
+      const isInteriorChain = (mesh) => {
+        let n = mesh;
+        while (n) {
+          const nm = n.name || '';
+          for (const pat of INTERIOR_PATTERNS) if (pat.test(nm)) return true;
+          n = n.parent;
+        }
+        return false;
+      };
       model.traverse((child) => {
         if (child.isMesh) {
           const partName = getPartName(child);
@@ -933,6 +979,12 @@ export default function ModelViewer({ showId, onGoHome }) {
           meshMaterialsRef.current.set(key, mat);
           // Only tag interactive parts (not cosmetic like windshields)
           child.userData.interactiveName = INTERACTIVE_PARTS.includes(partName) ? partName : null;
+          // Tag interior meshes (for the interior/exterior view toggle). RGB
+          // LED parts are always flagged interior regardless of name heuristics.
+          child.userData.isInterior = (partName && isRgb(partName)) || isInteriorChain(child);
+          // Interior meshes opt in to layer 2 so the RGB PointLight (which
+          // lives on layer 2) only illuminates them — exterior stays unlit.
+          if (child.userData.isInterior) child.layers.enable(2);
           // Lights & blinkers may be recessed inside the body — render on top
           if (alwaysOnTopParts.has(partName)) {
             child.renderOrder = 1;
@@ -1010,6 +1062,20 @@ export default function ModelViewer({ showId, onGoHome }) {
         if (!spotLightsRef.current[partName]) {
           spotLightsRef.current[partName] = spot;
         }
+      });
+
+      // Interior RGB LEDs: attach a PointLight to each mesh so the diffuse
+      // glow spills onto the surrounding door panel (makes thin strip meshes
+      // readable). Parented to the mesh so it follows model rotation.
+      model.traverse((child) => {
+        if (!child.isMesh) return;
+        const partName = child.userData.interactiveName;
+        if (!partName || !isRgb(partName) || rgbPointLightsRef.current[partName]) return;
+        const pt = new THREE.PointLight(0xffffff, 0, 0.9, 2.0);
+        pt.castShadow = false;
+        pt.layers.set(2);
+        child.add(pt);
+        rgbPointLightsRef.current[partName] = pt;
       });
 
       // Find retro mirror meshes and store initial state.
@@ -1335,6 +1401,65 @@ export default function ModelViewer({ showId, onGoHome }) {
       new THREE.Color(0xff8800),
       new THREE.Color(0xaa00ff),
     ];
+    // Color helpers for the interior RGB LED.
+    const _rgbParseCache = new Map();
+    const hexToRgb01 = (hex, out) => {
+      let rgb = _rgbParseCache.get(hex);
+      if (!rgb) {
+        const n = parseInt(hex.replace('#', ''), 16);
+        rgb = { r: ((n >> 16) & 0xff) / 255, g: ((n >> 8) & 0xff) / 255, b: (n & 0xff) / 255 };
+        _rgbParseCache.set(hex, rgb);
+      }
+      out.r = rgb.r; out.g = rgb.g; out.b = rgb.b;
+      return out;
+    };
+    // Exterior-light colors used by the RGB "sync" mode.
+    const SYNC_COLORS = {
+      brake_lights:          { r: 1.0, g: 0.05, b: 0.05 },
+      light_left_back:       { r: 0.8, g: 0.02, b: 0.02 },
+      light_right_back:      { r: 0.8, g: 0.02, b: 0.02 },
+      light_center_back:     { r: 0.8, g: 0.02, b: 0.02 },
+      rear_fog:              { r: 0.8, g: 0.02, b: 0.02 },
+      blink_front_left:      { r: 1.0, g: 0.5, b: 0.0 },
+      blink_front_right:     { r: 1.0, g: 0.5, b: 0.0 },
+      blink_back_left:       { r: 1.0, g: 0.5, b: 0.0 },
+      blink_back_right:      { r: 1.0, g: 0.5, b: 0.0 },
+      side_repeater_left:    { r: 1.0, g: 0.5, b: 0.0 },
+      side_repeater_right:   { r: 1.0, g: 0.5, b: 0.0 },
+      left_high_light:       { r: 1.0, g: 1.0, b: 1.0 },
+      right_high_light:      { r: 1.0, g: 1.0, b: 1.0 },
+      left_signature_light:  { r: 0.6, g: 0.85, b: 1.0 },
+      right_signature_light: { r: 0.6, g: 0.85, b: 1.0 },
+      light_left_front:      { r: 1.0, g: 1.0, b: 1.0 },
+      light_right_front:     { r: 1.0, g: 1.0, b: 1.0 },
+      light_center_front:    { r: 1.0, g: 1.0, b: 1.0 },
+      license_plate:         { r: 1.0, g: 1.0, b: 1.0 },
+      reversing_lights:      { r: 1.0, g: 1.0, b: 1.0 },
+    };
+    const computeRgbColor = (evt, posMs, activeMap, out) => {
+      if (evt.rgbSync) {
+        let r = 0, g = 0, b = 0;
+        for (const [part, active] of activeMap) {
+          if (part === evt.part) continue;
+          const col = SYNC_COLORS[part];
+          if (!col || active.blinkOff) continue;
+          const w = active.intensity;
+          if (col.r * w > r) r = col.r * w;
+          if (col.g * w > g) g = col.g * w;
+          if (col.b * w > b) b = col.b * w;
+        }
+        out.r = r; out.g = g; out.b = b;
+        return out;
+      }
+      if (evt.rgbRainbow) {
+        const elapsed = posMs - evt.startMs;
+        const hue = ((elapsed / RAINBOW_CYCLE_MS) % 1 + 1) % 1;
+        out.setHSL(hue, 1, 0.5);
+        return out;
+      }
+      return hexToRgb01(evt.rgbColor || '#ffffff', out);
+    };
+    const _rgbColor = new THREE.Color();
     const RETRO_FOLD_ANGLE = Math.PI / 3;
     const RETRO_SLIDE = 0.15;
     const TRUNK_OPEN_ANGLE = -Math.PI / 4;
@@ -1376,6 +1501,17 @@ export default function ModelViewer({ showId, onGoHome }) {
 
         const s = scaleRef.current;
         modelRef.current.scale.set(s, s, s);
+
+        // Interior/exterior view toggle: hide exterior meshes when interior mode
+        // is active. Only re-traverse when the mode flips (cheap on every frame).
+        const interior = showInteriorRef.current;
+        if (modelRef.current.userData._lastInterior !== interior) {
+          modelRef.current.userData._lastInterior = interior;
+          modelRef.current.traverse((c) => {
+            if (!c.isMesh) return;
+            c.visible = interior ? !!c.userData.isInterior : true;
+          });
+        }
 
         // Show/hide dot sprites based on playback state + camera facing
         const playing = isPlayingRef.current;
@@ -1497,6 +1633,42 @@ export default function ModelViewer({ showId, onGoHome }) {
           for (let mi = 0; mi < meshes.length; mi++) {
             const child = meshes[mi];
             if (active) {
+              // Interior RGB LED: emissive color comes from the event options
+              // (rgbColor / rgbRainbow / rgbSync). Bypasses lit headlight/taillight mats.
+              if (isRgb(partName)) {
+                const pt = rgbPointLightsRef.current[partName];
+                if (active.blinkOff) {
+                  const originalMat = meshMaterialsRef.current.get(partName);
+                  if (originalMat) child.material = originalMat;
+                  if (pt) pt.intensity = 0;
+                  continue;
+                }
+                const originalMat = meshMaterialsRef.current.get(partName);
+                if (!child.userData._dynamicMat) {
+                  child.userData._dynamicMat = originalMat ? originalMat.clone() : new THREE.MeshStandardMaterial({ side: THREE.DoubleSide });
+                  child.userData._dynamicMat.toneMapped = false;
+                  if (child.renderOrder > 0) child.userData._dynamicMat.depthTest = false;
+                }
+                const mat = child.userData._dynamicMat;
+                computeRgbColor(active.evt, pos, _activeMap, _rgbColor);
+                const k = active.intensity;
+                mat.color.r = 0.1; mat.color.g = 0.1; mat.color.b = 0.1;
+                mat.emissive.r = _rgbColor.r * k;
+                mat.emissive.g = _rgbColor.g * k;
+                mat.emissive.b = _rgbColor.b * k;
+                mat.emissiveIntensity = 1.5;
+                child.material = mat;
+                if (pt) {
+                  pt.color.setRGB(
+                    Math.max(_rgbColor.r, 0.001),
+                    Math.max(_rgbColor.g, 0.001),
+                    Math.max(_rgbColor.b, 0.001)
+                  );
+                  pt.intensity = k * 8;
+                }
+                continue;
+              }
+
               const isLightPart = isLight(partName);
               const isBlink = isBlinker(partName);
               if (!isLightPart && !isBlink) continue;
@@ -1540,6 +1712,10 @@ export default function ModelViewer({ showId, onGoHome }) {
                 if (child.userData._dynamicMat) {
                   child.userData._dynamicMat = null;
                 }
+              }
+              if (isRgb(partName)) {
+                const pt = rgbPointLightsRef.current[partName];
+                if (pt && pt.intensity !== 0) pt.intensity = 0;
               }
             }
           }
@@ -1891,6 +2067,27 @@ export default function ModelViewer({ showId, onGoHome }) {
               </TouchableOpacity>
             </View>
 
+            {carModel === 'model_y_juniper' && (
+              <TouchableOpacity
+                style={styles.viewToggleButton}
+                activeOpacity={0.7}
+                onPress={() => {
+                  const next = !showInterior;
+                  setShowInterior(next);
+                  showInteriorRef.current = next;
+                }}
+              >
+                <Ionicons
+                  name={showInterior ? 'car-sport-outline' : 'body-outline'}
+                  size={16}
+                  color="#ccccee"
+                />
+                <Text style={styles.viewToggleText}>
+                  {showInterior ? t('editor.showExterior') : t('editor.showInterior')}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {loading && (
               <View style={styles.loadingOverlay}>
                 <ActivityIndicator size="large" color="#e94560" />
@@ -1965,6 +2162,7 @@ export default function ModelViewer({ showId, onGoHome }) {
                 effect: evt.effect,
                 power: evt.power ?? 100,
                 blinkSpeed: evt.blinkSpeed ?? 0,
+                pulseSpeed: evt.pulseSpeed ?? 0,
                 easeIn: evt.easeIn ?? false,
                 easeOut: evt.easeOut ?? false,
                 retroMode: evt.retroMode ?? 'roundtrip',
@@ -1972,6 +2170,9 @@ export default function ModelViewer({ showId, onGoHome }) {
                 windowDurationMs: evt.windowDurationMs ?? 3000,
                 trunkMode: evt.trunkMode ?? 'trunk_open',
                 flapMode: evt.flapMode ?? 'flap_open',
+                rgbColor: evt.rgbColor ?? '#ffffff',
+                rgbRainbow: evt.rgbRainbow ?? false,
+                rgbSync: evt.rgbSync ?? false,
               });
             }}
             onEventUpdate={(updatedEvt) => {
@@ -2020,6 +2221,7 @@ export default function ModelViewer({ showId, onGoHome }) {
                   effect: newOpts.effect,
                   power: newOpts.power,
                   blinkSpeed: newOpts.blinkSpeed,
+                  pulseSpeed: newOpts.pulseSpeed,
                   easeIn: newOpts.easeIn,
                   easeOut: newOpts.easeOut,
                   retroMode: newOpts.retroMode,
@@ -2027,6 +2229,9 @@ export default function ModelViewer({ showId, onGoHome }) {
                   windowDurationMs: newOpts.windowDurationMs,
                   trunkMode: newOpts.trunkMode,
                   flapMode: newOpts.flapMode,
+                  rgbColor: newOpts.rgbColor,
+                  rgbRainbow: newOpts.rgbRainbow,
+                  rgbSync: newOpts.rgbSync,
                 };
                 setSelectedEvent(updatedEvt);
                 eventsRef.current = eventsRef.current.map((e) =>
@@ -2665,6 +2870,25 @@ const styles = StyleSheet.create({
     bottom: 12,
     right: 12,
     gap: 6,
+  },
+  viewToggleButton: {
+    position: 'absolute',
+    bottom: 14,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(30, 30, 60, 0.85)',
+    borderWidth: 1,
+    borderColor: '#3a3a5a',
+  },
+  viewToggleText: {
+    color: '#ccccee',
+    fontSize: 13,
+    fontWeight: '500',
   },
   zoomButton: {
     width: 36,
