@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Switch, TouchableOpacity, TextInput, Modal, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Slider from '@react-native-community/slider';
-import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isLight, isBlinker, isRetro, isWindow, isTrunk, isFlap, isClosure } from './constants';
+import { PART_ICONS, PART_LABELS, EFFECT_TYPES, BLINK_SPEEDS, PULSE_SPEEDS, RETRO_MODES, RETRO_DURATIONS, WINDOW_MAX_DANCE_MS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, supportsPulse, isLight, isBlinker, isRetro, isWindow, isTrunk, isFlap, isClosure } from './constants';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function PartOptionsPanel({ selectedPart, eventOptions, editingEvent, onOptionsChange, onDeselectEvent, onDeleteEvent, events = [] }) {
@@ -49,6 +49,12 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
   const flapPart = isFlap(selectedPart);
   const closurePart = isClosure(selectedPart);
   const isBlink = eventOptions.effect === EFFECT_TYPES.BLINK;
+  const isPulse = eventOptions.effect === EFFECT_TYPES.PULSE;
+  const canPulse = supportsPulse(selectedPart);
+  // Parts with fine PWM brightness (Juniper light bar) allow the full 0-100%
+  // range. Other light channels are ramping-encoded on the vehicle, so we
+  // keep the floor at 80% (matches the Tesla ramping table — D = 80%).
+  const powerMin = canPulse ? 0 : 80;
 
   // Closure usage counting
   const closureLimit = CLOSURE_LIMITS[selectedPart] || 0;
@@ -109,7 +115,7 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
             </View>
             <Slider
               style={styles.slider}
-              minimumValue={80}
+              minimumValue={powerMin}
               maximumValue={100}
               step={1}
               value={eventOptions.power}
@@ -141,40 +147,77 @@ export default function PartOptionsPanel({ selectedPart, eventOptions, editingEv
               </View>
             </View>
 
-            {/* Blink toggle + speed on same line */}
-            <View style={styles.blinkRow}>
-              <Text style={styles.optionLabel}>{t('parts.blink')}</Text>
-              <View style={styles.blinkControls}>
-                {isBlink && (
-                  <View style={styles.speedButtons}>
-                    {BLINK_SPEEDS.map((speed, idx) => (
-                      <TouchableOpacity
-                        key={idx}
-                        style={[
-                          styles.speedBtn,
-                          eventOptions.blinkSpeed === idx && styles.speedBtnActive,
-                        ]}
-                        onPress={() => onOptionsChange({ ...eventOptions, blinkSpeed: idx })}
-                      >
-                        <Text style={[
-                          styles.speedBtnText,
-                          eventOptions.blinkSpeed === idx && styles.speedBtnTextActive,
-                        ]}>{speed.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-                <Switch
-                  value={isBlink}
-                  onValueChange={(val) => onOptionsChange({
-                    ...eventOptions,
-                    effect: val ? EFFECT_TYPES.BLINK : EFFECT_TYPES.SOLID,
-                  })}
-                  trackColor={{ false: '#2a2a4a', true: 'rgba(233, 69, 96, 0.5)' }}
-                  thumbColor={isBlink ? '#e94560' : '#555577'}
-                />
+            {/* Blink OR Pulse toggle + speed on same line. Pulse replaces blink
+                for parts with fine PWM brightness (Juniper front light bar). */}
+            {canPulse ? (
+              <View style={styles.blinkRow}>
+                <Text style={styles.optionLabel}>{t('parts.pulse')}</Text>
+                <View style={styles.blinkControls}>
+                  {isPulse && (
+                    <View style={styles.speedButtons}>
+                      {PULSE_SPEEDS.map((speed, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          style={[
+                            styles.speedBtn,
+                            eventOptions.pulseSpeed === idx && styles.speedBtnActive,
+                          ]}
+                          onPress={() => onOptionsChange({ ...eventOptions, pulseSpeed: idx })}
+                        >
+                          <Text style={[
+                            styles.speedBtnText,
+                            eventOptions.pulseSpeed === idx && styles.speedBtnTextActive,
+                          ]}>{speed.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  <Switch
+                    value={isPulse}
+                    onValueChange={(val) => onOptionsChange({
+                      ...eventOptions,
+                      effect: val ? EFFECT_TYPES.PULSE : EFFECT_TYPES.SOLID,
+                    })}
+                    trackColor={{ false: '#2a2a4a', true: 'rgba(233, 69, 96, 0.5)' }}
+                    thumbColor={isPulse ? '#e94560' : '#555577'}
+                  />
+                </View>
               </View>
-            </View>
+            ) : (
+              <View style={styles.blinkRow}>
+                <Text style={styles.optionLabel}>{t('parts.blink')}</Text>
+                <View style={styles.blinkControls}>
+                  {isBlink && (
+                    <View style={styles.speedButtons}>
+                      {BLINK_SPEEDS.map((speed, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          style={[
+                            styles.speedBtn,
+                            eventOptions.blinkSpeed === idx && styles.speedBtnActive,
+                          ]}
+                          onPress={() => onOptionsChange({ ...eventOptions, blinkSpeed: idx })}
+                        >
+                          <Text style={[
+                            styles.speedBtnText,
+                            eventOptions.blinkSpeed === idx && styles.speedBtnTextActive,
+                          ]}>{speed.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  <Switch
+                    value={isBlink}
+                    onValueChange={(val) => onOptionsChange({
+                      ...eventOptions,
+                      effect: val ? EFFECT_TYPES.BLINK : EFFECT_TYPES.SOLID,
+                    })}
+                    trackColor={{ false: '#2a2a4a', true: 'rgba(233, 69, 96, 0.5)' }}
+                    thumbColor={isBlink ? '#e94560' : '#555577'}
+                  />
+                </View>
+              </View>
+            )}
           </View>
         )}
 

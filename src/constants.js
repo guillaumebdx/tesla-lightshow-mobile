@@ -9,7 +9,9 @@ export const INTERACTIVE_PARTS = [
   'left_high_light', 'right_high_light',
   'left_signature_light', 'right_signature_light',
   'light_left_front', 'light_right_front',
+  'light_center_front',
   'light_left_back', 'light_right_back',
+  'light_center_back',
   'blink_front_left', 'blink_front_right',
   'blink_back_left', 'blink_back_right',
   'license_plate',
@@ -35,8 +37,10 @@ export const PART_LABELS = {
   right_signature_light: 'Signature AV droite',
   light_left_front: 'Phare AV gauche',
   light_right_front: 'Phare AV droit',
+  light_center_front: 'Barre lumineuse AV',
   light_left_back: 'Feu AR gauche',
   light_right_back: 'Feu AR droit',
+  light_center_back: 'Barre lumineuse AR',
   blink_front_left: 'Clignotant AV gauche',
   blink_front_right: 'Clignotant AV droit',
   blink_back_left: 'Clignotant AR gauche',
@@ -57,8 +61,10 @@ export const PART_ICONS = {
   right_signature_light: require('../assets/icons/front_light.png'),
   light_left_front: require('../assets/icons/front_light.png'),
   light_right_front: require('../assets/icons/front_light.png'),
+  light_center_front: require('../assets/icons/front_light.png'),
   light_left_back: require('../assets/icons/back_light.png'),
   light_right_back: require('../assets/icons/back_light.png'),
+  light_center_back: require('../assets/icons/back_light.png'),
   window_left_front: require('../assets/icons/window.png'),
   window_right_front: require('../assets/icons/window.png'),
   window_left_back: require('../assets/icons/window.png'),
@@ -87,8 +93,10 @@ export const PART_COLORS = {
   right_signature_light: '#aaddff',
   light_left_front: '#ffffff',
   light_right_front: '#ffffff',
+  light_center_front: '#ffffff',
   light_left_back: '#ff4444',
   light_right_back: '#ff4444',
+  light_center_back: '#ff4444',
   window_left_front: '#44aaff',
   window_right_front: '#44aaff',
   window_left_back: '#44aaff',
@@ -113,6 +121,7 @@ export const PART_COLORS = {
 export const EFFECT_TYPES = {
   SOLID: 'solid',     // Constant on for duration
   BLINK: 'blink',     // Rapid on/off alternation
+  PULSE: 'pulse',     // Sinusoidal brightness oscillation (requires fine PWM)
 };
 
 // Retro mirror animation modes
@@ -189,6 +198,20 @@ export const BLINK_SPEEDS = [
   { label: '3x', periodMs: 30 },   // Fast
 ];
 
+// Pulse speed levels (full sine cycle period in ms). Slower than blink —
+// a pulse needs to breathe visibly while ramping brightness.
+export const PULSE_SPEEDS = [
+  { label: '1x', periodMs: 1200 }, // Slow breathing
+  { label: '2x', periodMs: 700 },  // Medium
+  { label: '3x', periodMs: 400 },  // Fast
+];
+
+// Parts that support the PULSE effect (need fine per-channel brightness).
+// Only the Juniper front light bar qualifies today.
+export const PULSE_PARTS = new Set(['light_center_front', 'light_center_back']);
+
+export const supportsPulse = (part) => PULSE_PARTS.has(part);
+
 // Maximum number of events per show
 export const MAX_EVENTS = 5000;
 
@@ -198,6 +221,7 @@ export const DEFAULT_EVENT_OPTIONS = {
   effect: EFFECT_TYPES.SOLID,
   power: 100,          // 1-100, maps to 0-255 at export
   blinkSpeed: 0,       // Index into BLINK_SPEEDS
+  pulseSpeed: 0,       // Index into PULSE_SPEEDS
   easeIn: false,       // Fade in at start of event
   easeOut: false,      // Fade out at end of event
   retroMode: RETRO_MODES.ROUND_TRIP, // Default retro animation mode

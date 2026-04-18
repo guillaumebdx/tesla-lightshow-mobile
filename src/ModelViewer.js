@@ -14,7 +14,7 @@ import {
 } from 'react-native-gesture-handler';
 import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
-import { INTERACTIVE_PARTS, PART_LABELS, PART_COLORS, EFFECT_TYPES, BLINK_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isRetro, isWindow, isLight, isBlinker, isTrunk, isFlap, isClosure } from './constants';
+import { INTERACTIVE_PARTS, PART_LABELS, PART_COLORS, EFFECT_TYPES, BLINK_SPEEDS, PULSE_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isRetro, isWindow, isLight, isBlinker, isTrunk, isFlap, isClosure } from './constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -853,8 +853,10 @@ export default function ModelViewer({ showId, onGoHome }) {
       right_signature_light: headlightMaterial,
       light_left_front: headlightMaterial,
       light_right_front: headlightMaterial,
+      light_center_front: headlightMaterial,
       light_left_back: taillightMaterial,
       light_right_back: taillightMaterial,
+      light_center_back: taillightMaterial,
       blink_front_left: blinkerMaterial,
       blink_front_right: blinkerMaterial,
       blink_back_left: blinkerMaterial,
@@ -912,7 +914,9 @@ export default function ModelViewer({ showId, onGoHome }) {
       const alwaysOnTopParts = new Set([
         ...frontLightParts,
         'light_left_front', 'light_right_front',
+        'light_center_front',
         'light_left_back', 'light_right_back',
+        'light_center_back',
         'blink_front_left', 'blink_front_right',
         'blink_back_left', 'blink_back_right',
         'side_repeater_left', 'side_repeater_right',
@@ -965,8 +969,10 @@ export default function ModelViewer({ showId, onGoHome }) {
         right_signature_light: { color: 0xaaddff, dir: new THREE.Vector3(0, -0.3, 1) },
         light_left_front:      { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
         light_right_front:     { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
+        light_center_front:    { color: 0xffffff, dir: new THREE.Vector3(0, -0.3, 1) },
         light_left_back:   { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
         light_right_back:  { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
+        light_center_back: { color: 0xff2200, dir: new THREE.Vector3(0, -0.3, -1) },
         blink_front_left:  { color: 0xffaa00, dir: new THREE.Vector3(-0.5, -0.3, 1) },
         blink_front_right: { color: 0xffaa00, dir: new THREE.Vector3(0.5, -0.3, 1) },
         blink_back_left:   { color: 0xffaa00, dir: new THREE.Vector3(-0.5, -0.3, -1) },
@@ -1087,13 +1093,23 @@ export default function ModelViewer({ showId, onGoHome }) {
         if (interactiveName === 'flap' && !flapNodeRef.current) {
           child.geometry.computeBoundingBox();
           const bb = child.geometry.boundingBox;
-          // Flap bbox: X=1757..1993 (front-back), Y=-805..-760 (left side), Z=888..1009 (up-down)
-          // Hinge at top edge (max Z), center X — flap opens like a lid, bottom swings outward
-          const pivotLocal = new THREE.Vector3(
-            (bb.min.x + bb.max.x) / 2,         // center X
-            (bb.min.y + bb.max.y) / 2,         // center Y
-            bb.max.z                           // top edge = hinge
-          );
+          // Hinge at the top edge, rotation around the "front-back" axis of the
+          // car. The "up" direction differs per model:
+          //   - Model 3: mesh identity, local +Z = world up → hinge at max.z
+          //   - Juniper: R_y(+90°), local +Y = world up → hinge at max.y
+          // In both cases the rotation axis is local +X (the front-back axis
+          // of the car in each convention), so FLAP_OPEN_ANGLE works as-is.
+          const pivotLocal = carModelId === 'model_y_juniper'
+            ? new THREE.Vector3(
+                (bb.min.x + bb.max.x) / 2,       // center X
+                bb.max.y,                        // top edge = hinge (Juniper)
+                (bb.min.z + bb.max.z) / 2,       // center Z
+              )
+            : new THREE.Vector3(
+                (bb.min.x + bb.max.x) / 2,       // center X
+                (bb.min.y + bb.max.y) / 2,       // center Y
+                bb.max.z,                        // top edge = hinge (Model 3)
+              );
           flapNodeRef.current = {
             mesh: child,
             initMatrix: child.matrix.clone(),
@@ -1140,14 +1156,49 @@ export default function ModelViewer({ showId, onGoHome }) {
             rotationAxis = new THREE.Vector3(0, 1, 0);
           }
 
+          const trunkInit = child.matrix.clone();
+
+          // For Juniper, rear taillights are physically attached to the
+          // liftgate and must rotate with it. Compute the hinge+axis in
+          // PARENT space (shared between trunk and lights, which are
+          // siblings at depth 0), so we can apply one rotation matrix to
+          // every attached mesh.
+          let parentSpace = null;
+          if (carModelId === 'model_y_juniper') {
+            const pivotParent = pivotLocal.clone().applyMatrix4(trunkInit);
+            const rotOnly = new THREE.Matrix4().extractRotation(trunkInit);
+            const axisParent = rotationAxis.clone().applyMatrix4(rotOnly).normalize();
+            parentSpace = { pivotParent, axisParent, attached: [] };
+          }
+
           trunkNodeRef.current = {
             mesh: child,
-            initMatrix: child.matrix.clone(),
+            initMatrix: trunkInit,
             pivotLocal,
             rotationAxis,
+            parentSpace,
           };
         }
       });
+
+      // For Juniper, collect the rear taillight meshes so they rotate with
+      // the trunk (they're physically bolted to the liftgate).
+      if (carModelId === 'model_y_juniper' && trunkNodeRef.current?.parentSpace) {
+        const attachedNames = new Set([
+          'light_left_back', 'light_right_back',
+          'light_center_back',
+          'blink_back_left', 'blink_back_right',
+        ]);
+        model.traverse((child) => {
+          if (!child.isMesh) return;
+          if (attachedNames.has(child.userData.interactiveName)) {
+            trunkNodeRef.current.parentSpace.attached.push({
+              mesh: child,
+              initMatrix: child.matrix.clone(),
+            });
+          }
+        });
+      }
 
       // Create rainbow plane for flap — positioned at the bbox center in world space
       model.updateMatrixWorld(true);
@@ -1216,10 +1267,20 @@ export default function ModelViewer({ showId, onGoHome }) {
         if (partName.startsWith('window_')) {
           dotPosition.z = bbox.max.z - (bbox.max.z - bbox.min.z) * 0.15;
         }
-        // Offset flap dot away from taillight onto the body panel
+        // Offset flap dot away from taillight onto the body panel.
+        // Axes differ per model:
+        //   - Model 3: local Y = lateral (negative = left, away from taillight)
+        //              local Z = vertical (negative = down)
+        //   - Juniper: local X = front-back (negative = toward front of car)
+        //              local Z = lateral (does not need adjustment here)
         if (partName === 'flap') {
-          dotPosition.y -= 120; // shift left (more negative Y = away from taillight)
-          dotPosition.z -= 80;  // shift down slightly
+          if (carModelId === 'model_y_juniper') {
+            dotPosition.x -= 120; // shift toward front of car (away from taillight)
+            dotPosition.y -= 40;  // slight shift downward
+          } else {
+            dotPosition.y -= 120; // shift left (more negative Y = away from taillight)
+            dotPosition.z -= 80;  // shift down slightly
+          }
         }
         // Apply per-part world-space offset (converted to mesh-local)
         const worldOffset = juniperWorldOffsets?.[partName];
@@ -1285,7 +1346,9 @@ export default function ModelViewer({ showId, onGoHome }) {
     const windowPartNames = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
     const lightPartNames = ['left_high_light', 'right_high_light', 'left_signature_light', 'right_signature_light',
       'light_left_front', 'light_right_front',
+      'light_center_front',
       'light_left_back', 'light_right_back',
+      'light_center_back',
       'blink_front_left', 'blink_front_right', 'blink_back_left', 'blink_back_right',
       'license_plate', 'brake_lights', 'rear_fog', 'reversing_lights',
       'side_repeater_left', 'side_repeater_right'];
@@ -1400,6 +1463,11 @@ export default function ModelViewer({ showId, onGoHome }) {
               const speedIdx = evt.blinkSpeed ?? 0;
               const periodMs = BLINK_SPEEDS[speedIdx]?.periodMs ?? 80;
               blinkOff = (Math.floor(elapsed / (periodMs / 2)) % 2) !== 0;
+            } else if (evt.effect === 'pulse') {
+              const speedIdx = evt.pulseSpeed ?? 0;
+              const periodMs = PULSE_SPEEDS[speedIdx]?.periodMs ?? 1200;
+              // Half-rectified sine: (1 - cos)/2 → 0..1, always on, breathes smoothly
+              intensity *= 0.5 - 0.5 * Math.cos((elapsed / periodMs) * Math.PI * 2);
             }
 
             _activeMap.set(evt.part, { evt, intensity, blinkOff });
@@ -1617,8 +1685,28 @@ export default function ModelViewer({ showId, onGoHome }) {
             }
           }
 
+          const ps = trunkData.parentSpace;
           if (progress === 0) {
             mesh.matrix.copy(trunkData.initMatrix);
+            if (ps) {
+              for (const a of ps.attached) a.mesh.matrix.copy(a.initMatrix);
+            }
+          } else if (ps) {
+            // Parent-space rotation: shared matrix applied to trunk and
+            // every attached mesh (rear taillights on Juniper) so they
+            // pivot together around the real hinge.
+            const p = ps.pivotParent;
+            _tmpMat4a.makeTranslation(-p.x, -p.y, -p.z);
+            _tmpMat4b.makeRotationAxis(ps.axisParent, TRUNK_OPEN_ANGLE * progress);
+            _tmpMat4c.makeTranslation(p.x, p.y, p.z);
+            _tmpMat4d.copy(_tmpMat4c).multiply(_tmpMat4b).multiply(_tmpMat4a);
+            _tmpMat4e.multiplyMatrices(_tmpMat4d, trunkData.initMatrix);
+            mesh.matrix.copy(_tmpMat4e);
+            for (const a of ps.attached) {
+              _tmpMat4e.multiplyMatrices(_tmpMat4d, a.initMatrix);
+              a.mesh.matrix.copy(_tmpMat4e);
+              a.mesh.matrixAutoUpdate = false;
+            }
           } else {
             const p = trunkData.pivotLocal;
             _tmpMat4a.makeTranslation(-p.x, -p.y, -p.z);
@@ -1631,6 +1719,9 @@ export default function ModelViewer({ showId, onGoHome }) {
             mesh.matrix.copy(_tmpMat4e);
           }
           mesh.matrixAutoUpdate = false;
+          if (ps) {
+            for (const a of ps.attached) a.mesh.matrixAutoUpdate = false;
+          }
         }
 
         // Animate flap (charge port)

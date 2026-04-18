@@ -5,7 +5,7 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { shareAsync } from 'expo-sharing';
-import { BLINK_SPEEDS, RETRO_MODES, TRUNK_MODES, FLAP_MODES, WINDOW_MODES, isRetro, isWindow, isTrunk, isFlap, isClosure } from './constants';
+import { BLINK_SPEEDS, PULSE_SPEEDS, RETRO_MODES, TRUNK_MODES, FLAP_MODES, WINDOW_MODES, isRetro, isWindow, isTrunk, isFlap, isClosure } from './constants';
 import { getChannelCount } from './carModels';
 
 // Channel mapping (0-indexed) — confirmed via retro-engineering
@@ -18,6 +18,13 @@ const CHANNEL_MAP = {
   // Juniper combined headlights — fire all left/right front channels together
   light_left_front:  [0, 2, 4, 6, 8, 10],    // Main beam + signature gauche combinés
   light_right_front: [1, 3, 5, 7, 9, 11],    // Main beam + signature droit combinés
+  // Juniper front light bar — 60 LEDs blanches individuelles (canaux 47-106,
+  // 1-indexés → 46-105 0-indexés). Modélisé comme un seul bloc : même valeur
+  // de luminosité écrite sur les 60 canaux. Contrôle fin 0-255 (pas de ramping).
+  light_center_front: Array.from({ length: 60 }, (_, i) => 46 + i),
+  // Juniper rear light bar — 52 LEDs rouges individuelles (canaux 111-162,
+  // 1-indexés → 110-161 0-indexés). Même traitement que le bar avant.
+  light_center_back: Array.from({ length: 52 }, (_, i) => 110 + i),
   light_left_back:   [25],                   // feu AR gauche (signature gauche uniquement)
   light_right_back:  [26],                   // feu AR droit (signature droit uniquement)
   blink_front_left:  [12],                   // clignotant AV gauche
@@ -84,6 +91,15 @@ function computeIntensity(evt, posMs) {
     const periodMs = BLINK_SPEEDS[speedIdx]?.periodMs ?? 80;
     const blinkOff = (Math.floor(elapsed / (periodMs / 2)) % 2) !== 0;
     if (blinkOff) return 0;
+  }
+
+  // Pulse: sinusoidal breathing, 0..max..0 per period. Only meaningful on
+  // channels with fine PWM (Juniper front light bar). On boolean channels,
+  // the vehicle will round-trip through >127 and effectively blink anyway.
+  if (evt.effect === 'pulse') {
+    const speedIdx = evt.pulseSpeed ?? 0;
+    const periodMs = PULSE_SPEEDS[speedIdx]?.periodMs ?? 1200;
+    intensity *= 0.5 - 0.5 * Math.cos((elapsed / periodMs) * Math.PI * 2);
   }
 
   return intensity;
