@@ -14,7 +14,7 @@ import {
 } from 'react-native-gesture-handler';
 import AudioTimeline from './AudioTimeline';
 import PartOptionsPanel from './PartOptionsPanel';
-import { INTERACTIVE_PARTS, PART_LABELS, PART_COLORS, EFFECT_TYPES, BLINK_SPEEDS, PULSE_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isRetro, isWindow, isLight, isBlinker, isTrunk, isFlap, isClosure, isRgb } from './constants';
+import { INTERACTIVE_PARTS, JUNIPER_ONLY_PARTS, PART_LABELS, PART_COLORS, EFFECT_TYPES, BLINK_SPEEDS, PULSE_SPEEDS, DEFAULT_EVENT_OPTIONS, RETRO_MODES, RETRO_DURATIONS, TRUNK_MODES, TRUNK_DURATIONS, FLAP_MODES, FLAP_DURATIONS, CLOSURE_LIMITS, closureCommandCost, isRetro, isWindow, isLight, isBlinker, isTrunk, isFlap, isClosure, isRgb } from './constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -287,6 +287,7 @@ export default function ModelViewer({ showId, onGoHome }) {
           durationMs,
           trackTitle: trackInfo.title || 'Unknown',
           userPrompt: userPrompt || undefined,
+          carModel: showDataRef.current?.carModel || carModel,
         });
 
         // Stop animation and replace fake events with real AI-generated ones
@@ -322,7 +323,7 @@ export default function ModelViewer({ showId, onGoHome }) {
     } else {
       doGenerate();
     }
-  }, [t, scheduleSave, pushUndo, startAiAnimation, stopAiAnimation]);
+  }, [t, scheduleSave, pushUndo, startAiAnimation, stopAiAnimation, carModel]);
 
   // Debounced auto-save (1.5s after last change)
   const scheduleSave = useCallback(() => {
@@ -1013,26 +1014,32 @@ export default function ModelViewer({ showId, onGoHome }) {
       };
       const isInteriorChain = (mesh) => matchesAny(mesh, INTERIOR_PATTERNS);
       const isHiddenInInterior = (mesh) => matchesAny(mesh, INTERIOR_HIDE_PATTERNS);
+      const isJuniper = carModelId === 'model_y_juniper';
       model.traverse((child) => {
         if (child.isMesh) {
           const partName = getPartName(child);
+          // Material stays keyed on raw partName (preserves pre-existing
+          // visual behaviour for Model 3 meshes like `light_right_front`).
           const mat = (partName && fixedPartMaterials[partName]) || bodyMaterial;
           child.material = mat;
-          // Store with a key we can look up later
           const key = partName || child.name;
           meshMaterialsRef.current.set(key, mat);
-          // Only tag interactive parts (not cosmetic like windshields)
-          child.userData.interactiveName = INTERACTIVE_PARTS.includes(partName) ? partName : null;
+          // Interactivity is gated per model: Juniper-exclusive parts don't
+          // receive dots/selection on other GLBs even if the mesh name
+          // collides (e.g. `light_right_front` exists on Model 3).
+          const isAllowedHere = !partName || isJuniper || !JUNIPER_ONLY_PARTS.has(partName);
+          const effectivePart = isAllowedHere ? partName : null;
+          child.userData.interactiveName = INTERACTIVE_PARTS.includes(effectivePart) ? effectivePart : null;
           // Tag interior meshes (for the interior/exterior view toggle). RGB
           // LED parts are always flagged interior regardless of name heuristics.
           const hideInInterior = isHiddenInInterior(child);
           child.userData.forceHideInInterior = hideInInterior;
-          child.userData.isInterior = ((partName && isRgb(partName)) || isInteriorChain(child)) && !hideInInterior;
+          child.userData.isInterior = ((effectivePart && isRgb(effectivePart)) || isInteriorChain(child)) && !hideInInterior;
           // Interior meshes opt in to layer 2 so the RGB PointLight (which
           // lives on layer 2) only illuminates them — exterior stays unlit.
           if (child.userData.isInterior) child.layers.enable(2);
           // Lights & blinkers may be recessed inside the body — render on top
-          if (alwaysOnTopParts.has(partName)) {
+          if (alwaysOnTopParts.has(effectivePart)) {
             child.renderOrder = 1;
             child.material = child.material.clone();
             child.material.depthTest = false;
@@ -2192,6 +2199,7 @@ export default function ModelViewer({ showId, onGoHome }) {
             isLoadingShow={isLoadingShow}
             selectedEventId={selectedEvent?.id || null}
             flashRef={flashRef}
+            carModel={carModel}
             onTrackSelected={handleTrackSelected}
             onEventsChange={(evts) => {
               // Push undo snapshot before applying the new events

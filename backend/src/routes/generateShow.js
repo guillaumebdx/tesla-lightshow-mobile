@@ -24,11 +24,13 @@ router.post('/', async (req, res) => {
   log('📥 New generate-show request received');
 
   try {
-    const { waveform, durationMs, mood, trackTitle, userPrompt } = req.body;
+    const { waveform, durationMs, mood, trackTitle, userPrompt, carModel } = req.body;
+    const validCarModel = carModel === 'model_y_juniper' ? 'model_y_juniper' : 'model_3';
 
     log(`🎵 Track: "${trackTitle}"`);
     log(`⏱  Duration: ${durationMs}ms (${(durationMs/1000).toFixed(1)}s)`);
     log(`🎭 Mood: ${mood || 'auto'}`);
+    log(`🚗 Car: ${validCarModel}`);
     log(`📊 Waveform: ${waveform?.length || 0} samples`);
     const deviceId = req.headers['x-device-id'] || '';
     log(`💬 User prompt: ${userPrompt ? `"${userPrompt}" (${userPrompt.length} chars)` : 'none'}`);
@@ -79,6 +81,7 @@ router.post('/', async (req, res) => {
       mood: mood || 'auto',
       trackTitle: trackTitle || 'Unknown Track',
       userPrompt: sanitizedUserPrompt,
+      carModel: validCarModel,
     });
 
     const elapsed = Date.now() - startTime;
@@ -109,9 +112,10 @@ router.post('/', async (req, res) => {
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // Backward compatibility: convert new part names for old app versions
+    // Only applies to Model 3 — Juniper parts have no legacy equivalent
     const appVersion = parseFloat(req.headers['x-app-version'] || '0');
     let events = result.events;
-    if (appVersion < 1.15) {
+    if (validCarModel === 'model_3' && appVersion < 1.15) {
       const LEGACY_MAP = {
         'left_high_light': 'light_left_front',
         'right_high_light': 'light_right_front',

@@ -17,7 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { MP3_TRACKS } from '../assets/mp3/index';
 import { PART_ICONS, PART_COLORS, EFFECT_TYPES, CLOSURE_LIMITS, closureCommandCost, isClosure, isAnimatable, isTrunk, TRUNK_MODES, TRUNK_DURATIONS, MAX_EVENTS } from './constants';
 import { pickAndImportAudio, loadCachedWaveform, resolveAudioUri } from './audioPicker';
-import { DEMO_SHOWS } from './demoShows';
+import { DEMO_SHOWS, getDemoForCar } from './demoShows';
 import { useTranslation } from 'react-i18next';
 import { trackEvent } from './analyticsService';
 import { Ionicons } from '@expo/vector-icons';
@@ -153,7 +153,7 @@ function formatTime(ms) {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbackSpeed = 1, timelineScale = 1, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, onTrackSelected, isLoadingShow = false, flashRef }, ref) {
+function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbackSpeed = 1, timelineScale = 1, selectedEventId, onEventsChange, onPositionChange, onEventSelect, onEventUpdate, onPlayingChange, onDeselectPart, onTrackSelected, isLoadingShow = false, flashRef, carModel = 'model_3' }, ref) {
   const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState(null);
@@ -626,6 +626,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
           visible={modalVisible}
           onClose={() => setModalVisible(false)}
           onSelect={selectTrack}
+          carModel={carModel}
         />
       </View>
     );
@@ -842,6 +843,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onSelect={selectTrack}
+        carModel={carModel}
       />
     </View>
   );
@@ -944,7 +946,7 @@ const loaderStyles = StyleSheet.create({
   },
 });
 
-function TrackModal({ visible, onClose, onSelect }) {
+function TrackModal({ visible, onClose, onSelect, carModel = 'model_3' }) {
   const { t } = useTranslation();
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState('');
@@ -991,9 +993,9 @@ function TrackModal({ visible, onClose, onSelect }) {
 
   const handleSelectWithDemo = useCallback(async (track) => {
     await stopPreview();
-    const demo = DEMO_SHOWS[track.id];
+    const demo = getDemoForCar(track.id, carModel);
     onSelect(track, demo ? demo.events : null);
-  }, [onSelect, stopPreview]);
+  }, [onSelect, stopPreview, carModel]);
 
   const handleClose = useCallback(async () => {
     await stopPreview();

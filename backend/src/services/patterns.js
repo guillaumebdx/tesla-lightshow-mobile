@@ -23,6 +23,16 @@ const BLINKERS = ['blink_front_left', 'blink_front_right', 'blink_back_left', 'b
 const SIDES = ['side_repeater_left', 'side_repeater_right'];
 const ALL_WINDOWS = ['window_left_front', 'window_right_front', 'window_left_back', 'window_right_back'];
 
+// Juniper-only groups (Model Y 2024+)
+const JUNIPER_CENTER_BARS = ['light_center_front', 'light_center_back'];
+const JUNIPER_INTERIOR_LEDS = [
+  'interior_front_door_left',
+  'interior_front_door_right',
+  'interior_front_central',
+  'interior_back_door_left',
+  'interior_back_door_right',
+];
+
 // Wave sweep sequence front → back
 const WAVE_SEQUENCE = [
   ALL_HEADLIGHTS,                                      // front headlights + signatures
@@ -48,6 +58,7 @@ function evt(part, startMs, endMs, opts = {}) {
     endMs: Math.round(endMs),
     effect: opts.effect || 'solid',
     blinkSpeed: opts.blinkSpeed ?? 0,
+    pulseSpeed: opts.pulseSpeed ?? 0,
     easeIn: opts.easeIn || false,
     easeOut: opts.easeOut || false,
     // Closure-specific
@@ -55,6 +66,10 @@ function evt(part, startMs, endMs, opts = {}) {
     ...(opts.windowMode ? { windowMode: opts.windowMode, windowDurationMs: opts.windowDurationMs || 15000 } : {}),
     ...(opts.trunkMode ? { trunkMode: opts.trunkMode } : {}),
     ...(opts.flapMode ? { flapMode: opts.flapMode } : {}),
+    // RGB-specific (Juniper interior LEDs)
+    ...(opts.rgbColor !== undefined ? { rgbColor: opts.rgbColor } : {}),
+    ...(opts.rgbRainbow !== undefined ? { rgbRainbow: opts.rgbRainbow } : {}),
+    ...(opts.rgbSync !== undefined ? { rgbSync: opts.rgbSync } : {}),
   };
 }
 
@@ -331,10 +346,6 @@ function flapSequence(startMs, params = {}) {
   ];
 }
 
-// ═══════════════════════════════════════════════════════════════
-// REGISTRY
-// ═══════════════════════════════════════════════════════════════
-
 /**
  * "headlightPingPong" — Only headlights alternate L/R with blink.
  * Params: { durationMs=4000, blinkSpeed=1, cycles=4 }
@@ -373,6 +384,95 @@ function signatureSweep(startMs, params = {}) {
   return events;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// JUNIPER-ONLY PATTERNS (Model Y 2024+)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * "juniperCenterPulse" — Front + back center light bars pulse together.
+ * Params: { durationMs=6000, pulseSpeed=0 }
+ * Great for: sustained ambient layer on Juniper. Use A LOT.
+ */
+function juniperCenterPulse(startMs, params = {}) {
+  const dur = params.durationMs || 6000;
+  const speed = params.pulseSpeed ?? 0;
+  return JUNIPER_CENTER_BARS.map((part) =>
+    evt(part, startMs, startMs + dur, {
+      effect: 'pulse',
+      pulseSpeed: speed,
+      easeIn: true,
+      easeOut: true,
+    })
+  );
+}
+
+/**
+ * "juniperLedsRainbow" — All 5 interior RGB LEDs cycle rainbow.
+ * Params: { durationMs=20000 }
+ * Great for: long sustained interior ambiance. Use with VERY long durations.
+ */
+function juniperLedsRainbow(startMs, params = {}) {
+  const dur = params.durationMs || 20000;
+  return JUNIPER_INTERIOR_LEDS.map((part) =>
+    evt(part, startMs, startMs + dur, {
+      effect: 'solid',
+      rgbRainbow: true,
+      rgbSync: false,
+      easeIn: true,
+      easeOut: true,
+    })
+  );
+}
+
+/**
+ * "juniperLedsSync" — All 5 interior LEDs mirror the exterior lights.
+ * Params: { durationMs=20000 }
+ * Great for: alternating with rainbow for visual variety.
+ */
+function juniperLedsSync(startMs, params = {}) {
+  const dur = params.durationMs || 20000;
+  return JUNIPER_INTERIOR_LEDS.map((part) =>
+    evt(part, startMs, startMs + dur, {
+      effect: 'solid',
+      rgbSync: true,
+      rgbRainbow: false,
+      easeIn: true,
+      easeOut: true,
+    })
+  );
+}
+
+/**
+ * "juniperLedsColor" — All 5 interior LEDs solid color.
+ * Params: { rgbColor='#ffffff', durationMs=15000 }
+ * Great for: themed sections (red=intense, blue=cool, etc.)
+ */
+function juniperLedsColor(startMs, params = {}) {
+  const dur = params.durationMs || 15000;
+  const color = params.rgbColor || '#ffffff';
+  return JUNIPER_INTERIOR_LEDS.map((part) =>
+    evt(part, startMs, startMs + dur, {
+      effect: 'solid',
+      rgbColor: color,
+      rgbRainbow: false,
+      rgbSync: false,
+      easeIn: true,
+      easeOut: true,
+    })
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// REGISTRY
+// ═══════════════════════════════════════════════════════════════
+
+const JUNIPER_ONLY_PATTERN_NAMES = new Set([
+  'juniperCenterPulse',
+  'juniperLedsRainbow',
+  'juniperLedsSync',
+  'juniperLedsColor',
+]);
+
 const PATTERNS = {
   breathing,
   pulse,
@@ -393,6 +493,10 @@ const PATTERNS = {
   trunkSequence,
   retroRoundtrip,
   flapSequence,
+  juniperCenterPulse,
+  juniperLedsRainbow,
+  juniperLedsSync,
+  juniperLedsColor,
 };
 
 /**
@@ -401,9 +505,10 @@ const PATTERNS = {
  * @param {number} durationMs - Total track duration for clamping
  * @returns {Object[]} Full event array
  */
-function expandChoreography(plan, durationMs) {
+function expandChoreography(plan, durationMs, carModel = 'model_3') {
   const allEvents = [];
   let idCounter = 1;
+  const isJuniper = carModel === 'model_y_juniper';
 
   // Track closure usage to enforce hardware limits
   const closureCounts = {
@@ -420,6 +525,12 @@ function expandChoreography(plan, durationMs) {
   };
 
   for (const instruction of plan) {
+    // Gate Juniper-only patterns: silently ignored on non-Juniper cars so an
+    // LLM hallucination can't inject interior LED events onto a Model 3.
+    if (JUNIPER_ONLY_PATTERN_NAMES.has(instruction.pattern) && !isJuniper) {
+      continue;
+    }
+
     const fn = PATTERNS[instruction.pattern];
     if (!fn) {
       console.warn(`[Patterns] Unknown pattern: "${instruction.pattern}", skipping`);
@@ -449,14 +560,39 @@ function expandChoreography(plan, durationMs) {
     }
   }
 
-  return allEvents.sort((a, b) => a.startMs - b.startMs).slice(0, 5000);
+  let sorted = allEvents.sort((a, b) => a.startMs - b.startMs).slice(0, 5000);
+  if (isJuniper) sorted = remapEventsToJuniper(sorted);
+  return sorted;
+}
+
+// Remap Model 3 front-light parts to Juniper equivalents (4 front parts → 2)
+// and drop duplicates at the same part/time that the merge creates.
+function remapEventsToJuniper(events) {
+  const MAP = {
+    left_high_light: 'light_left_front',
+    right_high_light: 'light_right_front',
+    left_signature_light: 'light_left_front',
+    right_signature_light: 'light_right_front',
+  };
+  const seen = new Set();
+  const out = [];
+  for (const e of events) {
+    const mappedPart = MAP[e.part] || e.part;
+    const key = `${mappedPart}|${e.startMs}|${e.endMs}|${e.effect}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(mappedPart === e.part ? e : { ...e, part: mappedPart });
+  }
+  return out;
 }
 
 /**
  * Get the pattern catalog description for the LLM prompt.
+ * Juniper-specific patterns are appended only when the target is Juniper —
+ * this keeps the Model 3 prompt surface unchanged.
  */
-function getPatternCatalog() {
-  return `
+function getPatternCatalog(carModel = 'model_3') {
+  const base = `
 ## LIGHT PATTERNS (effect on lights only, no moving parts)
 - **breathing** — Gentle headlight+signature+taillight fade in/out. Params: {durationMs:3000}. 6 events. Good for: intros, outros, quiet.
 - **pulse** — Short headlight+signature+taillight burst. Params: {durationMs:300}. 6 events. Good for: marking single beats.
@@ -480,6 +616,19 @@ function getPatternCatalog() {
 - **retroRoundtrip** — Both retros fold out and back. Params: {durationMs:2000}. Max 5-6 uses spread across show.
 - **flapSequence** — Open → rainbow → close. Params: {openMs:3000, rainbowMs:8000}. Exactly 1 use.
 `.trim();
+
+  if (carModel !== 'model_y_juniper') return base;
+
+  const juniperSection = `
+
+## JUNIPER-EXCLUSIVE PATTERNS (Model Y 2024+ only — USE HEAVILY)
+- **juniperCenterPulse** — Pulse on the front + back central light bars. Params: {durationMs:6000, pulseSpeed:0}. 2 events. USE OFTEN — every 6-10s throughout the track with durationMs=5000-8000. Signature Juniper effect. pulseSpeed: 0=slow breathing, 1=medium, 2=fast.
+- **juniperLedsRainbow** — All 5 interior RGB LEDs in rainbow mode. Params: {durationMs:20000}. 5 events. USE WITH VERY LONG DURATIONS (20-60s). The interior should stay lit almost continuously across the whole show.
+- **juniperLedsSync** — All 5 interior LEDs sync with exterior lights (follow the show). Params: {durationMs:20000}. 5 events. Alternate with rainbow for variety across sections.
+- **juniperLedsColor** — All 5 interior LEDs solid color. Params: {rgbColor:"#ffaa00", durationMs:15000}. 5 events. For themed sections (#ff2222=intense, #44aaff=cool, #88ff22=energetic).
+`.trim();
+
+  return `${base}\n\n${juniperSection}`;
 }
 
 module.exports = { PATTERNS, expandChoreography, getPatternCatalog };

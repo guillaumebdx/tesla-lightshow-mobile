@@ -12,7 +12,7 @@ import { getDeviceId } from './deviceId';
  * @param {string} [params.userPrompt] - Optional user description of desired light show style
  * @returns {Promise<Object[]>} Array of event objects ready for the timeline
  */
-export async function generateAIShow({ waveform, durationMs, mood, trackTitle, userPrompt }) {
+export async function generateAIShow({ waveform, durationMs, mood, trackTitle, userPrompt, carModel }) {
   // Get App Check token (skipped in dev if not initialized)
   let headers = { 'Content-Type': 'application/json', 'X-App-Version': '1.15' };
   try {
@@ -39,6 +39,7 @@ export async function generateAIShow({ waveform, durationMs, mood, trackTitle, u
       durationMs,
       mood: mood || 'auto',
       trackTitle: trackTitle || 'Unknown Track',
+      carModel: carModel === 'model_y_juniper' ? 'model_y_juniper' : 'model_3',
       ...(userPrompt ? { userPrompt } : {}),
     }),
   });

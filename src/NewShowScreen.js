@@ -19,7 +19,7 @@ const CARD_MARGIN = 12;
 
 const CAR_MODELS = [
   { id: 'model_s', label: 'Model S', available: false },
-  { id: 'model_3', label: 'Model 3/Y', available: true },
+  { id: 'model_3', label: 'Model 3', available: true },
   { id: 'model_y_juniper', label: 'Model Y Juniper', available: true },
   { id: 'model_x', label: 'Model X', available: false },
   { id: 'cybertruck', label: 'Cybertruck', available: false },
@@ -185,6 +185,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
       const blinkOn = new THREE.MeshStandardMaterial({ color: 0xffaa00, metalness: 0.2, roughness: 0.05, emissive: 0xffaa00, emissiveIntensity: 1.5 });
 
       // All lights ON permanently
+      const isJuniper = currentCarId === 'model_y_juniper';
       const partMats = {
         window_left_front: windowMat, window_right_front: windowMat,
         window_left_back: windowMat, window_right_back: windowMat,
@@ -200,6 +201,11 @@ export default function NewShowScreen({ onBack, onCreated }) {
         rear_fog: tailOn,
         side_repeater_left: blinkOn,
         side_repeater_right: blinkOn,
+        ...(isJuniper ? {
+          light_left_front: headOn,
+          light_center_front: bodyMat,
+          light_center_back: bodyMat,
+        } : {}),
       };
       const nodeNameMap = {
         'blink_front_left002': 'blink_front_left',
@@ -337,6 +343,9 @@ export default function NewShowScreen({ onBack, onCreated }) {
                 <Text style={styles.modelInfoText}>
                   {t('newShow.model3Compat')}
                 </Text>
+                <Text style={styles.modelInfoHint}>
+                  {t('newShow.model3Hint')}
+                </Text>
               </View>
             )}
           </View>
@@ -428,6 +437,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 12,
+    textAlign: 'center',
+    lineHeight: 24,
   },
   previewContainer: {
     width: '100%',
@@ -484,17 +495,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   modelInfoText: {
-    color: '#8888aa',
-    fontSize: 12,
+    color: '#aaaacc',
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 20,
   },
   modelInfoHint: {
     color: '#6666aa',
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
     lineHeight: 17,
-    marginTop: 6,
+    marginTop: 8,
     fontStyle: 'italic',
   },
   createButton: {

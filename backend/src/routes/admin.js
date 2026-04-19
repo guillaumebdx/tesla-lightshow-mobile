@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
-const { getGenerations, getGenerationsCount, getTopUsers, getStats, savePushSubscription, removePushSubscription, getAnalyticsEvents, getDeviceAnalyticsEvents, getAnalyticsDailySummary, getAnalyticsStats, getModelVotes, getVotesTodayTotal } = require('../services/database');
+const { getGenerations, getGenerationsCount, getTopUsers, getStats, savePushSubscription, removePushSubscription, getAnalyticsEvents, getDeviceAnalyticsEvents, getAnalyticsDailySummary, getAnalyticsStats, getModelVotes, getVotesTodayTotal, setDeviceExcludedFromStats, setPushPreference, getPushPreferences } = require('../services/database');
 const { getVapidPublicKey } = require('../services/pushService');
 const { addClient, getRecentLogs } = require('../services/logBroadcaster');
 const { adminAuth, adminLogin, adminCheck } = require('../middleware/adminAuth');
@@ -108,8 +108,17 @@ router.get('/api/analytics/events', (req, res) => {
 router.get('/api/analytics/device/:deviceId', (req, res) => {
   const { deviceId } = req.params;
   if (!deviceId) return res.status(400).json({ error: 'Missing deviceId' });
-  const { events, firstName } = getDeviceAnalyticsEvents(deviceId);
-  res.json({ deviceId, firstName, events });
+  const { events, firstName, excludedFromStats } = getDeviceAnalyticsEvents(deviceId);
+  res.json({ deviceId, firstName, excludedFromStats, events });
+});
+
+// API: Toggle device exclusion from stats (logs stay visible, counts are filtered)
+router.post('/api/analytics/device/:deviceId/exclude', (req, res) => {
+  const { deviceId } = req.params;
+  if (!deviceId) return res.status(400).json({ error: 'Missing deviceId' });
+  const excluded = !!req.body?.excluded;
+  setDeviceExcludedFromStats(deviceId, excluded);
+  res.json({ ok: true, deviceId, excluded });
 });
 
 // API: Analytics daily summary
@@ -132,18 +141,50 @@ router.get('/api/push/vapid-key', (req, res) => {
   res.json({ publicKey: key });
 });
 
-// Push: Save subscription
+// Push: Save subscription (optional preferences override defaults / existing flags)
 router.post('/api/push/subscribe', (req, res) => {
   try {
-    const { subscription } = req.body;
+    const { subscription, preferences } = req.body;
     if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
       return res.status(400).json({ error: 'Invalid subscription' });
     }
-    savePushSubscription(subscription);
-    res.json({ ok: true });
+    savePushSubscription(subscription, preferences || {});
+    const prefs = getPushPreferences(subscription.endpoint);
+    res.json({ ok: true, preferences: prefs });
   } catch (e) {
     console.error('[Push] Subscribe error:', e.message);
     res.status(500).json({ error: 'Failed to save subscription' });
+  }
+});
+
+// Push: Get preferences for an endpoint
+router.get('/api/push/preferences', (req, res) => {
+  try {
+    const endpoint = req.query.endpoint;
+    if (!endpoint) return res.status(400).json({ error: 'Missing endpoint' });
+    const prefs = getPushPreferences(endpoint);
+    if (!prefs) return res.json({ exists: false });
+    res.json({ exists: true, preferences: prefs });
+  } catch (e) {
+    console.error('[Push] Preferences error:', e.message);
+    res.status(500).json({ error: 'Failed to read preferences' });
+  }
+});
+
+// Push: Update preference for a category (chat | show_created)
+router.post('/api/push/preferences', (req, res) => {
+  try {
+    const { endpoint, category, enabled } = req.body || {};
+    if (!endpoint) return res.status(400).json({ error: 'Missing endpoint' });
+    if (!category || !['chat', 'show_created'].includes(category)) {
+      return res.status(400).json({ error: 'Invalid category' });
+    }
+    const ok = setPushPreference(endpoint, category, !!enabled);
+    if (!ok) return res.status(404).json({ error: 'Subscription not found' });
+    res.json({ ok: true, preferences: getPushPreferences(endpoint) });
+  } catch (e) {
+    console.error('[Push] Preference update error:', e.message);
+    res.status(500).json({ error: 'Failed to update preference' });
   }
 });
 

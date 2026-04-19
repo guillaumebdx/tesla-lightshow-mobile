@@ -250,6 +250,22 @@ export const RGB_PARTS = new Set([
 ]);
 export const isRgb = (part) => RGB_PARTS.has(part);
 
+// Parts that only exist on Model Y Juniper — must be filtered out when
+// loading a non-Juniper GLB (otherwise shared mesh names like
+// `light_right_front` would receive interactive dots on Model 3).
+export const JUNIPER_ONLY_PARTS = new Set([
+  'light_left_front',
+  'light_right_front',
+  'light_center_front',
+  'light_center_back',
+  'reversing_lights',
+  'interior_front_door_right',
+  'interior_front_door_left',
+  'interior_front_central',
+  'interior_back_door_left',
+  'interior_back_door_right',
+]);
+
 // Preset color palette for the interior RGB LED picker.
 // 12 values spread across the hue wheel + white.
 export const RGB_PRESETS = [

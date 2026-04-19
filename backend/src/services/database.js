@@ -105,19 +105,43 @@ db.exec(`
     endpoint TEXT NOT NULL UNIQUE,
     keys_p256dh TEXT NOT NULL,
     keys_auth TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now')),
+    notify_chat INTEGER NOT NULL DEFAULT 1,
+    notify_show_created INTEGER NOT NULL DEFAULT 0
   );
 `);
+
+// Migration: add per-category opt-in columns on existing subscription rows.
+// notify_chat defaults to 1 (preserves current behavior for existing subs),
+// notify_show_created defaults to 0 (must be explicitly enabled).
+try {
+  db.prepare(`SELECT notify_chat FROM push_subscriptions LIMIT 1`).get();
+} catch {
+  db.exec(`ALTER TABLE push_subscriptions ADD COLUMN notify_chat INTEGER NOT NULL DEFAULT 1`);
+}
+try {
+  db.prepare(`SELECT notify_show_created FROM push_subscriptions LIMIT 1`).get();
+} catch {
+  db.exec(`ALTER TABLE push_subscriptions ADD COLUMN notify_show_created INTEGER NOT NULL DEFAULT 0`);
+}
 
 // Device names table — each device gets a human-readable first name
 db.exec(`
   CREATE TABLE IF NOT EXISTS device_names (
     device_id TEXT PRIMARY KEY,
     first_name TEXT NOT NULL UNIQUE,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now')),
+    excluded_from_stats INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_device_names_first_name ON device_names(first_name);
 `);
+
+// Migration: add excluded_from_stats column to existing device_names rows
+try {
+  db.prepare(`SELECT excluded_from_stats FROM device_names LIMIT 1`).get();
+} catch {
+  db.exec(`ALTER TABLE device_names ADD COLUMN excluded_from_stats INTEGER NOT NULL DEFAULT 0`);
+}
 
 // Migration: add device_id column if it doesn't exist
 try {
@@ -199,6 +223,7 @@ function getTopUsers({ limit = 20 } = {}) {
            MIN(created_at) as first_seen
     FROM generations
     WHERE device_id != ''
+      AND device_id NOT IN ${EXCLUDED_SUBQUERY}
     GROUP BY device_id
     ORDER BY count DESC
     LIMIT ?
@@ -209,27 +234,28 @@ function getTopUsers({ limit = 20 } = {}) {
  * Get aggregate stats.
  */
 function getStats() {
-  const total = db.prepare(`SELECT COUNT(*) as count FROM generations`).get();
-  const success = db.prepare(`SELECT COUNT(*) as count FROM generations WHERE status = 'success'`).get();
-  const errors = db.prepare(`SELECT COUNT(*) as count FROM generations WHERE status = 'error'`).get();
-  const costRow = db.prepare(`SELECT COALESCE(SUM(estimated_cost), 0) as total FROM generations WHERE status = 'success'`).get();
-  const tokensRow = db.prepare(`SELECT COALESCE(SUM(total_tokens), 0) as total FROM generations WHERE status = 'success'`).get();
-  const avgEvents = db.prepare(`SELECT COALESCE(AVG(events_count), 0) as avg FROM generations WHERE status = 'success'`).get();
-  const avgTime = db.prepare(`SELECT COALESCE(AVG(response_time_ms), 0) as avg FROM generations WHERE status = 'success'`).get();
-  const avgCoverage = db.prepare(`SELECT COALESCE(AVG(coverage_percent), 0) as avg FROM generations WHERE status = 'success'`).get();
+  const EX = `device_id NOT IN ${EXCLUDED_SUBQUERY}`;
+  const total = db.prepare(`SELECT COUNT(*) as count FROM generations WHERE ${EX}`).get();
+  const success = db.prepare(`SELECT COUNT(*) as count FROM generations WHERE status = 'success' AND ${EX}`).get();
+  const errors = db.prepare(`SELECT COUNT(*) as count FROM generations WHERE status = 'error' AND ${EX}`).get();
+  const costRow = db.prepare(`SELECT COALESCE(SUM(estimated_cost), 0) as total FROM generations WHERE status = 'success' AND ${EX}`).get();
+  const tokensRow = db.prepare(`SELECT COALESCE(SUM(total_tokens), 0) as total FROM generations WHERE status = 'success' AND ${EX}`).get();
+  const avgEvents = db.prepare(`SELECT COALESCE(AVG(events_count), 0) as avg FROM generations WHERE status = 'success' AND ${EX}`).get();
+  const avgTime = db.prepare(`SELECT COALESCE(AVG(response_time_ms), 0) as avg FROM generations WHERE status = 'success' AND ${EX}`).get();
+  const avgCoverage = db.prepare(`SELECT COALESCE(AVG(coverage_percent), 0) as avg FROM generations WHERE status = 'success' AND ${EX}`).get();
 
   const modelBreakdown = db.prepare(`
-    SELECT model, COUNT(*) as count, COALESCE(SUM(estimated_cost), 0) as cost, 
+    SELECT model, COUNT(*) as count, COALESCE(SUM(estimated_cost), 0) as cost,
            COALESCE(AVG(events_count), 0) as avg_events, COALESCE(AVG(response_time_ms), 0) as avg_time
-    FROM generations WHERE status = 'success' GROUP BY model ORDER BY count DESC
+    FROM generations WHERE status = 'success' AND ${EX} GROUP BY model ORDER BY count DESC
   `).all();
 
   const todayCount = db.prepare(`
-    SELECT COUNT(*) as count FROM generations WHERE date(created_at) = date('now')
+    SELECT COUNT(*) as count FROM generations WHERE date(created_at) = date('now') AND ${EX}
   `).get();
 
   const todayCost = db.prepare(`
-    SELECT COALESCE(SUM(estimated_cost), 0) as total FROM generations WHERE date(created_at) = date('now') AND status = 'success'
+    SELECT COALESCE(SUM(estimated_cost), 0) as total FROM generations WHERE date(created_at) = date('now') AND status = 'success' AND ${EX}
   `).get();
 
   return {
@@ -329,12 +355,18 @@ function getModelVotes() {
            COUNT(*) as votes,
            COUNT(DISTINCT device_id) as unique_voters,
            SUM(CASE WHEN date(created_at) = date('now') THEN 1 ELSE 0 END) as votes_today
-    FROM model_votes GROUP BY car_model ORDER BY votes DESC
+    FROM model_votes
+    WHERE device_id NOT IN ${EXCLUDED_SUBQUERY}
+    GROUP BY car_model ORDER BY votes DESC
   `).all();
 }
 
 function getVotesTodayTotal() {
-  return db.prepare(`SELECT COUNT(*) as count FROM model_votes WHERE date(created_at) = date('now')`).get().count;
+  return db.prepare(`
+    SELECT COUNT(*) as count FROM model_votes
+    WHERE date(created_at) = date('now')
+      AND device_id NOT IN ${EXCLUDED_SUBQUERY}
+  `).get().count;
 }
 
 function hasVotedForModel(deviceId, carModel) {
@@ -347,10 +379,30 @@ function getDeviceVotes(deviceId) {
 
 // ─── Device name helpers ───
 
+// Reused by all stats queries to filter out excluded devices without
+// affecting the raw event log or device history views.
+const EXCLUDED_SUBQUERY = '(SELECT device_id FROM device_names WHERE excluded_from_stats = 1)';
+
 function getDeviceName(deviceId) {
   if (!deviceId) return null;
   const row = db.prepare('SELECT first_name FROM device_names WHERE device_id = ?').get(deviceId);
   return row ? row.first_name : null;
+}
+
+function isDeviceExcludedFromStats(deviceId) {
+  if (!deviceId) return false;
+  const row = db.prepare('SELECT excluded_from_stats FROM device_names WHERE device_id = ?').get(deviceId);
+  return !!(row && row.excluded_from_stats);
+}
+
+function setDeviceExcludedFromStats(deviceId, excluded) {
+  if (!deviceId) return false;
+  // Ensure a row exists so we can flip the flag even if the device has never
+  // been named yet (edge case — names are assigned on first event).
+  getOrAssignDeviceName(deviceId);
+  db.prepare('UPDATE device_names SET excluded_from_stats = ? WHERE device_id = ?')
+    .run(excluded ? 1 : 0, deviceId);
+  return true;
 }
 
 function getOrAssignDeviceName(deviceId) {
@@ -442,7 +494,8 @@ function getDeviceAnalyticsEvents(deviceId) {
     SELECT * FROM analytics_events WHERE device_id = ? ORDER BY created_at DESC LIMIT 200
   `).all(deviceId);
   const firstName = getDeviceName(deviceId);
-  return { events, firstName };
+  const excludedFromStats = isDeviceExcludedFromStats(deviceId);
+  return { events, firstName, excludedFromStats };
 }
 
 function getAnalyticsDailySummary({ days = 14 } = {}) {
@@ -453,23 +506,25 @@ function getAnalyticsDailySummary({ days = 14 } = {}) {
            COUNT(DISTINCT device_id) as unique_devices
     FROM analytics_events
     WHERE created_at >= datetime('now', ?)
+      AND device_id NOT IN ${EXCLUDED_SUBQUERY}
     GROUP BY day, event_type
     ORDER BY day DESC, count DESC
   `).all(`-${days} days`);
 }
 
 function getAnalyticsStats() {
-  const total = db.prepare('SELECT COUNT(*) as count FROM analytics_events').get().count;
-  const today = db.prepare(`SELECT COUNT(*) as count FROM analytics_events WHERE date(created_at) = date('now')`).get().count;
-  const uniqueDevices = db.prepare('SELECT COUNT(DISTINCT device_id) as count FROM analytics_events').get().count;
-  const todayUniqueDevices = db.prepare(`SELECT COUNT(DISTINCT device_id) as count FROM analytics_events WHERE date(created_at) = date('now')`).get().count;
+  const EX = `device_id NOT IN ${EXCLUDED_SUBQUERY}`;
+  const total = db.prepare(`SELECT COUNT(*) as count FROM analytics_events WHERE ${EX}`).get().count;
+  const today = db.prepare(`SELECT COUNT(*) as count FROM analytics_events WHERE date(created_at) = date('now') AND ${EX}`).get().count;
+  const uniqueDevices = db.prepare(`SELECT COUNT(DISTINCT device_id) as count FROM analytics_events WHERE ${EX}`).get().count;
+  const todayUniqueDevices = db.prepare(`SELECT COUNT(DISTINCT device_id) as count FROM analytics_events WHERE date(created_at) = date('now') AND ${EX}`).get().count;
   const byType = db.prepare(`
     SELECT event_type, COUNT(*) as count, COUNT(DISTINCT device_id) as unique_devices
-    FROM analytics_events GROUP BY event_type ORDER BY count DESC
+    FROM analytics_events WHERE ${EX} GROUP BY event_type ORDER BY count DESC
   `).all();
   const todayByType = db.prepare(`
     SELECT event_type, COUNT(*) as count
-    FROM analytics_events WHERE date(created_at) = date('now')
+    FROM analytics_events WHERE date(created_at) = date('now') AND ${EX}
     GROUP BY event_type ORDER BY count DESC
   `).all();
   return { total, today, uniqueDevices, todayUniqueDevices, byType, todayByType };
@@ -477,12 +532,29 @@ function getAnalyticsStats() {
 
 // ─── Push subscription helpers ───
 
-function savePushSubscription(subscription) {
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO push_subscriptions (endpoint, keys_p256dh, keys_auth)
-    VALUES (?, ?, ?)
-  `);
-  stmt.run(subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth);
+// Categories map to columns on push_subscriptions. Keep this allowlist tight —
+// every caller validates against it before touching SQL.
+const PUSH_CATEGORIES = { chat: 'notify_chat', show_created: 'notify_show_created' };
+
+function savePushSubscription(subscription, preferences = {}) {
+  // Preserve existing preferences on re-subscribe; only override when provided.
+  const existing = db.prepare('SELECT notify_chat, notify_show_created FROM push_subscriptions WHERE endpoint = ?')
+    .get(subscription.endpoint);
+  const notifyChat = preferences.notifyChat !== undefined
+    ? (preferences.notifyChat ? 1 : 0)
+    : (existing ? existing.notify_chat : 1);
+  const notifyShowCreated = preferences.notifyShowCreated !== undefined
+    ? (preferences.notifyShowCreated ? 1 : 0)
+    : (existing ? existing.notify_show_created : 0);
+  db.prepare(`
+    INSERT INTO push_subscriptions (endpoint, keys_p256dh, keys_auth, notify_chat, notify_show_created)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(endpoint) DO UPDATE SET
+      keys_p256dh = excluded.keys_p256dh,
+      keys_auth = excluded.keys_auth,
+      notify_chat = excluded.notify_chat,
+      notify_show_created = excluded.notify_show_created
+  `).run(subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, notifyChat, notifyShowCreated);
 }
 
 function getAllPushSubscriptions() {
@@ -490,6 +562,34 @@ function getAllPushSubscriptions() {
     endpoint: row.endpoint,
     keys: { p256dh: row.keys_p256dh, auth: row.keys_auth },
   }));
+}
+
+function getPushSubscriptionsForCategory(category) {
+  const col = PUSH_CATEGORIES[category];
+  if (!col) return [];
+  return db.prepare(`SELECT * FROM push_subscriptions WHERE ${col} = 1`).all().map(row => ({
+    endpoint: row.endpoint,
+    keys: { p256dh: row.keys_p256dh, auth: row.keys_auth },
+  }));
+}
+
+function setPushPreference(endpoint, category, enabled) {
+  const col = PUSH_CATEGORIES[category];
+  if (!col || !endpoint) return false;
+  const result = db.prepare(`UPDATE push_subscriptions SET ${col} = ? WHERE endpoint = ?`)
+    .run(enabled ? 1 : 0, endpoint);
+  return result.changes > 0;
+}
+
+function getPushPreferences(endpoint) {
+  if (!endpoint) return null;
+  const row = db.prepare('SELECT notify_chat, notify_show_created FROM push_subscriptions WHERE endpoint = ?')
+    .get(endpoint);
+  if (!row) return null;
+  return {
+    notifyChat: !!row.notify_chat,
+    notifyShowCreated: !!row.notify_show_created,
+  };
 }
 
 function removePushSubscription(endpoint) {
@@ -516,6 +616,9 @@ module.exports = {
   // Push
   savePushSubscription,
   getAllPushSubscriptions,
+  getPushSubscriptionsForCategory,
+  setPushPreference,
+  getPushPreferences,
   removePushSubscription,
   // Analytics
   insertAnalyticsEvents,
@@ -533,4 +636,6 @@ module.exports = {
   getDeviceName,
   getOrAssignDeviceName,
   getAllKnownDeviceIds,
+  isDeviceExcludedFromStats,
+  setDeviceExcludedFromStats,
 };
