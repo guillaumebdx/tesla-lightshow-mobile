@@ -37,6 +37,8 @@
     "comingSoon": "Próximamente",
     "model3Compat": "Compatible con Tesla Model 3\nCompatible con Tesla Model Y anterior a 2024",
     "model3Hint": "Para un Model Y Juniper (2024+), elige el otro vehículo.",
+    "juniperCompat": "Compatible con Tesla Model Y Juniper (2024+)",
+    "juniperHint": "Barras de luz, LEDs RGB interiores",
     "create": "Crear",
     "unavailable": "No disponible",
     "voteBtn": "Votar por este modelo",
