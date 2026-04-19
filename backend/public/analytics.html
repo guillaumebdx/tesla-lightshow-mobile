@@ -113,7 +113,18 @@
     .modal-table th { padding: 10px 16px; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); background: var(--bg-input); border-bottom: 1px solid var(--border); white-space: nowrap; }
     .modal-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); }
     .modal-table tr:hover td { background: var(--bg-card-hover); }
-    .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
+    .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .modal-footer-info { color: var(--text-muted); }
+    .btn-exclude { padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid var(--warning); background: transparent; color: var(--warning); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-exclude:hover { background: rgba(253, 203, 110, 0.1); }
+    .btn-exclude.active { background: var(--warning); color: #0f1117; }
+    .btn-exclude:disabled { opacity: 0.5; cursor: wait; }
+
+    .notif-btn { position: relative; background: transparent; border: 1px solid var(--border); color: var(--text-muted); width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; }
+    .notif-btn:hover { border-color: var(--accent); color: var(--text); }
+    .notif-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+    .notif-btn:disabled { opacity: 0.5; cursor: wait; }
+    .exclude-badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: rgba(253, 203, 110, 0.15); color: var(--warning); }
 
     @media (max-width: 768px) {
       .container { padding: 12px; gap: 16px; }
@@ -142,7 +153,10 @@
     <h1>App Analytics</h1>
     <span class="header-badge">Live</span>
   </div>
-  <div style="font-size:12px;color:var(--text-muted)" id="lastUpdate"></div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button class="notif-btn" id="notifBtn" title="Enable show_created notifications" style="display:none">🎆</button>
+    <div style="font-size:12px;color:var(--text-muted)" id="lastUpdate"></div>
+  </div>
 </div>
 
 <div class="container">
@@ -295,7 +309,10 @@
         </tbody>
       </table>
     </div>
-    <div class="modal-footer" id="modalFooter"></div>
+    <div class="modal-footer">
+      <span class="modal-footer-info" id="modalFooter"></span>
+      <button class="btn-exclude" id="modalExcludeBtn" onclick="toggleExclude()">…</button>
+    </div>
   </div>
 </div>
 
@@ -508,21 +525,47 @@
   }
 
   // --- Device Modal ---
+  let currentModalDevice = null;
+  let currentModalFirstName = null;
+  let currentModalExcluded = false;
+
+  function renderExcludeButton() {
+    const btn = document.getElementById('modalExcludeBtn');
+    btn.disabled = false;
+    if (currentModalExcluded) {
+      btn.textContent = 'Réintégrer aux stats';
+      btn.classList.add('active');
+    } else {
+      btn.textContent = 'Ignorer pour les stats';
+      btn.classList.remove('active');
+    }
+    const title = document.getElementById('modalTitle');
+    const base = currentModalFirstName ? `${currentModalFirstName}'s History` : 'Device History';
+    title.innerHTML = currentModalExcluded
+      ? `${esc(base)}<span class="exclude-badge">hors stats</span>`
+      : esc(base);
+  }
+
   async function openDeviceModal(deviceId) {
     const modal = document.getElementById('deviceModal');
+    currentModalDevice = deviceId;
+    currentModalFirstName = null;
+    currentModalExcluded = false;
     document.getElementById('modalTitle').textContent = 'Device History';
     document.getElementById('modalDeviceId').textContent = deviceId;
     document.getElementById('modalTableBody').innerHTML = '<tr><td colspan="4" class="empty-state">Loading...</td></tr>';
     document.getElementById('modalFooter').textContent = '';
+    document.getElementById('modalExcludeBtn').disabled = true;
+    document.getElementById('modalExcludeBtn').textContent = '…';
     modal.classList.add('open');
 
     try {
       const res = await fetch(`/admin/api/analytics/device/${encodeURIComponent(deviceId)}`);
       const data = await res.json();
       const events = data.events || [];
-      if (data.firstName) {
-        document.getElementById('modalTitle').textContent = `${data.firstName}'s History`;
-      }
+      currentModalFirstName = data.firstName || null;
+      currentModalExcluded = !!data.excludedFromStats;
+      renderExcludeButton();
 
       if (events.length === 0) {
         document.getElementById('modalTableBody').innerHTML = '<tr><td colspan="4" class="empty-state">No events found</td></tr>';
@@ -544,6 +587,30 @@
     }
   }
 
+  async function toggleExclude() {
+    if (!currentModalDevice) return;
+    const btn = document.getElementById('modalExcludeBtn');
+    btn.disabled = true;
+    const next = !currentModalExcluded;
+    try {
+      const res = await fetch(`/admin/api/analytics/device/${encodeURIComponent(currentModalDevice)}/exclude`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ excluded: next }),
+      });
+      if (!res.ok) throw new Error('Request failed');
+      currentModalExcluded = next;
+      renderExcludeButton();
+      // Refresh stats/daily/votes so the change is reflected immediately.
+      loadStats();
+      loadDaily();
+      loadVotes();
+    } catch (err) {
+      btn.disabled = false;
+      alert('Échec de la mise à jour : ' + err.message);
+    }
+  }
+
   function closeModal(e) {
     if (e.target === document.getElementById('deviceModal')) closeModalDirect();
   }
@@ -552,6 +619,110 @@
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
 
+  // --- Push notifications: show_created category only; chat is managed from /admin/chat independently. ---
+  const notifBtn = document.getElementById('notifBtn');
+  let swRegistration = null;
+  let pushSubscription = null;
+  let showCreatedEnabled = false;
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const out = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) out[i] = rawData.charCodeAt(i);
+    return out;
+  }
+
+  function renderNotifBtn() {
+    notifBtn.style.display = 'inline-flex';
+    if (showCreatedEnabled) {
+      notifBtn.classList.add('active');
+      notifBtn.title = 'Notifications show_created activées (cliquer pour désactiver)';
+    } else {
+      notifBtn.classList.remove('active');
+      notifBtn.title = 'Activer les notifications show_created';
+    }
+  }
+
+  async function initPushNotifications() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    try {
+      swRegistration = await navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' });
+      pushSubscription = await swRegistration.pushManager.getSubscription();
+      if (pushSubscription) {
+        const prefs = await fetch('/admin/api/push/preferences?endpoint=' + encodeURIComponent(pushSubscription.endpoint)).then(r => r.json());
+        showCreatedEnabled = !!(prefs?.preferences?.notifyShowCreated);
+      } else {
+        showCreatedEnabled = false;
+      }
+      renderNotifBtn();
+    } catch (e) {
+      console.error('[SW] Registration failed:', e);
+    }
+  }
+
+  async function ensureSubscription() {
+    if (pushSubscription) return pushSubscription;
+    const keyData = await fetch('/admin/api/push/vapid-key').then(r => r.json());
+    if (!keyData?.publicKey) throw new Error('Push non configuré sur le serveur');
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') throw new Error('Permission refusée');
+    pushSubscription = await swRegistration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(keyData.publicKey),
+    });
+    // Only touch show_created here; leaving notifyChat undefined keeps any prior chat opt-in intact.
+    await fetch('/admin/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subscription: pushSubscription.toJSON(),
+        preferences: { notifyShowCreated: true },
+      }),
+    });
+    return pushSubscription;
+  }
+
+  notifBtn.addEventListener('click', async () => {
+    if (!swRegistration) return;
+    notifBtn.disabled = true;
+    try {
+      if (!pushSubscription) {
+        await ensureSubscription();
+        showCreatedEnabled = true;
+      } else {
+        const next = !showCreatedEnabled;
+        const res = await fetch('/admin/api/push/preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint: pushSubscription.endpoint,
+            category: 'show_created',
+            enabled: next,
+          }),
+        });
+        if (!res.ok) {
+          // Subscription not found on server (e.g. endpoint changed) — re-register it.
+          await fetch('/admin/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subscription: pushSubscription.toJSON(),
+              preferences: { notifyShowCreated: next },
+            }),
+          });
+        }
+        showCreatedEnabled = next;
+      }
+      renderNotifBtn();
+    } catch (e) {
+      alert('Échec : ' + e.message);
+    } finally {
+      notifBtn.disabled = false;
+    }
+  });
+
   // --- Init ---
   loadStats();
   loadDaily();
@@ -559,6 +730,7 @@
   loadVotes();
   setInterval(loadStats, 15000);
   setInterval(loadDaily, 30000);
+  initPushNotifications();
 </script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Audio } from 'expo-av';
 import './src/i18n'; // Initialize i18n
 import { initAppCheck } from './src/firebase';
 import { initAnalytics } from './src/analyticsService';
@@ -12,6 +13,13 @@ export default function App() {
   useEffect(() => {
     initAppCheck();
     initAnalytics();
+    // Play audio even when iOS silent switch is on (light show needs its music)
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    }).catch(() => {});
   }, []);
 
   // Simple state-based navigation: 'home' | 'new' | 'editor'

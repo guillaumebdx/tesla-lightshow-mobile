@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { insertAnalyticsEvents } = require('../services/database');
+const { insertAnalyticsEvents, getPushSubscriptionsForCategory, removePushSubscription, getDeviceName, isDeviceExcludedFromStats } = require('../services/database');
+const { sendPush } = require('../services/pushService');
 
 const VALID_EVENT_TYPES = ['show_created', 'fseq_exported', 'music_selected', 'demo_show_created'];
 
@@ -34,6 +35,33 @@ router.post('/', (req, res) => {
     }
 
     res.json({ ok: true, inserted: validated.length });
+
+    // Push admin notifications for show_created events (async — don't block response).
+    // Excluded devices don't trigger notifications either (they're hidden from stats
+    // so the admin isn't interested in their activity).
+    const showCreatedEvents = validated.filter(e => e.eventType === 'show_created');
+    if (showCreatedEvents.length > 0 && !isDeviceExcludedFromStats(deviceId)) {
+      setImmediate(async () => {
+        try {
+          const subs = getPushSubscriptionsForCategory('show_created');
+          if (subs.length === 0) return;
+          const firstName = getDeviceName(deviceId) || deviceId.slice(0, 8);
+          const count = showCreatedEvents.length;
+          const payload = {
+            title: count > 1 ? `🎆 ${count} new shows` : '🎆 New show created',
+            body: `${firstName} just created a show`,
+            badge: count,
+            data: { url: '/admin/analytics', category: 'show_created' },
+          };
+          for (const sub of subs) {
+            const ok = await sendPush(sub, payload);
+            if (!ok) removePushSubscription(sub.endpoint);
+          }
+        } catch (err) {
+          console.error('[Analytics] Push notify error:', err.message);
+        }
+      });
+    }
   } catch (e) {
     console.error('[Analytics] Insert error:', e.message);
     res.status(500).json({ error: 'Failed to insert events' });

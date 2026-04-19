@@ -8,13 +8,22 @@ export const INTERACTIVE_PARTS = [
   'flap', 'trunk',
   'left_high_light', 'right_high_light',
   'left_signature_light', 'right_signature_light',
+  'light_left_front', 'light_right_front',
+  'light_center_front',
   'light_left_back', 'light_right_back',
+  'light_center_back',
   'blink_front_left', 'blink_front_right',
   'blink_back_left', 'blink_back_right',
   'license_plate',
   'brake_lights',
   'rear_fog',
+  'reversing_lights',
   'side_repeater_left', 'side_repeater_right',
+  'interior_front_door_right',
+  'interior_front_door_left',
+  'interior_front_central',
+  'interior_back_door_left',
+  'interior_back_door_right',
 ];
 
 // French labels for each part
@@ -31,8 +40,12 @@ export const PART_LABELS = {
   right_high_light: 'Phare AV droit',
   left_signature_light: 'Signature AV gauche',
   right_signature_light: 'Signature AV droite',
+  light_left_front: 'Phare AV gauche',
+  light_right_front: 'Phare AV droit',
+  light_center_front: 'Barre lumineuse AV',
   light_left_back: 'Feu AR gauche',
   light_right_back: 'Feu AR droit',
+  light_center_back: 'Barre lumineuse AR',
   blink_front_left: 'Clignotant AV gauche',
   blink_front_right: 'Clignotant AV droit',
   blink_back_left: 'Clignotant AR gauche',
@@ -40,8 +53,14 @@ export const PART_LABELS = {
   license_plate: 'Éclairage plaque',
   brake_lights: 'Feux stop',
   rear_fog: 'Antibrouillard AR',
+  reversing_lights: 'Feux de recul',
   side_repeater_left: 'Répétiteur gauche',
   side_repeater_right: 'Répétiteur droit',
+  interior_front_door_right: 'LED intérieur porte AV droite',
+  interior_front_door_left: 'LED intérieur porte AV gauche',
+  interior_front_central: 'LED intérieur centrale AV',
+  interior_back_door_left: 'LED intérieur porte AR gauche',
+  interior_back_door_right: 'LED intérieur porte AR droite',
 };
 
 // Icon images per part type
@@ -50,8 +69,12 @@ export const PART_ICONS = {
   right_high_light: require('../assets/icons/front_light.png'),
   left_signature_light: require('../assets/icons/front_light.png'),
   right_signature_light: require('../assets/icons/front_light.png'),
+  light_left_front: require('../assets/icons/front_light.png'),
+  light_right_front: require('../assets/icons/front_light.png'),
+  light_center_front: require('../assets/icons/front_light.png'),
   light_left_back: require('../assets/icons/back_light.png'),
   light_right_back: require('../assets/icons/back_light.png'),
+  light_center_back: require('../assets/icons/back_light.png'),
   window_left_front: require('../assets/icons/window.png'),
   window_right_front: require('../assets/icons/window.png'),
   window_left_back: require('../assets/icons/window.png'),
@@ -67,8 +90,14 @@ export const PART_ICONS = {
   license_plate: require('../assets/icons/back_light.png'),
   brake_lights: require('../assets/icons/back_light.png'),
   rear_fog: require('../assets/icons/back_light.png'),
+  reversing_lights: require('../assets/icons/back_light.png'),
   side_repeater_left: require('../assets/icons/front_light.png'),
   side_repeater_right: require('../assets/icons/front_light.png'),
+  interior_front_door_right: require('../assets/icons/window.png'),
+  interior_front_door_left: require('../assets/icons/window.png'),
+  interior_front_central: require('../assets/icons/window.png'),
+  interior_back_door_left: require('../assets/icons/window.png'),
+  interior_back_door_right: require('../assets/icons/window.png'),
 };
 
 // Color per part type (for event rectangles on waveform)
@@ -77,8 +106,12 @@ export const PART_COLORS = {
   right_high_light: '#ffffff',
   left_signature_light: '#aaddff',
   right_signature_light: '#aaddff',
+  light_left_front: '#ffffff',
+  light_right_front: '#ffffff',
+  light_center_front: '#ffffff',
   light_left_back: '#ff4444',
   light_right_back: '#ff4444',
+  light_center_back: '#ff4444',
   window_left_front: '#44aaff',
   window_right_front: '#44aaff',
   window_left_back: '#44aaff',
@@ -94,14 +127,21 @@ export const PART_COLORS = {
   license_plate: '#ccccff',
   brake_lights: '#ff2222',
   rear_fog: '#ff4444',
+  reversing_lights: '#ffffff',
   side_repeater_left: '#ffaa00',
   side_repeater_right: '#ffaa00',
+  interior_front_door_right: '#cc66ff',
+  interior_front_door_left: '#cc66ff',
+  interior_front_central: '#cc66ff',
+  interior_back_door_left: '#cc66ff',
+  interior_back_door_right: '#cc66ff',
 };
 
 // Effect types for events (extensible later with fade, pulse, etc.)
 export const EFFECT_TYPES = {
   SOLID: 'solid',     // Constant on for duration
   BLINK: 'blink',     // Rapid on/off alternation
+  PULSE: 'pulse',     // Sinusoidal brightness oscillation (requires fine PWM)
 };
 
 // Retro mirror animation modes
@@ -178,6 +218,71 @@ export const BLINK_SPEEDS = [
   { label: '3x', periodMs: 30 },   // Fast
 ];
 
+// Pulse speed levels (full sine cycle period in ms). Slower than blink —
+// a pulse needs to breathe visibly while ramping brightness.
+export const PULSE_SPEEDS = [
+  { label: '1x', periodMs: 1200 }, // Slow breathing
+  { label: '2x', periodMs: 700 },  // Medium
+  { label: '3x', periodMs: 400 },  // Fast
+];
+
+// Parts that support the PULSE effect (need fine per-channel brightness).
+// Only the Juniper front light bar qualifies today.
+export const PULSE_PARTS = new Set([
+  'light_center_front',
+  'light_center_back',
+  'interior_front_door_right',
+  'interior_front_door_left',
+  'interior_front_central',
+  'interior_back_door_left',
+  'interior_back_door_right',
+]);
+
+export const supportsPulse = (part) => PULSE_PARTS.has(part);
+
+// Parts that are interior RGB LEDs (3 channels each: R, G, B with fine PWM).
+export const RGB_PARTS = new Set([
+  'interior_front_door_right',
+  'interior_front_door_left',
+  'interior_front_central',
+  'interior_back_door_left',
+  'interior_back_door_right',
+]);
+export const isRgb = (part) => RGB_PARTS.has(part);
+
+// Parts that only exist on Model Y Juniper — must be filtered out when
+// loading a non-Juniper GLB (otherwise shared mesh names like
+// `light_right_front` would receive interactive dots on Model 3).
+export const JUNIPER_ONLY_PARTS = new Set([
+  'light_left_front',
+  'light_right_front',
+  'light_center_front',
+  'light_center_back',
+  'reversing_lights',
+  'interior_front_door_right',
+  'interior_front_door_left',
+  'interior_front_central',
+  'interior_back_door_left',
+  'interior_back_door_right',
+]);
+
+// Preset color palette for the interior RGB LED picker.
+// 12 values spread across the hue wheel + white.
+export const RGB_PRESETS = [
+  '#ffffff',
+  '#ff2222',
+  '#ff7700',
+  '#ffcc00',
+  '#88ff22',
+  '#22ff88',
+  '#22ddff',
+  '#2277ff',
+  '#8822ff',
+  '#ee22ff',
+  '#ff2288',
+  '#ffaadd',
+];
+
 // Maximum number of events per show
 export const MAX_EVENTS = 5000;
 
@@ -187,6 +292,7 @@ export const DEFAULT_EVENT_OPTIONS = {
   effect: EFFECT_TYPES.SOLID,
   power: 100,          // 1-100, maps to 0-255 at export
   blinkSpeed: 0,       // Index into BLINK_SPEEDS
+  pulseSpeed: 0,       // Index into PULSE_SPEEDS
   easeIn: false,       // Fade in at start of event
   easeOut: false,      // Fade out at end of event
   retroMode: RETRO_MODES.ROUND_TRIP, // Default retro animation mode
@@ -194,10 +300,14 @@ export const DEFAULT_EVENT_OPTIONS = {
   windowDurationMs: 5000,             // Duration of window dance
   trunkMode: 'trunk_open',            // Default trunk mode
   flapMode: 'flap_open',              // Default flap mode
+  // RGB LED (interior) options — only used when part is an RGB LED
+  rgbColor: '#ffffff',     // HEX color
+  rgbRainbow: false,       // Rainbow overrides rgbColor
+  rgbSync: false,          // Sync with exterior lights (overrides color/rainbow)
 };
 
 // Helper: is this part a light?
-export const isLight = (part) => part && (part.includes('light') || part === 'license_plate' || part === 'rear_fog');
+export const isLight = (part) => part && (part.includes('light') || part === 'license_plate' || part === 'rear_fog' || isRgb(part));
 
 // Helper: is this part a turn signal (blinker)?
 export const isBlinker = (part) => part && (part.includes('blink') || part.includes('repeater'));

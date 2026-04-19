@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getOrCreateConversation, addMessage, getMessages, getConversationStatus, markReadByUser, getAllPushSubscriptions, removePushSubscription } = require('../services/database');
+const { getOrCreateConversation, addMessage, getMessages, getConversationStatus, markReadByUser, getPushSubscriptionsForCategory, removePushSubscription } = require('../services/database');
 const { sendPush } = require('../services/pushService');
 
 // POST /api/chat/messages — User sends a message
@@ -22,7 +22,7 @@ router.post('/messages', (req, res) => {
     // Send push notification to all admin subscribers (async, don't block response)
     setImmediate(async () => {
       try {
-        const subs = getAllPushSubscriptions();
+        const subs = getPushSubscriptionsForCategory('chat');
         if (subs.length === 0) return;
         const shortId = deviceId.length > 12 ? deviceId.slice(0, 12) + '…' : deviceId;
         const payload = {

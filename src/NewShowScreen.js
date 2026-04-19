@@ -11,6 +11,7 @@ import { Asset } from 'expo-asset';
 import { getShowCount, createShow } from './storage';
 import { trackEvent } from './analyticsService';
 import { getCachedVotes, fetchVotes, voteForModel } from './voteService';
+import { getGlbModule } from './carModels';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.7;
@@ -18,11 +19,16 @@ const CARD_MARGIN = 12;
 
 const CAR_MODELS = [
   { id: 'model_s', label: 'Model S', available: false },
-  { id: 'model_3', label: 'Model 3/Y', available: true },
-  { id: 'model_y_juniper', label: 'Model Y Juniper', available: false },
+  { id: 'model_3', label: 'Model 3', available: true },
+  { id: 'model_y_juniper', label: 'Model Y Juniper', available: true },
   { id: 'model_x', label: 'Model X', available: false },
   { id: 'cybertruck', label: 'Cybertruck', available: false },
 ];
+
+// Indices of models that render a live 3D preview in their carousel card
+const PREVIEW_MODEL_INDICES = CAR_MODELS
+  .map((m, i) => (m.available ? i : -1))
+  .filter((i) => i >= 0);
 
 export default function NewShowScreen({ onBack, onCreated }) {
   const { t } = useTranslation();
@@ -83,6 +89,11 @@ export default function NewShowScreen({ onBack, onCreated }) {
     const idx = Math.round(x / (CARD_WIDTH + CARD_MARGIN * 2));
     if (idx !== selectedIndex && idx >= 0 && idx < CAR_MODELS.length) {
       setSelectedIndex(idx);
+      if (frameIdRef.current) {
+        cancelAnimationFrame(frameIdRef.current);
+        frameIdRef.current = null;
+      }
+      modelRef.current = null;
     }
   };
 
@@ -150,7 +161,8 @@ export default function NewShowScreen({ onBack, onCreated }) {
     scene.add(backLowLight);
 
     try {
-      const asset = Asset.fromModule(require('../assets/models/tesla_2_front_light_v2_geo.glb'));
+      const currentCarId = CAR_MODELS[selectedIndex]?.id || 'model_3';
+      const asset = Asset.fromModule(getGlbModule(currentCarId));
       await asset.downloadAsync();
       const loader = new GLTFLoader();
       const gltf = await new Promise((resolve, reject) => {
@@ -173,6 +185,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
       const blinkOn = new THREE.MeshStandardMaterial({ color: 0xffaa00, metalness: 0.2, roughness: 0.05, emissive: 0xffaa00, emissiveIntensity: 1.5 });
 
       // All lights ON permanently
+      const isJuniper = currentCarId === 'model_y_juniper';
       const partMats = {
         window_left_front: windowMat, window_right_front: windowMat,
         window_left_back: windowMat, window_right_back: windowMat,
@@ -188,6 +201,11 @@ export default function NewShowScreen({ onBack, onCreated }) {
         rear_fog: tailOn,
         side_repeater_left: blinkOn,
         side_repeater_right: blinkOn,
+        ...(isJuniper ? {
+          light_left_front: headOn,
+          light_center_front: bodyMat,
+          light_center_back: bodyMat,
+        } : {}),
       };
       const nodeNameMap = {
         'blink_front_left002': 'blink_front_left',
@@ -295,8 +313,9 @@ export default function NewShowScreen({ onBack, onCreated }) {
             <Text style={styles.carLabel}>{car.label}</Text>
             {car.available ? (
               <View style={styles.previewContainer}>
-                {idx === MODEL_3_INDEX && (
+                {idx === selectedIndex && (
                   <GLView
+                    key={car.id}
                     style={styles.glView}
                     onContextCreate={onContextCreate}
                   />
@@ -323,6 +342,9 @@ export default function NewShowScreen({ onBack, onCreated }) {
               <View style={styles.modelInfoBox}>
                 <Text style={styles.modelInfoText}>
                   {t('newShow.model3Compat')}
+                </Text>
+                <Text style={styles.modelInfoHint}>
+                  {t('newShow.model3Hint')}
                 </Text>
               </View>
             )}
@@ -415,6 +437,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 12,
+    textAlign: 'center',
+    lineHeight: 24,
   },
   previewContainer: {
     width: '100%',
@@ -471,17 +495,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   modelInfoText: {
-    color: '#8888aa',
-    fontSize: 12,
+    color: '#aaaacc',
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 20,
   },
   modelInfoHint: {
     color: '#6666aa',
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
     lineHeight: 17,
-    marginTop: 6,
+    marginTop: 8,
     fontStyle: 'italic',
   },
   createButton: {

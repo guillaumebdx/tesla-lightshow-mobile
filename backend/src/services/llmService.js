@@ -32,9 +32,24 @@ const PRICING = PRICING_MAP[MODEL] || { input: 2.00, output: 8.00 };
 
 log(`🔧 Model: ${MODEL} | max_tokens: ${MAX_TOKENS} | pricing: $${PRICING.input}/$${PRICING.output} per M tokens`);
 
-async function generateLightShow({ waveform, durationMs, mood, trackTitle, userPrompt: rawUserPrompt }) {
+// Appended to the system prompt when targeting Model Y Juniper. Steers the LLM
+// toward using the interior LEDs nearly the entire track and the center light
+// bars as a constant rhythmic layer — both signature Juniper features.
+const JUNIPER_ADDENDUM = `
+
+# MODEL Y JUNIPER — MANDATORY ADDITIONAL LAYERS
+
+This show targets Model Y Juniper (2024+). In addition to the base patterns, you MUST use the Juniper-exclusive patterns HEAVILY:
+
+1. **Interior LEDs must cover nearly the WHOLE track.** Stack long \`juniperLedsRainbow\` and \`juniperLedsSync\` blocks (durationMs=20000-60000) back-to-back so the cabin is lit almost continuously. Alternate rainbow ↔ sync between sections for variety. A minute-long rainbow is fine; the interior should almost never be dark.
+2. **Center light bars (\`juniperCenterPulse\`) are the rhythmic backbone.** Place one every 6-10 seconds with durationMs=5000-8000. Use pulseSpeed=0 for calm passages, 1 for verses, 2 for climaxes. These are the signature Juniper effect — use them LIBERALLY.
+3. **Use \`juniperLedsColor\` for themed moments** (red for drops, blue for calm) — 2-4 uses per show, durationMs=10000-20000, slotted between rainbow/sync blocks.
+4. Keep all base patterns too — headlightPingPong, breathing, strobe, etc. still run on the exterior. The Juniper patterns LAYER on top of them.`;
+
+async function generateLightShow({ waveform, durationMs, mood, trackTitle, userPrompt: rawUserPrompt, carModel = 'model_3' }) {
   log('📝 Building user prompt...');
   const { prompt: basePrompt, analysis } = buildUserPrompt({ waveform, durationMs, mood, trackTitle });
+  log(`🚗 Car model: ${carModel}`);
 
   // Append user's custom description if provided (already validated/trimmed by route)
   let finalPrompt = basePrompt;
@@ -43,8 +58,11 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle, userP
     log(`💬 User prompt appended (${rawUserPrompt.length} chars): "${rawUserPrompt}"`);
   }
 
-  // Inject pattern catalog into system prompt
-  const systemPrompt = SYSTEM_PROMPT.replace('{PATTERN_CATALOG}', getPatternCatalog());
+  // Inject pattern catalog (Juniper-aware) into system prompt.
+  let systemPrompt = SYSTEM_PROMPT.replace('{PATTERN_CATALOG}', getPatternCatalog(carModel));
+  if (carModel === 'model_y_juniper') {
+    systemPrompt += JUNIPER_ADDENDUM;
+  }
 
   log(`📝 Prompt built (${finalPrompt.length} chars)`);
   log(`📝 System prompt: ${systemPrompt.length} chars`);
@@ -131,7 +149,7 @@ async function generateLightShow({ waveform, durationMs, mood, trackTitle, userP
 
     // Expand choreography into full events
     log('🔧 Expanding choreography into events...');
-    events = expandChoreography(parsed.choreography, durationMs);
+    events = expandChoreography(parsed.choreography, durationMs, carModel);
     log(`✅ Expanded: ${choreographyCount} placements → ${events.length} events`);
 
   } else if (parsed.events && Array.isArray(parsed.events)) {
