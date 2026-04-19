@@ -63,16 +63,21 @@ const CLOSURE_CMD = {
   STOP: 255,
 };
 
-// Interior RGB LED channels (Juniper only, documented range 176-193 1-indexed
-// → 175-192 0-indexed, 6 RGB groups of 3 bytes). Keeps the existing
-// `interior_front_door_right` mapping intact.
+// Interior RGB LED channels (Juniper only). Ground truth = StartChannel values
+// in tesla_xlights_show_folder/xlights_rgbeffects.xml. Bytes below are 0-indexed
+// (FSEQ byte N ↔ xLights channel N+1).
+//   175-177 Center Front Display (bright dashboard screen — not exposed in UI)
+//   178-180 Right Rear RGB
+//   181-183 Right Front RGB
+//   184-186 Center Front RGB
+//   187-189 Left Front RGB
+//   190-192 Left Rear RGB
 const RGB_MAP = {
-  interior_front_door_left:  { r: 175, g: 176, b: 177 }, // group 1
-  interior_front_central:    { r: 178, g: 179, b: 180 }, // group 2
-  interior_front_door_right: { r: 181, g: 182, b: 183 }, // group 3 (existing)
-  interior_back_door_left:   { r: 184, g: 185, b: 186 }, // group 4
-  interior_back_door_right:  { r: 187, g: 188, b: 189 }, // group 5
-  // group 6 (190-192) reserved for a future 6th interior LED
+  interior_front_door_right: { r: 181, g: 182, b: 183 },
+  interior_front_central:    { r: 184, g: 185, b: 186 },
+  interior_front_door_left:  { r: 187, g: 188, b: 189 },
+  interior_back_door_right:  { r: 178, g: 179, b: 180 },
+  interior_back_door_left:   { r: 190, g: 191, b: 192 },
 };
 
 // Colors contributed by exterior lights when the RGB "sync" mode is active.
