@@ -602,10 +602,11 @@ export default function ModelViewer({ showId, onGoHome }) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
 
-    // Raycast against all meshes (including dot spheres)
+    // Raycast against all meshes (including dot spheres). Skip invisible
+    // ones so interior-view picks report the mesh actually on screen.
     const allMeshes = [];
     model.traverse((child) => {
-      if (child.isMesh) {
+      if (child.isMesh && child.visible) {
         allMeshes.push(child);
       }
     });
@@ -617,6 +618,14 @@ export default function ModelViewer({ showId, onGoHome }) {
     const intersects = raycaster.intersectObjects(allMeshes, false);
     if (intersects.length > 0) {
       const hit = intersects[0].object;
+      // DEBUG: in interior view, log every tapped mesh (name + parents + verts)
+      if (interiorOnly) {
+        const chain = [];
+        let n = hit;
+        while (n && chain.length < 6) { chain.push(n.name || '(noname)'); n = n.parent; }
+        const verts = hit.geometry?.attributes?.position?.count ?? '?';
+        console.log('[INTERIOR TAP]', chain.join(' < '), '| verts:', verts);
+      }
       const interactiveName = hit.userData.interactiveName;
       if (isSelectable(interactiveName)) {
         selectPart(interactiveName);
@@ -984,8 +993,15 @@ export default function ModelViewer({ showId, onGoHome }) {
       // interior RGB LEDs become easy to reach.
       const INTERIOR_PATTERNS = [/_INT(\b|_|\d|\.|$)/i, /COCKPIT/i, /SEAT/i, /DASHBOARD/i, /STEERING/i, /INTERIOR/i];
       // Cockpit sub-meshes that englobe exterior-looking geometry (roof liner,
-      // rear shelf, body shell) — force-hidden in interior view.
-      const INTERIOR_HIDE_PATTERNS = [/Cockpit_HR_SUB5/i, /Cockpit_HR_SUB6/i];
+      // rear shelf, body shell) — force-hidden in interior view. Also includes
+      // exterior body pieces that leak into view from behind.
+      // Matches SUB{N} followed by either `.NNN` (original) or `NNN` where
+      // the suffix starts with 0 (sanitized form). The end-anchor prevents
+      // SUB0 from matching SUB01, SUB5 from matching SUB50, etc.
+      const INTERIOR_HIDE_PATTERNS = [
+        /Cockpit_HR_SUB(?:0|5|6|17)(?:\.\d+|0\d{2})$/i,
+        /^Plane[._]?002$/i,
+      ];
       const matchesAny = (mesh, patterns) => {
         let n = mesh;
         while (n) {
@@ -1009,7 +1025,9 @@ export default function ModelViewer({ showId, onGoHome }) {
           child.userData.interactiveName = INTERACTIVE_PARTS.includes(partName) ? partName : null;
           // Tag interior meshes (for the interior/exterior view toggle). RGB
           // LED parts are always flagged interior regardless of name heuristics.
-          child.userData.isInterior = ((partName && isRgb(partName)) || isInteriorChain(child)) && !isHiddenInInterior(child);
+          const hideInInterior = isHiddenInInterior(child);
+          child.userData.forceHideInInterior = hideInInterior;
+          child.userData.isInterior = ((partName && isRgb(partName)) || isInteriorChain(child)) && !hideInInterior;
           // Interior meshes opt in to layer 2 so the RGB PointLight (which
           // lives on layer 2) only illuminates them — exterior stays unlit.
           if (child.userData.isInterior) child.layers.enable(2);
@@ -1537,7 +1555,9 @@ export default function ModelViewer({ showId, onGoHome }) {
           modelRef.current.userData._lastInterior = interior;
           modelRef.current.traverse((c) => {
             if (!c.isMesh) return;
-            c.visible = interior ? !!c.userData.isInterior : true;
+            c.visible = interior
+              ? (!!c.userData.isInterior && !c.userData.forceHideInInterior)
+              : true;
           });
         }
 
