@@ -19,12 +19,15 @@ const CHANNEL_MAP = {
   light_left_front:  [0, 2, 4, 6, 8, 10],    // Main beam + signature gauche combinés
   light_right_front: [1, 3, 5, 7, 9, 11],    // Main beam + signature droit combinés
   // Juniper front light bar — 60 LEDs blanches individuelles (canaux 47-106,
-  // 1-indexés → 46-105 0-indexés). Modélisé comme un seul bloc : même valeur
-  // de luminosité écrite sur les 60 canaux. Contrôle fin 0-255 (pas de ramping).
-  light_center_front: Array.from({ length: 60 }, (_, i) => 46 + i),
+  // 1-indexés → 46-105 0-indexés). Co-driven with Left+Right Signature (ch 5+6
+  // → idx 4+5): real-world test showed the bar stays dark when the headlight
+  // ECU is idle — writing the Signature channels alongside wakes the ECU so
+  // the bar LEDs physically light up. See tesla_model_y_juniper_lightshow_reference.md §13.
+  light_center_front: [4, 5, ...Array.from({ length: 60 }, (_, i) => 46 + i)],
   // Juniper rear light bar — 52 LEDs rouges individuelles (canaux 111-162,
-  // 1-indexés → 110-161 0-indexés). Même traitement que le bar avant.
-  light_center_back: Array.from({ length: 52 }, (_, i) => 110 + i),
+  // 1-indexés → 110-161 0-indexés). Co-driven with Left+Right Tail (ch 26+27
+  // → idx 25+26) for the same power-gating reason as the front bar.
+  light_center_back: [25, 26, ...Array.from({ length: 52 }, (_, i) => 110 + i)],
   light_left_back:   [25],                   // feu AR gauche (signature gauche uniquement)
   light_right_back:  [26],                   // feu AR droit (signature droit uniquement)
   blink_front_left:  [12],                   // clignotant AV gauche

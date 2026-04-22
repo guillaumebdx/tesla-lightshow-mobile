@@ -2757,6 +2757,7 @@ export default function ModelViewer({ showId, onGoHome }) {
         visible={exportVisible}
         onClose={() => setExportVisible(false)}
         trackInfo={audioTimelineRef.current?.getTrackInfo() || null}
+        isJuniper={carModel === 'model_y_juniper'}
         onExportFseq={async () => {
           try {
             const duration = playbackDurationRef.current;

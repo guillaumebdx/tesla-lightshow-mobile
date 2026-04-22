@@ -7,7 +7,11 @@
       "Bash(grep -n \"left_signature_light\\\\|right_signature_light\" /c/Users/guill/CascadeProjects/tesla-3d-viewer/src/demoShows/*.json)",
       "Bash(grep -n \"DemoViewer\\\\|createDemoShow\" /c/Users/guill/CascadeProjects/tesla-3d-viewer/src/*.js)",
       "Bash(grep -n \"light_left_front\\\\|light_right_front\\\\|left_high_light\\\\|right_high_light\\\\|left_signature_light\\\\|right_signature_light\" /c/Users/guill/CascadeProjects/tesla-3d-viewer/src/i18n/*.json)",
-      "Bash(node inspect_model.mjs)"
+      "Bash(node inspect_model.mjs)",
+      "Read(//c/tmp/**)",
+      "Bash(curl -s -L -o tesla_show.zip \"https://github.com/teslamotors/light-show/raw/master/xlights/tesla_xlights_show_folder.zip\")",
+      "Bash(unzip -l tesla_show.zip)",
+      "Read(//tmp/**)"
     ]
   }
 }

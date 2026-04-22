@@ -350,3 +350,62 @@ Canaux 194–200: Réservés (padding)
 - `validator.py` — validation du fichier FSEQ (channel_count == 48 ou 200, compression == 0)
 - `README.md` — documentation officielle Tesla (tableaux de brightess control, closures, light bars)
 - Cross-vehicle mappings `cross_vehicle_mapping_1-5.xmap` — mapping pour shows multi-véhicules (jusqu'à 5 voitures simultanées)
+
+---
+
+## 13. Anomalie observée en conditions réelles — Light bars ne s'allument pas
+
+> ⚠️ **Section basée sur un seul test terrain (avril 2026)** — certaines conclusions sont **spéculatives** et marquées comme telles. À confirmer avec davantage de retours.
+
+### 13.1 Symptômes
+
+Sur un Model Y Juniper réel, un FSEQ exporté par LightShow Studio a été testé. Inspection image par image du FSEQ (200 canaux, 6050 frames à 20 ms = 121 s) :
+
+| Timestamp | Canaux à 255 | Résultat sur le véhicule |
+|---|---|---|
+| t=12 s | barre avant (47–106) **seule** | ❌ barre éteinte |
+| t=38 s | barre avant (47–106) + phares avant (1–14) | ✅ barre allumée |
+| t=56 s | barre arrière (111–162) **seule** | ❌ barre éteinte |
+| t=85 s | barre arrière (111–162) + feux arrière (ch 23, 24, 26–30) | ❌ barre éteinte |
+
+**Pattern observé :** la barre avant ne s'allume que lorsque les canaux 1–14 (phares + DRL) sont aussi actifs simultanément. Pour la barre arrière, même en accompagnement de feux arrière, elle est restée éteinte dans ce test — résultat à confirmer avec d'autres retours.
+
+### 13.2 Hypothèse de power-gating par l'ECU (SPÉCULATIF)
+
+> Cette sous-section est une **interprétation** des observations. Aucune source Tesla officielle ne documente ce comportement.
+
+Interprétation plausible : le firmware Juniper applique un **power-gating** sur les barres lumineuses — elles ne reçoivent du courant que si l'ECU des phares (avant) ou des feux arrière (arrière) est déjà en état "on". Écrire 255 sur les octets 47–106 sans réveiller l'ECU via les canaux de phares laisserait la barre hors tension.
+
+Sur le Juniper, la barre avant est **physiquement intégrée au bloc phare/signature** (pas un module indépendant). Il est donc plausible que la ligne d'alimentation soit commune, et que le microcontrôleur du phare n'alimente pas les LEDs de la barre s'il est en "sleep".
+
+### 13.3 Contournement appliqué (commit à venir)
+
+`src/fseqExport.js` co-écrit des canaux "enabler" en même temps que les barres, pour réveiller l'ECU :
+
+- `light_center_front` (barre avant) → écrit aussi les canaux **Left Signature (ch 5) + Right Signature (ch 6)**
+- `light_center_back` (barre arrière) → écrit aussi les canaux **Left Tail (ch 26) + Right Tail (ch 27)**
+
+Cela reproduit la configuration qui a fonctionné à t=38 s dans le test. Sur le Juniper, le DRL signature ET la barre avant sont la même zone physique : les allumer ensemble est cohérent visuellement.
+
+### 13.4 Ce qui a été écarté pendant l'investigation
+
+| Hypothèse testée | Conclusion |
+|---|---|
+| Luminosité trop forte (écrire 255 trop haut) | ❌ faux. L'échelle xLights `Max=400` signifie que la valeur `0.25` d'une value curve = 100 % = octet 255. L'exemple officiel Tesla Cyber Symphony écrit la pleine luminosité sur les barres. |
+| Mauvais intervalle de frame | ❌ notre step de 20 ms correspond exactement au `<sequenceTiming>20 ms</sequenceTiming>` du xsq officiel. |
+| Mauvais mapping de canaux | ❌ conforme à 100 % à `xlights_rgbeffects.xml` (front bar 47–106, rear bar 111–162, StringType "Node Single Color"). |
+| "Sequence Element Mismatch" bloque la lecture | ❌ c'est un warning **de l'éditeur xLights** lors du chargement d'anciens shows — il n'empêche pas le FSEQ de jouer sur le véhicule. |
+
+### 13.5 Sources
+
+- Inspection binaire du FSEQ généré : `test/real_life/lightshow.fseq` + video du propriétaire du véhicule
+- [teslamotors/light-show README](https://github.com/teslamotors/light-show) — confirmation du fait que les barres avant/arrière sont mappées sur des canaux "Node Single Color" (1 octet par LED)
+- [Discussion TMC "New MY Juniper light show issue"](https://teslamotorsclub.com/tmc/threads/new-my-juniper-light-show-issue.347083/) — confirme que d'autres utilisateurs rapportent "seule la barre avant s'allume" dans certaines conditions d'activation
+- [Issue GitHub #166 "new model y 2025"](https://github.com/teslamotors/light-show/issues/166) — issue ouverte sur le repo officiel concernant le support Juniper
+- Exemple officiel Tesla `tesla_ex7.zip` → `cyber_symphony.xsq` (décembre 2024) — utilisé pour vérifier les value curves et la timeline canonique
+
+### 13.6 À faire pour confirmer
+
+- Récupérer un FSEQ Juniper-only vérifié comme fonctionnel (hors app TLGen) pour comparaison octet par octet
+- Obtenir plus de retours de propriétaires de Model Y Juniper après déploiement du contournement 13.3
+- Tester la valeur minimale non-nulle sur les canaux enabler (255 a été retenu par défaut mais 1 suffit peut-être à réveiller l'ECU)
