@@ -271,16 +271,16 @@ export default function ModelViewer({ showId, onGoHome }) {
       startAiAnimation(durationMs);
 
       try {
-        // Get waveform data from the selected track
-        let waveformData;
-        if (trackInfo.isBuiltin) {
+        // Waveform comes from the timeline regardless of source (builtin or imported).
+        // Imported tracks get their waveform from the audioPicker import flow; builtin
+        // tracks pre-bake it as track.waveform.bars. AudioTimeline normalizes both
+        // shapes into trackInfo.bars.
+        let waveformData = Array.isArray(trackInfo.bars) ? trackInfo.bars : [];
+        if (waveformData.length === 0 && trackInfo.isBuiltin) {
           const track = MP3_TRACKS.find(tr => tr.id === trackInfo.id);
-          if (track?.waveform) {
-            const wf = typeof track.waveform === 'function' ? track.waveform : track.waveform;
-            waveformData = wf.bars || wf;
-          }
+          const wf = track?.waveform;
+          waveformData = wf?.bars || (Array.isArray(wf) ? wf : []);
         }
-        if (!waveformData) waveformData = [];
 
         const events = await generateAIShow({
           waveform: waveformData,

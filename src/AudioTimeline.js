@@ -242,6 +242,7 @@ function AudioTimeline({ selectedPart, eventOptions, cursorOffsetMs = 0, playbac
       title: selectedTrack.title,
       uri: selectedTrack.uri || null,
       isBuiltin: !!selectedTrack.file,
+      bars: selectedTrack.waveform?.bars || [],
     } : null,
   }));
 
