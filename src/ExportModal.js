@@ -7,12 +7,13 @@ import {
   Modal,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 const PAGE_COUNT = 4;
 
-export default function ExportModal({ visible, onClose, onExportFseq, onExportMp3, trackInfo }) {
+export default function ExportModal({ visible, onClose, onExportFseq, onExportMp3, trackInfo, isJuniper }) {
   const { t } = useTranslation();
   const [page, setPage] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -36,6 +37,20 @@ export default function ExportModal({ visible, onClose, onExportFseq, onExportMp
   };
 
   const handleExportFseq = async () => {
+    if (isJuniper) {
+      const confirmed = await new Promise((resolve) => {
+        Alert.alert(
+          t('export.juniperDisclaimerTitle'),
+          t('export.juniperDisclaimerMessage'),
+          [
+            { text: t('export.juniperDisclaimerCancel'), style: 'cancel', onPress: () => resolve(false) },
+            { text: t('export.juniperDisclaimerOk'), style: 'default', onPress: () => resolve(true) },
+          ],
+          { cancelable: false }
+        );
+      });
+      if (!confirmed) return;
+    }
     setExporting(true);
     try {
       await onExportFseq();

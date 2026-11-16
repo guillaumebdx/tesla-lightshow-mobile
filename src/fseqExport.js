@@ -19,12 +19,15 @@ const CHANNEL_MAP = {
   light_left_front:  [0, 2, 4, 6, 8, 10],    // Main beam + signature gauche combinés
   light_right_front: [1, 3, 5, 7, 9, 11],    // Main beam + signature droit combinés
   // Juniper front light bar — 60 LEDs blanches individuelles (canaux 47-106,
-  // 1-indexés → 46-105 0-indexés). Modélisé comme un seul bloc : même valeur
-  // de luminosité écrite sur les 60 canaux. Contrôle fin 0-255 (pas de ramping).
-  light_center_front: Array.from({ length: 60 }, (_, i) => 46 + i),
+  // 1-indexés → 46-105 0-indexés). Co-driven with Left+Right Signature (ch 5+6
+  // → idx 4+5): real-world test showed the bar stays dark when the headlight
+  // ECU is idle — writing the Signature channels alongside wakes the ECU so
+  // the bar LEDs physically light up. See tesla_model_y_juniper_lightshow_reference.md §13.
+  light_center_front: [4, 5, ...Array.from({ length: 60 }, (_, i) => 46 + i)],
   // Juniper rear light bar — 52 LEDs rouges individuelles (canaux 111-162,
-  // 1-indexés → 110-161 0-indexés). Même traitement que le bar avant.
-  light_center_back: Array.from({ length: 52 }, (_, i) => 110 + i),
+  // 1-indexés → 110-161 0-indexés). Co-driven with Left+Right Tail (ch 26+27
+  // → idx 25+26) for the same power-gating reason as the front bar.
+  light_center_back: [25, 26, ...Array.from({ length: 52 }, (_, i) => 110 + i)],
   light_left_back:   [25],                   // feu AR gauche (signature gauche uniquement)
   light_right_back:  [26],                   // feu AR droit (signature droit uniquement)
   blink_front_left:  [12],                   // clignotant AV gauche
@@ -63,16 +66,21 @@ const CLOSURE_CMD = {
   STOP: 255,
 };
 
-// Interior RGB LED channels (Juniper only, documented range 176-193 1-indexed
-// → 175-192 0-indexed, 6 RGB groups of 3 bytes). Keeps the existing
-// `interior_front_door_right` mapping intact.
+// Interior RGB LED channels (Juniper only). Ground truth = StartChannel values
+// in tesla_xlights_show_folder/xlights_rgbeffects.xml. Bytes below are 0-indexed
+// (FSEQ byte N ↔ xLights channel N+1).
+//   175-177 Center Front Display (bright dashboard screen — not exposed in UI)
+//   178-180 Right Rear RGB
+//   181-183 Right Front RGB
+//   184-186 Center Front RGB
+//   187-189 Left Front RGB
+//   190-192 Left Rear RGB
 const RGB_MAP = {
-  interior_front_door_left:  { r: 175, g: 176, b: 177 }, // group 1
-  interior_front_central:    { r: 178, g: 179, b: 180 }, // group 2
-  interior_front_door_right: { r: 181, g: 182, b: 183 }, // group 3 (existing)
-  interior_back_door_left:   { r: 184, g: 185, b: 186 }, // group 4
-  interior_back_door_right:  { r: 187, g: 188, b: 189 }, // group 5
-  // group 6 (190-192) reserved for a future 6th interior LED
+  interior_front_door_right: { r: 181, g: 182, b: 183 },
+  interior_front_central:    { r: 184, g: 185, b: 186 },
+  interior_front_door_left:  { r: 187, g: 188, b: 189 },
+  interior_back_door_right:  { r: 178, g: 179, b: 180 },
+  interior_back_door_left:   { r: 190, g: 191, b: 192 },
 };
 
 // Colors contributed by exterior lights when the RGB "sync" mode is active.

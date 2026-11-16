@@ -83,6 +83,7 @@ export default function NewShowScreen({ onBack, onCreated }) {
   }, []);
 
   const MODEL_3_INDEX = 1;
+  const JUNIPER_INDEX = 2;
 
   const handleScroll = (e) => {
     const x = e.nativeEvent.contentOffset.x;
@@ -183,6 +184,13 @@ export default function NewShowScreen({ onBack, onCreated }) {
       const headOn = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.2, roughness: 0.05, emissive: 0xffffff, emissiveIntensity: 1.5 });
       const tailOn = new THREE.MeshStandardMaterial({ color: 0xff0000, metalness: 0.2, roughness: 0.05, emissive: 0xff0000, emissiveIntensity: 1.5 });
       const blinkOn = new THREE.MeshStandardMaterial({ color: 0xffaa00, metalness: 0.2, roughness: 0.05, emissive: 0xffaa00, emissiveIntensity: 1.5 });
+      // Juniper interior ambient LED — purple to showcase the RGB capability. toneMapped:false
+      // keeps the emissive saturated under the scene's ACES pipeline.
+      const interiorRgbOn = new THREE.MeshStandardMaterial({
+        color: 0xcc66ff, metalness: 0.1, roughness: 0.6,
+        emissive: 0xcc66ff, emissiveIntensity: 1.8,
+        side: THREE.DoubleSide, toneMapped: false,
+      });
 
       // All lights ON permanently
       const isJuniper = currentCarId === 'model_y_juniper';
@@ -203,8 +211,13 @@ export default function NewShowScreen({ onBack, onCreated }) {
         side_repeater_right: blinkOn,
         ...(isJuniper ? {
           light_left_front: headOn,
-          light_center_front: bodyMat,
-          light_center_back: bodyMat,
+          light_center_front: headOn,
+          light_center_back: tailOn,
+          interior_front_door_left: interiorRgbOn,
+          interior_front_door_right: interiorRgbOn,
+          interior_front_central: interiorRgbOn,
+          interior_back_door_left: interiorRgbOn,
+          interior_back_door_right: interiorRgbOn,
         } : {}),
       };
       const nodeNameMap = {
@@ -218,6 +231,22 @@ export default function NewShowScreen({ onBack, onCreated }) {
         'side_clignoant_left': 'side_repeater_left',
         'side_clignotant_left': 'side_repeater_left',
         'side_clignotant_right': 'side_repeater_right',
+        // Juniper interior RGB LEDs — three.js strips `.` from node names at runtime.
+        'GEO_DOOR_R_INT_SUB6001': 'interior_front_door_right',
+        'GEO_DOOR_R_INT_SUB6.001': 'interior_front_door_right',
+        'GEO_DOOR_R_INT_SUB6_001': 'interior_front_door_right',
+        'GEO_DOOR_L_INT_SUB5002': 'interior_front_door_left',
+        'GEO_DOOR_L_INT_SUB5.002': 'interior_front_door_left',
+        'GEO_DOOR_L_INT_SUB5_002': 'interior_front_door_left',
+        'GEO_Cockpit_HR_SUB14002': 'interior_front_central',
+        'GEO_Cockpit_HR_SUB14.002': 'interior_front_central',
+        'GEO_Cockpit_HR_SUB14_002': 'interior_front_central',
+        'GEO_DOOR_L2_INT_SUB3002': 'interior_back_door_left',
+        'GEO_DOOR_L2_INT_SUB3.002': 'interior_back_door_left',
+        'GEO_DOOR_L2_INT_SUB3_002': 'interior_back_door_left',
+        'GEO_DOOR_R2_INT_SUB6002': 'interior_back_door_right',
+        'GEO_DOOR_R2_INT_SUB6.002': 'interior_back_door_right',
+        'GEO_DOOR_R2_INT_SUB6_002': 'interior_back_door_right',
       };
       const getPartName = (mesh) => {
         let node = mesh;
@@ -345,6 +374,16 @@ export default function NewShowScreen({ onBack, onCreated }) {
                 </Text>
                 <Text style={styles.modelInfoHint}>
                   {t('newShow.model3Hint')}
+                </Text>
+              </View>
+            )}
+            {idx === JUNIPER_INDEX && (
+              <View style={styles.modelInfoBox}>
+                <Text style={styles.modelInfoText}>
+                  {t('newShow.juniperCompat')}
+                </Text>
+                <Text style={styles.modelInfoHint}>
+                  {t('newShow.juniperHint')}
                 </Text>
               </View>
             )}
