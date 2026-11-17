@@ -119,9 +119,8 @@ tesla-3d-viewer/
 │   ├── models/               # Modèles 3D GLB
 │   ├── icons/                # Icônes par pièce
 │   └── mp3/                  # Bibliothèque de sons intégrée
-├── CLOSURES.md               # Doc closures : channels, commandes, limites
-├── FSEQ_SPEC.md              # Spécifications format FSEQ V2
-├── GLB_PIPELINE.md           # Workflow intégration modèle 3D
+├── scripts/                  # Outils : check i18n, inspection GLB, diagnostics FSEQ, démos
+├── .claude/skills/           # Docs métier (FSEQ, closures, GLB) + workflows Claude Code
 ├── metro.config.js           # Support des fichiers .glb dans Metro
 ├── app.json                  # Config Expo
 └── package.json
@@ -131,14 +130,14 @@ tesla-3d-viewer/
 
 ## Pipeline 3D (nouveau modèle)
 
-Voir [`GLB_PIPELINE.md`](./GLB_PIPELINE.md) pour le workflow complet.
+Voir [`glb-pipeline.md`](./.claude/skills/add-car-model/reference/glb-pipeline.md) pour le workflow complet.
 
 Résumé :
 
 ```
 Blender (export GLB avec nodes nommés)
   → assets/models/<fichier>.glb
-  → node inspect_model.mjs (inspecter + strip textures → _geo.glb)
+  → node scripts/glb/inspect_model.mjs (inspecter + strip textures → _geo.glb)
   → Mettre à jour src/ModelViewer.js (require + partMaterials)
   → npx expo run:android (tester)
 ```
@@ -168,10 +167,12 @@ Blender (export GLB avec nodes nommés)
 
 | Document | Description |
 |----------|-------------|
-| [`LIGHTS.md`](./LIGHTS.md) | Channels FSEQ des lumières (phares, clignotants, feux), mapping officiel Tesla, canaux disponibles pour expansion |
-| [`CLOSURES.md`](./CLOSURES.md) | Channels FSEQ des closures (rétros, fenêtres, coffre, trappe), commandes, limites, résultats de rétro-ingénierie |
-| [`FSEQ_SPEC.md`](./FSEQ_SPEC.md) | Spécifications du format FSEQ V2 pour l'export Tesla Light Show |
-| [`GLB_PIPELINE.md`](./GLB_PIPELINE.md) | Workflow pour intégrer un nouveau modèle 3D GLB |
+| [`channels-48.md`](./.claude/skills/fseq-export/reference/channels-48.md) | Channels FSEQ des lumières (phares, clignotants, feux), mapping officiel Tesla, canaux disponibles pour expansion |
+| [`juniper-200-channels.md`](./.claude/skills/fseq-export/reference/juniper-200-channels.md) | Model Y Juniper : layout 200 canaux, barres lumineuses, RGB intérieur, contournement power-gating |
+| [`closures.md`](./.claude/skills/tesla-closures/reference/closures.md) | Channels FSEQ des closures (rétros, fenêtres, coffre, trappe), commandes, limites, résultats de rétro-ingénierie |
+| [`fseq-format.md`](./.claude/skills/fseq-export/reference/fseq-format.md) | Spécifications du format FSEQ V2 pour l'export Tesla Light Show |
+| [`glb-pipeline.md`](./.claude/skills/add-car-model/reference/glb-pipeline.md) | Workflow pour intégrer un nouveau modèle 3D GLB |
+| [`scripts/fseq/README.md`](./scripts/fseq/README.md) | Résultats bruts de la rétro-ingénierie des canaux sur Model 3 |
 
 ## Liens utiles
 

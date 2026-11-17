@@ -16,7 +16,7 @@ assets/models/<nom_du_fichier>.glb
 
 ## Étape 2 : Inspecter les meshes
 
-Modifier le fichier `inspect_model.mjs` pour pointer vers le nouveau GLB :
+Modifier le fichier `scripts/glb/inspect_model.mjs` pour pointer vers le nouveau GLB :
 
 ```js
 const doc = await io.read('assets/models/<nom_du_fichier>.glb');
@@ -25,7 +25,7 @@ const doc = await io.read('assets/models/<nom_du_fichier>.glb');
 Puis lancer :
 
 ```bash
-node inspect_model.mjs
+node scripts/glb/inspect_model.mjs
 ```
 
 Cela affiche :
@@ -68,7 +68,7 @@ Cela affiche :
 
 ## Étape 3 : Stripper les textures
 
-Le script `inspect_model.mjs` fait automatiquement le strip des textures et génère un fichier `_geo.glb`.
+Le script `scripts/glb/inspect_model.mjs` fait automatiquement le strip des textures et génère un fichier `_geo.glb`.
 
 Il faut aussi mettre à jour la ligne d'écriture dans le script :
 
@@ -124,7 +124,7 @@ Vérifier que :
     ↓
 [assets/models/] Placer le .glb
     ↓
-[inspect_model.mjs] Inspecter nodes + strip textures → _geo.glb
+[scripts/glb/inspect_model.mjs] Inspecter nodes + strip textures → _geo.glb
     ↓
 [src/ModelViewer.js] Mettre à jour require() + partMaterials
     ↓

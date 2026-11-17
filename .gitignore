@@ -43,3 +43,10 @@ backend/data/
 # generated native folders
 /ios
 /android
+
+# IDE
+.idea/
+
+# Claude Code: personal settings and worktrees
+.claude/settings.local.json
+.claude/worktrees/

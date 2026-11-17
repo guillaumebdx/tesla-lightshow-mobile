@@ -22,7 +22,7 @@ const CHANNEL_MAP = {
   // 1-indexés → 46-105 0-indexés). Co-driven with Left+Right Signature (ch 5+6
   // → idx 4+5): real-world test showed the bar stays dark when the headlight
   // ECU is idle — writing the Signature channels alongside wakes the ECU so
-  // the bar LEDs physically light up. See tesla_model_y_juniper_lightshow_reference.md §13.
+  // the bar LEDs physically light up. See .claude/skills/fseq-export/reference/juniper-200-channels.md §13.
   light_center_front: [4, 5, ...Array.from({ length: 60 }, (_, i) => 46 + i)],
   // Juniper rear light bar — 52 LEDs rouges individuelles (canaux 111-162,
   // 1-indexés → 110-161 0-indexés). Co-driven with Left+Right Tail (ch 26+27
@@ -42,7 +42,7 @@ const CHANNEL_MAP = {
   side_repeater_right: [21],                 // répétiteur clignotant droit
 };
 
-// Closure channel mapping — official xLights layout (see CLOSURES.md)
+// Closure channel mapping — official xLights layout (see .claude/skills/tesla-closures/reference/closures.md)
 // These use command byte values instead of brightness:
 //   0=Idle, 64=Open, 128=Dance, 192=Close, 255=Stop
 // Note: ch 30-33 are Falcon/Front Doors (not available on compact models)

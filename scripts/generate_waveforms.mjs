@@ -1,6 +1,6 @@
 /**
  * Generate waveform JSON files from MP3s in assets/mp3/
- * Usage: node generate_waveforms.mjs
+ * Usage: node scripts/generate_waveforms.mjs
  * 
  * Outputs: assets/mp3/<filename>.waveform.json
  * Each JSON contains an array of normalized amplitude values (0-1)

@@ -12,18 +12,19 @@ paths:
 
 ## Database
 - SQLite file at `backend/data/lightshow.db` (gitignored, auto-created)
-- Tables: `generations`, `conversations`, `messages`, `push_subscriptions`, `analytics_events`, `model_votes`
+- Tables: `generations`, `conversations`, `messages`, `analytics_events`, `model_votes`, `push_subscriptions`, `device_names`
 - All schema creation is inline `db.exec(CREATE TABLE IF NOT EXISTS ...)` at top of `database.js`
 - Export all helpers at the bottom of `database.js`
 - When adding a new table: add schema at top, helpers in the middle (grouped with comment separators), exports at bottom
+- New column on an existing table: `ALTER TABLE ... ADD COLUMN` wrapped in try/catch (see existing ones) — `CREATE TABLE IF NOT EXISTS` will not add it in prod
 
 ## Routes
-- `generateShow.js` — AI show generation (App Check protected via `verifyAppCheck` middleware)
+- `generateShow.js` — AI show generation (App Check protected via `verifyAppCheck` middleware) — see the `ai-show-generation` skill
 - `chat.js` — User-facing chat (X-Device-Id auth)
 - `analytics.js` — Anonymous analytics ingestion (X-Device-Id auth, rate limited)
 - `votes.js` — Model voting (X-Device-Id auth, rate limited)
 - `admin.js` — Admin dashboard pages + API routes (cookie auth via `adminAuth` middleware)
-- `adminChat.js` — Admin chat management API (mounted under admin.js)
+- `adminChat.js` — Admin chat management API (mounted at `/admin/api/chat` inside admin.js)
 
 ## Route registration in index.js
 - Rate limiters are defined inline in `index.js` before mounting
@@ -48,5 +49,6 @@ paths:
 - Use semicolons in backend code
 - Use `console.error('[Tag] message')` for logging with contextual tags
 - Rate limit all public endpoints
+- Released app versions keep calling the API: never break an existing request/response shape (deploy via `/deploy-backend`)
 - Validate all inputs (check headers, body params, lengths)
 - Return `{ error: 'message' }` on failure, `{ ok: true, ... }` on success

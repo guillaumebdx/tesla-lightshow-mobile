@@ -1,75 +1,32 @@
 ---
 paths:
   - "backend/src/routes/**"
+  - "backend/src/index.js"
   - "src/**Service*.js"
   - "src/apiConfig.js"
 ---
 
-# API Endpoints Reference
+# API contract
 
-Base URL: `https://lightstudio.harari.ovh` (prod) / `http://localhost:3001` (dev)
+Base URL: `https://lightstudio.harari.ovh` (prod) / `http://localhost:3001` (dev), from `src/apiConfig.js`.
 
-## Public API (mobile app)
+## Public API — used by the mobile app (old versions too: keep backward compatible)
 
-### AI Generation
-- `POST /api/generate-show` — Generate a light show from music analysis
-  - Auth: Firebase App Check token (header `X-Firebase-AppCheck`)
-  - Body: `{ waveform, duration, carModel, prompt?, language? }`
-  - Rate limit: 40 req / 15 min per IP
+Mounting and rate limiters are in `backend/src/index.js`.
 
-### Chat
-- `POST /api/chat/messages` — Send a message
-  - Auth: `X-Device-Id` header
-  - Body: `{ content, deviceInfo? }`
-  - Rate limit: 60 req / 15 min (POST only)
-- `GET /api/chat/messages?since=<messageId>` — Poll for new messages
-  - Auth: `X-Device-Id` header
-- `GET /api/chat/status` — Get unread count
-  - Auth: `X-Device-Id` header
+| Method & path | Auth | Body / query | Notes |
+|---|---|---|---|
+| `POST /api/generate-show` | Firebase App Check (`verifyAppCheck`) | `{ waveform, durationMs, mood, trackTitle, userPrompt, carModel }` | `carModel` coerced to `model_3` or `model_y_juniper` |
+| `POST /api/chat/messages` | `X-Device-Id` | `{ content, deviceInfo? }` | |
+| `GET /api/chat/messages?since_id=<id>` | `X-Device-Id` | | poll |
+| `GET /api/chat/status` | `X-Device-Id` | | unread count |
+| `POST /api/analytics` | `X-Device-Id` | `{ events: [{ eventType, metadata?, timestamp? }] }` | unknown `eventType`s are skipped; list in `VALID_EVENT_TYPES` (`routes/analytics.js`) |
+| `POST /api/votes` | `X-Device-Id` | `{ carModel }` | allowed values: `VALID_MODELS` (`routes/votes.js`) |
+| `GET /api/votes` | `X-Device-Id` | | this device's votes |
+| `GET /health` | none | | `{ status: 'ok', timestamp }` |
 
-### Analytics
-- `POST /api/analytics` — Batch ingest analytics events
-  - Auth: `X-Device-Id` header
-  - Body: `{ events: [{ eventType, metadata?, timestamp? }] }` (max 50 per batch)
-  - Rate limit: 30 req / 15 min
-  - Event types: `show_created`, `fseq_exported`, `music_selected`
+Allowed values (event types, vote models, car models) live in the route files. Read them there instead of trusting a copy.
 
-### Votes
-- `POST /api/votes` — Vote for a car model
-  - Auth: `X-Device-Id` header
-  - Body: `{ carModel }` (one of: `model_s`, `model_x`, `cybertruck`)
-  - Rate limit: 20 req / 15 min
-- `GET /api/votes` — Get this device's votes
-  - Auth: `X-Device-Id` header
+## Admin API
 
-### Health
-- `GET /health` — `{ status: 'ok', timestamp }`
-
-## Admin API (dashboard)
-
-All admin routes require cookie auth (set via login).
-
-### Pages
-- `GET /admin` — Landing page
-- `GET /admin/login` — Login page
-- `GET /admin/dashboard` — AI generation stats
-- `GET /admin/analytics` — App usage analytics + model votes
-- `GET /admin/chat` — Support chat management
-
-### Admin Data API
-- `GET /admin/api/generations` — Paginated generations list
-- `GET /admin/api/stats` — Generation stats summary
-- `GET /admin/api/top-users` — Top users by generation count
-- `GET /admin/api/analytics/stats` — Analytics totals (all-time + today)
-- `GET /admin/api/analytics/events?page=&type=&date=` — Paginated analytics events
-- `GET /admin/api/analytics/daily?days=14` — Daily analytics summary
-- `GET /admin/api/votes` — Model vote counts
-- `GET /admin/api/chat/conversations` — All chat conversations
-- `POST /admin/api/chat/conversations/:id/reply` — Reply to a conversation
-- `POST /admin/api/push/subscribe` — Save push subscription
-- `GET /admin/api/push/vapid-key` — Get VAPID public key
-- `GET /admin/api/logs/stream` — SSE stream of server logs
-
-### Auth
-- `POST /admin/login` — `{ password }` → sets `admin_token` cookie
-- `GET /admin/auth-check` — `{ authenticated: true/false }`
+Cookie auth (`admin_token`, set by `POST /admin/login`). All routes are in `backend/src/routes/admin.js`, and `adminChat.js` is mounted at `/admin/api/chat`. Pages are served from `backend/public/`. Read those files for the current list.

@@ -3,9 +3,9 @@
 // Longer timing to give time to identify each light from behind the car
 //
 // Usage (from project root):
-//   node src/retro-ing/generate-diagnostic-rear.js
+//   node scripts/fseq/generate-diagnostic-rear.js
 //
-// Output: src/retro-ing/diagnostic-rear.fseq
+// Output: scripts/fseq/diagnostic-rear.fseq
 
 const fs = require('fs');
 const path = require('path');

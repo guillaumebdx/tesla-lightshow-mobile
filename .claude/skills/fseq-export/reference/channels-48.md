@@ -43,7 +43,7 @@
 | **28**  | Rear Fog Lights          | `rear_fog`             | ✅      | ✅ confirmé    | Feu rond AR (antibrouillard) |
 | **29**  | License Plate            | `license_plate`        | ✅      | ✅ confirmé    | Éclairage plaque |
 
-### Closures (Ch 30-45) — valeurs commandes (voir CLOSURES.md)
+### Closures (Ch 30-45) — valeurs commandes (voir ../../tesla-closures/reference/closures.md)
 
 | Channel | Nom officiel xLights     | Notre part ID          | Utilisé | Model 3 | Notes |
 |---------|--------------------------|------------------------|---------|---------|-------|

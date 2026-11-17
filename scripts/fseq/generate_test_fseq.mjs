@@ -5,11 +5,12 @@
  * Phase 2 (10-58s): Close command on channels 28-38, 41-44, 46-47 to find mirrors
  * Phase 3 (60-88s): Open command on channels 41-44, 46-47 to find other windows
  * 
- * Run: node generate_test_fseq.mjs
- * Output: test_closures.fseq
+ * Run: node scripts/fseq/generate_test_fseq.mjs
+ * Output: scripts/fseq/test_closures.fseq
  */
 
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 
 const STEP_TIME_MS = 20;
 const CHANNEL_COUNT = 48;
@@ -121,7 +122,7 @@ const fileBytes = new Uint8Array(header.length + data.length);
 fileBytes.set(header, 0);
 fileBytes.set(data, header.length);
 
-fs.writeFileSync('test_closures.fseq', fileBytes);
+fs.writeFileSync(fileURLToPath(new URL('./test_closures.fseq', import.meta.url)), fileBytes);
 console.log(`\nGenerated test_closures.fseq (${fileBytes.length} bytes, ${FRAME_COUNT} frames)`);
 console.log(`\nRename your MP3 to "lightshow.mp3" and this file to "lightshow.fseq"`);
 console.log(`Put both in a "LightShow" folder on your USB drive.`);

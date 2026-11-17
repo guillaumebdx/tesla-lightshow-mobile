@@ -1,6 +1,6 @@
 // Validate FSEQ export logic by simulating the 3 test shows
 // This runs the same logic as fseqExport.js but in Node.js
-// Run: node test/validate-export.js
+// Run: node scripts/fseq/validate-export.js
 
 const STEP_TIME_MS = 20;
 const CHANNEL_COUNT = 48;

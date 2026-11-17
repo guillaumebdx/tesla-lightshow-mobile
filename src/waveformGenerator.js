@@ -1,7 +1,7 @@
 /**
  * MP3 waveform generator for React Native.
  * Uses js-mp3 (pure JS decoder) to decode MP3 → PCM, then computes RMS bars.
- * Produces the same format as generate_waveforms.mjs: { bars: [0-1], duration }
+ * Produces the same format as scripts/generate_waveforms.mjs: { bars: [0-1], duration }
  */
 import * as FileSystem from 'expo-file-system/legacy';
 import Mp3 from 'js-mp3';

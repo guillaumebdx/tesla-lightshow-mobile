@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(node scripts/check-i18n.mjs)",
+      "Bash(node scripts/fseq/analyze-fseq.js *)",
+      "Bash(node scripts/fseq/validate-export.js)",
+      "Bash(node scripts/glb/*)",
+      "Bash(git status *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git diff)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch)",
+      "Bash(git describe *)",
+      "Bash(eas build:list *)"
+    ],
+    "ask": [
+      "Bash(eas build *)",
+      "Bash(eas submit *)",
+      "Bash(npx eas *)",
+      "Bash(node tests/test-generation.js *)",
+      "Bash(node tests/test-generation.js)",
+      "Bash(git push *)"
+    ],
+    "deny": [
+      "Read(./backend/.env)",
+      "Read(./**/*.jks)",
+      "Read(./**/*.keystore)",
+      "Read(./**/*.p8)",
+      "Read(./**/*.p12)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-i18n-after-edit.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

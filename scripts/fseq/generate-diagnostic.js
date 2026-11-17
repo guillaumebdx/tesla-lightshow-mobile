@@ -3,9 +3,9 @@
 // Total duration: 48 * 3s = 144s = 2min24
 //
 // Usage (from project root):
-//   node src/retro-ing/generate-diagnostic.js
+//   node scripts/fseq/generate-diagnostic.js
 //
-// Output: src/retro-ing/diagnostic-channels.fseq
+// Output: scripts/fseq/diagnostic-channels.fseq
 // Copy this file to USB stick > LightShow folder for Tesla
 
 const fs = require('fs');

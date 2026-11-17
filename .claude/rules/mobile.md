@@ -7,8 +7,8 @@ paths:
 # Mobile App Rules
 
 ## Stack
-- Expo SDK 54, React Native 0.81, React 19.1
-- 3D: expo-gl + expo-three + THREE.js (GLB models)
+- Expo SDK 54, React Native 0.81, React 19.1, new architecture enabled
+- 3D: expo-gl + expo-three + THREE.js (GLB models, textures stripped)
 - Audio: expo-av
 - Storage: @react-native-async-storage/async-storage
 - i18n: i18next + react-i18next
@@ -18,8 +18,14 @@ paths:
 ## Architecture
 - `App.js` manages 3 screens via `useState('home' | 'new' | 'editor')`
 - No global state management (no Redux, no Context) — everything is local state
-- Heavy components: `ModelViewer.js` (~2800 lines), `AudioTimeline.js` (~1450 lines)
+- Very large files — never read them whole, grep for the symbol then read the section: `ModelViewer.js` (~3400 lines), `AudioTimeline.js` (~1500 lines)
 - Services are standalone modules: `analyticsService.js`, `voteService.js`, `chatService.js`, `aiService.js`
+
+## Multi-car support
+- Supported cars: `model_3` (48-channel FSEQ) and `model_y_juniper` (200-channel FSEQ), registered in `src/carModels.js` (GLB, channel count, scale, feature flags)
+- Every show has a `carModel`. Anything part- or export-related must take it into account.
+- `JUNIPER_ONLY_PARTS` in `constants.js` must never appear on a Model 3 (filtered when the GLB loads)
+- Adding a car: `add-car-model` skill. Adding a part: `add-vehicle-part` skill.
 
 ## Key patterns
 
@@ -38,35 +44,23 @@ paths:
 - NEVER send personal data
 
 ### Show data model
-Shows are stored in AsyncStorage with this structure:
+Shows are stored in AsyncStorage (`src/storage.js`, see `createShow`). Shape:
 ```json
 {
-  "id": "uniqueId",
-  "name": "My Show",
-  "carModel": "model_3",
-  "events": [{ "part": "light_left_front", "startMs": 1000, "durationMs": 500, "effect": "on", "power": 1, ... }],
-  "track": { "id": "track1", "title": "...", "isBuiltin": true },
-  "settings": { "bodyColor": "#ffffff", "cursorOffsetMs": 0, "playbackSpeed": 1, "timelineScale": 1 }
+  "id": "…", "name": "Light Show #1", "carModel": "model_3 | model_y_juniper",
+  "createdAt": 0, "updatedAt": 0, "trackId": "…", "isBuiltinTrack": true,
+  "bodyColor": "#222222", "cursorOffsetMs": 0,
+  "events": [{ "part": "left_high_light", "startMs": 1000, "endMs": 1500, "effect": "solid", "power": 100, "easeIn": false, "easeOut": false, "...": "per-type options" }]
 }
 ```
+Event options and defaults: `DEFAULT_EVENT_OPTIONS` in `constants.js`. Saved shows from older app versions must keep loading. Never rename or remove a stored field without a fallback.
 
-### Vehicle parts
-All interactive parts are defined in `constants.js`:
-- Lights: `light_left_front`, `light_right_front`, `light_left_back`, `light_right_back`
-- Turn signals: `blink_front_left`, `blink_front_right`, `blink_back_left`, `blink_back_right`
-- Windows: `window_left_front`, `window_right_front`, `window_left_back`, `window_right_back`
-- Mirrors: `retro_left`, `retro_right`
-- Others: `trunk`, `flap`, `license_plate`, `brake_lights`, `rear_fog`, `side_repeater_left`, `side_repeater_right`
-
-### Effects
-- Lights: `on`, `fade_in`, `fade_out`, `pulse`, `strobe`
-- Closures (windows/trunk/mirrors): open, close, dance — with strict usage limits per show (see CLOSURES.md)
-
-## i18n
-- 4 locales: `en.json`, `fr.json`, `de.json`, `es.json`
-- ALL user-facing strings use `t('section.key')`
-- When adding any new string: add the key to ALL 4 files
-- Sections: `app`, `home`, `settings`, `newShow`, `editor`, `aiPrompt`, `timeline`, `parts`, `export`, `share`, `flash`, `tutorial`, `load`, `chat`
+### Vehicle parts and effects
+- Source of truth: `INTERACTIVE_PARTS`, the type sets (`RGB_PARTS`, `PULSE_PARTS`, `JUNIPER_ONLY_PARTS`) and the `is*()` helpers in `src/constants.js`. Read it instead of trusting a list here.
+- Model 3 front lights are `left_high_light` / `left_signature_light` (+ right). `light_left_front` / `light_right_front` are Juniper-only combined headlights.
+- Light effects: `EFFECT_TYPES` = `solid`, `blink`, `pulse`, plus `easeIn` / `easeOut` flags, `power` 1-100
+- Closures (mirrors, windows, trunk, flap): fixed modes with hard per-show limits — `tesla-closures` skill
+- Export: `fseq-export` skill
 
 ## Styling
 - Dark theme: background `#0a0a1a`, cards `#12122a`, borders `#1e1e3a`
@@ -77,4 +71,4 @@ All interactive parts are defined in `constants.js`:
 ## API communication
 - `apiConfig.js` exports `API_BASE_URL` (dev=localhost:3001, prod=lightstudio.harari.ovh)
 - All API calls include `X-Device-Id` header (except AI generation which uses App Check)
-- AI generation: `POST /api/generate-show` with Firebase App Check token
+- Contract: `.claude/rules/api-endpoints.md`

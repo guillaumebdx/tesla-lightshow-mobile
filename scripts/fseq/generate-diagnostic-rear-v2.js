@@ -2,7 +2,7 @@
 // Starts with 3 flashes of front DRLs (Ch 0+1) as a sync signal
 // Then tests Ch 18-31 one by one: 3s ON, 3s OFF
 //
-// Usage:  node src/retro-ing/generate-diagnostic-rear-v2.js
+// Usage:  node scripts/fseq/generate-diagnostic-rear-v2.js
 
 const fs = require('fs');
 const path = require('path');

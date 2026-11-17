@@ -1,5 +1,5 @@
 // Hand-crafted demo light shows for ALL built-in tracks
-// Run: node generate_demo.mjs
+// Run: node scripts/demo/generate_demo_legacy.mjs
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 
 const outDir = './src/demoShows';

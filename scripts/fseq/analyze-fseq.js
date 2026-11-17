@@ -1,5 +1,5 @@
 // Diagnostic: parse FSEQ binary and validate closure channel activity
-// Usage: node test/analyze-fseq.js [path-to-fseq]
+// Usage: node scripts/fseq/analyze-fseq.js [path-to-fseq]
 const fs = require('fs');
 const path = require('path');
 
