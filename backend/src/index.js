@@ -49,6 +49,25 @@ const chatSendLimiter = rateLimit({
 app.post('/api/chat/messages', chatSendLimiter);
 
 // Health check
+// Checks that the reverse proxy streams responses (needed by the AI keep-alive):
+// `curl -N https://<host>/health/stream` must print one line per second, not all at the end.
+app.get('/health/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+  let n = 0;
+  const timer = setInterval(() => {
+    n++;
+    res.write(`tick ${n} ${new Date().toISOString()}\n`);
+    if (n >= 3) {
+      clearInterval(timer);
+      res.end('done\n');
+    }
+  }, 1000);
+  res.on('close', () => clearInterval(timer));
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });

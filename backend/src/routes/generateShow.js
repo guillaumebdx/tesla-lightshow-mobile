@@ -8,6 +8,38 @@ const db = require('../services/database');
 // v2 = beat-locked engine (default). v1 = previous LLM pattern generator, kept as a rollback.
 const ENGINE = process.env.SHOW_ENGINE === 'v1' ? 'v1' : 'v2';
 const MAX_FEATURE_FRAMES = 60000; // ~11.6 min at 11.6 ms per frame
+const KEEPALIVE_MS = 10000;
+
+/**
+ * Keep the HTTP response alive while the show is being generated.
+ *
+ * iOS apps abort a request after 60 s WITHOUT RECEIVING DATA (NSURLSession idle
+ * timeout; released app versions set no timeout of their own). Generation can take
+ * longer, so the status line and headers go out right away and a space is written
+ * every 10 s; the JSON body follows. JSON allows leading whitespace, so every app
+ * version parses it unchanged. X-Accel-Buffering tells nginx to pass the bytes on
+ * immediately instead of buffering them.
+ *
+ * Once this has started the status is 200: errors are sent as { error } (the app
+ * then shows its usual error alert, as it does for a 500).
+ */
+function startKeepAlive(res) {
+  res.status(200);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+  const timer = setInterval(() => {
+    if (!res.writableEnded) res.write(' ');
+  }, KEEPALIVE_MS);
+  res.on('close', () => clearInterval(timer));
+  return {
+    send(body) {
+      clearInterval(timer);
+      if (!res.writableEnded) res.end(JSON.stringify(body));
+    },
+  };
+}
 
 /**
  * POST /api/generate-show
@@ -28,6 +60,7 @@ router.post('/', async (req, res) => {
   const reqId = Date.now().toString(36);
   const log = (msg) => isDev && console.log(`[${reqId}] ${msg}`);
   let dbId;
+  let keepAlive = null;
 
   log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   log('📥 New generate-show request received');
@@ -93,6 +126,7 @@ router.post('/', async (req, res) => {
 
     log('🤖 Calling LLM...');
     const startTime = Date.now();
+    keepAlive = startKeepAlive(res);
 
     const result = ENGINE === 'v2'
       ? await generateShowV2({
@@ -166,12 +200,16 @@ router.post('/', async (req, res) => {
       }, []);
     }
 
-    res.json({ events });
+    keepAlive.send({ events });
   } catch (err) {
     log(`💥 ERROR: ${err.message}`);
     console.error('[generateShow] Error:', err.message);
     // Try to mark DB record as failed
     try { if (dbId) db.failGeneration(dbId, err.message); } catch {}
+    // Status already sent (200) by the keep-alive: report the error in the body.
+    if (keepAlive) {
+      return keepAlive.send({ error: 'Failed to generate light show' });
+    }
     if (err.message.includes('JSON')) {
       return res.status(502).json({ error: 'LLM returned invalid response, please retry' });
     }

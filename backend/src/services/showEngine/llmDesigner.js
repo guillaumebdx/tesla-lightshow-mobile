@@ -9,15 +9,14 @@ const { MOTIF_NAMES, ACCENT_NAMES, MOTIF_ENERGY } = require('./motifs');
 const { designShowRules } = require('./ruleDesigner');
 const { findHighlights, grooveText, listMoments } = require('./highlights');
 
-// gpt-5.5 won the blind comparison (tests/eval-judge.js) and follows user requests (tests/eval-prompts.js).
-// Reasoning "low" (5-20 s) by default: released iOS apps give up on a request after
-// 60 s without data (NSURLSession default, no timeout set by the app), and "medium"
-// takes 35-60 s with the groove/moment tables.
+// gpt-5.5 / medium won the blind comparison (tests/eval-judge.js) and follows user requests
+// (tests/eval-prompts.js). It takes 35-60 s: the route keeps the HTTP response alive
+// (routes/generateShow.js) so long generations are fine for every app version.
 const MODEL = process.env.SHOW_DESIGNER_MODEL || 'gpt-5.5';
-const REASONING = process.env.SHOW_DESIGNER_REASONING || 'low';
-// Hard ceiling for the LLM call, no retry: past it the rule-based plan is used, so the
-// whole request always answers well under the iOS 60 s limit.
-const TIMEOUT_MS = Math.min(45000, parseInt(process.env.SHOW_DESIGNER_TIMEOUT_MS, 10) || 30000);
+const REASONING = process.env.SHOW_DESIGNER_REASONING || 'medium';
+// Per attempt. One automatic retry on transient OpenAI errors (timeouts, 429, 5xx);
+// the rule-based plan is only used if both attempts fail (OpenAI down).
+const TIMEOUT_MS = Math.min(150000, parseInt(process.env.SHOW_DESIGNER_TIMEOUT_MS, 10) || 120000);
 
 // USD per million tokens (input, output). Unknown models are logged with the default.
 const PRICING = {
@@ -35,7 +34,7 @@ const DEFAULT_PRICING = [1.25, 10];
 
 let client = null;
 function getClient() {
-  if (!client) client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: TIMEOUT_MS, maxRetries: 0 });
+  if (!client) client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: TIMEOUT_MS, maxRetries: 1 });
   return client;
 }
 
