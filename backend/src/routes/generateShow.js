@@ -80,7 +80,7 @@ router.post('/', async (req, res) => {
     const model = ENGINE === 'v2'
       ? (process.env.SHOW_DESIGNER_MODEL || 'gpt-5.5')
       : (process.env.OPENAI_MODEL || 'gpt-4o-mini');
-    const dbId = db.createGeneration({
+    dbId = db.createGeneration({
       requestId: reqId,
       trackTitle: trackTitle || 'Unknown Track',
       durationMs,

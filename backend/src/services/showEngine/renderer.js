@@ -92,7 +92,9 @@ function makeEvent(part, startMs, endMs, opts = {}) {
  */
 function normalizePart(intervals, durationMs) {
   const solid = intervals.filter((h) => !h.easeIn && !h.easeOut).sort((a, b) => a.t0 - b.t0);
-  const eased = intervals.filter((h) => h.easeIn || h.easeOut);
+  // An eased hit overlapping a solid one on the same part is dropped: the export keeps the
+  // max of overlapping events, but the app's 3D preview shows only one of them.
+  const eased = intervals.filter((h) => (h.easeIn || h.easeOut) && !solid.some((x) => x.t0 < h.t1 && x.t1 > h.t0));
   const out = [];
   for (const h of solid) {
     const t0 = Math.max(0, h.t0);
@@ -114,7 +116,10 @@ function normalizePart(intervals, durationMs) {
       out.push({ ...h, t0, t1 });
     }
   }
-  return out.concat(eased.map((h) => ({ ...h, t0: Math.max(0, h.t0), t1: Math.min(durationMs, h.t1) })).filter((h) => h.t1 - h.t0 >= MIN_ON));
+  // Eased hits must not overlap each other either: each one stops where the next starts.
+  const easedOut = eased.map((h) => ({ ...h, t0: Math.max(0, h.t0), t1: Math.min(durationMs, h.t1) })).sort((a, b) => a.t0 - b.t0);
+  for (let i = 0; i + 1 < easedOut.length; i++) easedOut[i].t1 = Math.min(easedOut[i].t1, easedOut[i + 1].t0);
+  return out.concat(easedOut.filter((h) => h.t1 - h.t0 >= MIN_ON));
 }
 
 // ═══════════════════════════════════════════════════════════════

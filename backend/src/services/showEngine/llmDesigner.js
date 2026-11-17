@@ -9,10 +9,15 @@ const { MOTIF_NAMES, ACCENT_NAMES, MOTIF_ENERGY } = require('./motifs');
 const { designShowRules } = require('./ruleDesigner');
 const { findHighlights, grooveText, listMoments } = require('./highlights');
 
-// gpt-5.5 / medium won the blind comparison (tests/eval-judge.js) and follows user requests (tests/eval-prompts.js).
+// gpt-5.5 won the blind comparison (tests/eval-judge.js) and follows user requests (tests/eval-prompts.js).
+// Reasoning "low" (5-20 s) by default: released iOS apps give up on a request after
+// 60 s without data (NSURLSession default, no timeout set by the app), and "medium"
+// takes 35-60 s with the groove/moment tables.
 const MODEL = process.env.SHOW_DESIGNER_MODEL || 'gpt-5.5';
-const REASONING = process.env.SHOW_DESIGNER_REASONING || 'medium';
-const TIMEOUT_MS = parseInt(process.env.SHOW_DESIGNER_TIMEOUT_MS || '90000', 10);
+const REASONING = process.env.SHOW_DESIGNER_REASONING || 'low';
+// Hard ceiling for the LLM call, no retry: past it the rule-based plan is used, so the
+// whole request always answers well under the iOS 60 s limit.
+const TIMEOUT_MS = Math.min(45000, parseInt(process.env.SHOW_DESIGNER_TIMEOUT_MS, 10) || 30000);
 
 // USD per million tokens (input, output). Unknown models are logged with the default.
 const PRICING = {
@@ -30,7 +35,7 @@ const DEFAULT_PRICING = [1.25, 10];
 
 let client = null;
 function getClient() {
-  if (!client) client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: TIMEOUT_MS, maxRetries: 1 });
+  if (!client) client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: TIMEOUT_MS, maxRetries: 0 });
   return client;
 }
 
@@ -80,7 +85,7 @@ ${ACCENT_DOC}
 - build: true → the last 1-2 bars of this section accelerate (quarter → 8th → 16th notes) into the next section. Use it before a big energy jump.
 - impact: true → whole car flash on the first beat of this section. Use it where the music hits hard (drops, chorus starts, after a build).
 ${juniper ? `- bars (Model Y center light bars, dimmable): "beat" = flash with decay on every beat, "swell" = slow fade in/out per bar, "off".
-- interior (5 RGB LEDs in the cabin): { mode: "color" (steady), "pulse" (color flash on each downbeat), "sync" (mirrors the exterior lights), "rainbow" (cycling hues), "off", color: "#RRGGBB" }. Pick colors that fit the mood and keep them consistent per section label. Keep the cabin lit most of the time.` : '- bars and interior: Model Y only. For this car always use bars "off" and interior { mode: "off", color: "#000000" }.'}
+- interior (5 RGB LEDs in the cabin): { mode: "color" (steady), "pulse" (color flash on each downbeat), "rainbow" (cycling hues), "off", color: "#RRGGBB" }. Pick colors that fit the mood and keep them consistent per section label. Keep the cabin lit most of the time.` : '- bars and interior: Model Y only. For this car always use bars "off" and interior { mode: "off", color: "#000000" }.'}
 
 # MOMENTS (song-specific highlights, detected in the audio)
 You get the list of the song's big moments with a suggested effect. For each one choose:
@@ -189,7 +194,7 @@ function responseSchema() {
               additionalProperties: false,
               required: ['mode', 'color'],
               properties: {
-                mode: { type: 'string', enum: ['off', 'color', 'pulse', 'sync', 'rainbow'] },
+                mode: { type: 'string', enum: ['off', 'color', 'pulse', 'rainbow'] },
                 color: { type: 'string' },
               },
             },
@@ -240,7 +245,10 @@ function sanitizePlan(raw, analysis, carModel) {
       build: !!s.build,
       impact: !!s.impact,
       bars: ['off', 'beat', 'swell'].includes(s.bars) ? s.bars : fb.bars,
-      interior: s.interior && ['off', 'color', 'pulse', 'sync', 'rainbow'].includes(s.interior.mode) ? s.interior : fb.interior,
+      // "sync" is never sent: it makes the app's FSEQ export re-scan every light event on every
+      // frame (slow on Juniper phones with thousands of events). A downbeat pulse reads the same.
+      interior: s.interior && ['off', 'color', 'pulse', 'rainbow'].includes(s.interior.mode) ? s.interior
+        : s.interior && s.interior.mode === 'sync' ? { mode: 'pulse', color: s.interior.color || '#ffffff' } : fb.interior,
     };
   });
   const c = raw.closures || {};

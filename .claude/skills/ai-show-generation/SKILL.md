@@ -56,7 +56,11 @@ Mel spectral flux (512-pt FFT on ~22 kHz audio, hop 256 ≈ 11.6 ms, 40 mel band
 
 ## Designer model
 
-Default `SHOW_DESIGNER_MODEL=gpt-5.5`, `SHOW_DESIGNER_REASONING=medium` (35-60 s since the groove/moment tables were added, ~$0.06 per show). `low` takes 5-20 s (~$0.025) with the same sync, moments and groove scores and 8/8 requests followed, but slightly weaker structure (coherence 0.88 vs 0.94, section contrast 0.79 vs 0.96): switch to it if users find the wait too long. Chosen by `eval-judge.js` (blind o3 judge: gpt-5.5/medium 7.31, gpt-6-sol/low 7.00, gpt-5.4-mini/low 6.63, gpt-4.1-mini 6.38) and `eval-prompts.js` (7/7 user requests followed; gpt-4.1-mini failed "chill"). `SHOW_DESIGNER=rules` skips the LLM entirely. `OPENAI_MODEL` is only used by v1.
+Default `SHOW_DESIGNER_MODEL=gpt-5.5`, `SHOW_DESIGNER_REASONING=low` (5-20 s, worst of 29 measured calls 20.1 s, ~$0.025 per show), LLM call capped by `SHOW_DESIGNER_TIMEOUT_MS` (default 30000, max 45000, no retry) then rule-based fallback.
+
+**Hard constraint: released iOS apps abort a request after 60 s without data** (React Native 0.81 sets `timeoutInterval` 0 → NSURLSession default 60 s idle; Android/OkHttp has no timeout). The backend sends nothing until the show is ready, so the whole request must stay well under 60 s. `medium` reasoning (35-60 s, slightly better structure: coherence 0.94 vs 0.88, contrast 0.96 vs 0.79) is only an option once the app sets its own longer timeout (e.g. XMLHttpRequest `timeout`) and old versions are gone.
+
+Interior `sync` mode is never emitted (the app's export re-scans every light event per frame for it — slow on Juniper phones); same-part overlapping events are never emitted (the 3D preview shows only one of them). Chosen by `eval-judge.js` (blind o3 judge: gpt-5.5/medium 7.31, gpt-6-sol/low 7.00, gpt-5.4-mini/low 6.63, gpt-4.1-mini 6.38) and `eval-prompts.js` (7/7 user requests followed; gpt-4.1-mini failed "chill"). `SHOW_DESIGNER=rules` skips the LLM entirely. `OPENAI_MODEL` is only used by v1.
 
 ## Evaluate before deploying (backend/)
 

@@ -37,7 +37,7 @@ function designShowRules(analysis, { carModel = 'model_3' } = {}) {
       bars: tier === 'calm' ? 'swell' : 'beat',
       interior: tier === 'calm'
         ? { mode: 'color', color: '#2277ff' }
-        : tier === 'medium' ? { mode: 'pulse', color: '#8822ff' } : { mode: 'sync' },
+        : tier === 'medium' ? { mode: 'pulse', color: '#8822ff' } : { mode: 'pulse', color: '#ee22ff' },
     };
   });
 
