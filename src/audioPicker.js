@@ -5,7 +5,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
-import { generateWaveform } from './waveformGenerator';
+import { generateWaveform, generateAudioFeatures } from './waveformGenerator';
 
 const MAX_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -40,6 +40,16 @@ export function resolveAudioUri(uri) {
   }
   // Fallback: return as-is
   return uri;
+}
+
+/**
+ * Path of a cache file stored next to an audio file ("song.mp3" → "song.waveform.json").
+ * Case-insensitive, and never equal to the audio path itself (a "Song.MP3" used to
+ * get its cache written over the audio file).
+ */
+function sidecarUri(audioUri, suffix) {
+  const base = /\.mp3$/i.test(audioUri) ? audioUri.replace(/\.mp3$/i, '') : audioUri;
+  return base + suffix;
 }
 
 /**
@@ -107,11 +117,18 @@ export async function pickAndImportAudio(onProgress) {
   await new Promise(resolve => setTimeout(resolve, 600));
 
   // Generate waveform (decode is sync/blocking)
-  const waveform = await generateWaveform(destUri);
+  const { features, ...waveform } = await generateWaveform(destUri);
 
   // Save waveform cache alongside the audio file
-  const waveformUri = destUri.replace('.mp3', '.waveform.json');
+  const waveformUri = sidecarUri(destUri, '.waveform.json');
   await FileSystem.writeAsStringAsync(waveformUri, JSON.stringify(waveform));
+  if (features) {
+    try {
+      await FileSystem.writeAsStringAsync(sidecarUri(destUri, '.features.json'), JSON.stringify(features));
+    } catch (e) {
+      console.warn('Could not cache audio features:', e?.message);
+    }
+  }
 
   return {
     uri: toRelativePath(destUri),
@@ -128,7 +145,7 @@ export async function pickAndImportAudio(onProgress) {
 export async function loadCachedWaveform(audioUri) {
   try {
     const resolved = resolveAudioUri(audioUri);
-    const waveformUri = resolved.replace('.mp3', '.waveform.json');
+    const waveformUri = sidecarUri(resolved, '.waveform.json');
     const info = await FileSystem.getInfoAsync(waveformUri);
     if (!info.exists) return null;
     const raw = await FileSystem.readAsStringAsync(waveformUri);
@@ -140,14 +157,50 @@ export async function loadCachedWaveform(audioUri) {
 }
 
 /**
- * Delete an imported audio file and its waveform cache.
+ * AI audio features of an imported track: from the cache, or computed now
+ * (tracks imported before features existed) and cached. Returns null on failure.
+ */
+export async function loadOrComputeAudioFeatures(audioUri, onProgress) {
+  try {
+    const resolved = resolveAudioUri(audioUri);
+    const featuresUri = sidecarUri(resolved, '.features.json');
+    const info = await FileSystem.getInfoAsync(featuresUri);
+    if (info.exists) {
+      try {
+        const cached = JSON.parse(await FileSystem.readAsStringAsync(featuresUri));
+        if (cached && cached.v === 1) return cached;
+        // { v: 0 } marks a track whose analysis already failed: don't retry on every generation.
+        if (cached && cached.v === 0) return null;
+      } catch {
+        // Corrupt cache (partial write): recompute below.
+      }
+      await FileSystem.deleteAsync(featuresUri, { idempotent: true });
+    }
+    try {
+      const features = await generateAudioFeatures(resolved, onProgress);
+      await FileSystem.writeAsStringAsync(featuresUri, JSON.stringify(features));
+      return features;
+    } catch (e) {
+      console.warn('loadOrComputeAudioFeatures failed:', e?.message);
+      await FileSystem.writeAsStringAsync(featuresUri, JSON.stringify({ v: 0 })).catch(() => {});
+      return null;
+    }
+  } catch (e) {
+    console.warn('loadOrComputeAudioFeatures error:', e?.message);
+    return null;
+  }
+}
+
+/**
+ * Delete an imported audio file and its waveform cache (and its audio features cache).
  */
 export async function deleteImportedAudio(audioUri) {
   try {
     const resolved = resolveAudioUri(audioUri);
     await FileSystem.deleteAsync(resolved, { idempotent: true });
-    const waveformUri = resolved.replace('.mp3', '.waveform.json');
+    const waveformUri = sidecarUri(resolved, '.waveform.json');
     await FileSystem.deleteAsync(waveformUri, { idempotent: true });
+    await FileSystem.deleteAsync(sidecarUri(resolved, '.features.json'), { idempotent: true });
   } catch (e) {
     console.error('deleteImportedAudio error:', e);
   }

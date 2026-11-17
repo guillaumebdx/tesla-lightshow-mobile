@@ -10,9 +10,11 @@ import { getDeviceId } from './deviceId';
  * @param {string} [params.mood] - Optional mood: intense, chill, spooky, epic, festive, romantic
  * @param {string} [params.trackTitle] - Optional track title
  * @param {string} [params.userPrompt] - Optional user description of desired light show style
+ * @param {string} [params.trackId] - Built-in track id (the backend has its audio features)
+ * @param {Object} [params.audioFeatures] - Audio features of an imported track (audioFeatures.js)
  * @returns {Promise<Object[]>} Array of event objects ready for the timeline
  */
-export async function generateAIShow({ waveform, durationMs, mood, trackTitle, userPrompt, carModel }) {
+export async function generateAIShow({ waveform, durationMs, mood, trackTitle, userPrompt, carModel, trackId, audioFeatures }) {
   // Get App Check token (skipped in dev if not initialized)
   let headers = { 'Content-Type': 'application/json', 'X-App-Version': '1.15' };
   try {
@@ -41,6 +43,8 @@ export async function generateAIShow({ waveform, durationMs, mood, trackTitle, u
       trackTitle: trackTitle || 'Unknown Track',
       carModel: carModel === 'model_y_juniper' ? 'model_y_juniper' : 'model_3',
       ...(userPrompt ? { userPrompt } : {}),
+      ...(trackId ? { trackId } : {}),
+      ...(audioFeatures ? { audioFeatures } : {}),
     }),
   });
 

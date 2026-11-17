@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Automated Light Show Generation Test Suite
+ * Automated Light Show Generation Test Suite — v1 generator (llmServiceV1, SHOW_ENGINE=v1).
+ * For the v2 engine use tests/eval-show.js and tests/eval-prompts.js.
  * 
  * Usage:
  *   node tests/test-generation.js                    # Run 3 tests with default prompt
@@ -12,7 +13,7 @@
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
-const { generateLightShow } = require('../src/services/llmService');
+const { generateLightShow } = require('../src/services/llmServiceV1');
 const path = require('path');
 const OpenAI = require('openai');
 

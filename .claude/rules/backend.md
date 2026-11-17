@@ -19,7 +19,7 @@ paths:
 - New column on an existing table: `ALTER TABLE ... ADD COLUMN` wrapped in try/catch (see existing ones) — `CREATE TABLE IF NOT EXISTS` will not add it in prod
 
 ## Routes
-- `generateShow.js` — AI show generation (App Check protected via `verifyAppCheck` middleware) — see the `ai-show-generation` skill
+- `generateShow.js` — AI show generation (App Check protected via `verifyAppCheck` middleware), engine v2 in `services/showEngine/` (v1 rollback: `SHOW_ENGINE=v1`) — see the `ai-show-generation` skill
 - `chat.js` — User-facing chat (X-Device-Id auth)
 - `analytics.js` — Anonymous analytics ingestion (X-Device-Id auth, rate limited)
 - `votes.js` — Model voting (X-Device-Id auth, rate limited)
@@ -41,7 +41,8 @@ paths:
 
 ## Environment variables
 - See `backend/.env.example` for all required vars
-- OPENAI_API_KEY, OPENAI_MODEL, OPENAI_CHAT_MODEL, GOOGLE_APPLICATION_CREDENTIALS
+- OPENAI_API_KEY, OPENAI_MODEL (v1 only), OPENAI_CHAT_MODEL, GOOGLE_APPLICATION_CREDENTIALS
+- SHOW_ENGINE, SHOW_DESIGNER, SHOW_DESIGNER_MODEL, SHOW_DESIGNER_REASONING, SHOW_DESIGNER_TIMEOUT_MS (engine v2)
 - ADMIN_PASSWORD, PORT, CORS_ORIGIN, NODE_ENV
 - VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
 

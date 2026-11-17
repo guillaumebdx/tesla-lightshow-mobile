@@ -27,6 +27,7 @@ import FlashMessage from './FlashMessage';
 import TutorialOverlay from './TutorialOverlay';
 import { Ionicons } from '@expo/vector-icons';
 import { generateAIShow } from './aiService';
+import { loadOrComputeAudioFeatures } from './audioPicker';
 import { trackEvent } from './analyticsService';
 import AiPromptModal from './AiPromptModal';
 import SupportChat from './SupportChat';
@@ -282,12 +283,21 @@ export default function ModelViewer({ showId, onGoHome }) {
           waveformData = wf?.bars || (Array.isArray(wf) ? wf : []);
         }
 
+        // Precise audio features: the backend already has them for built-in tracks;
+        // imported tracks send theirs (computed at import, or now for older imports).
+        let audioFeatures;
+        if (!trackInfo.isBuiltin && trackInfo.uri) {
+          audioFeatures = (await loadOrComputeAudioFeatures(trackInfo.uri)) || undefined;
+        }
+
         const events = await generateAIShow({
           waveform: waveformData,
           durationMs,
           trackTitle: trackInfo.title || 'Unknown',
           userPrompt: userPrompt || undefined,
           carModel: showDataRef.current?.carModel || carModel,
+          trackId: trackInfo.isBuiltin ? trackInfo.id : undefined,
+          audioFeatures,
         });
 
         // Stop animation and replace fake events with real AI-generated ones

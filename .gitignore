@@ -50,3 +50,6 @@ backend/data/
 # Claude Code: personal settings and worktrees
 .claude/settings.local.json
 .claude/worktrees/
+
+# AI generation eval outputs (backend/tests/eval-*.js)
+backend/tests/output/

@@ -25,7 +25,7 @@ Package Android: `com.guillaumebdx.tesla3dviewer`
   | `tesla-closures` | mirrors / windows / trunk / flap: command bytes, per-show limits, durations |
   | `add-vehicle-part` | checklist to add or rename a part across app, export, i18n, AI, demos |
   | `add-car-model` | new vehicle or new GLB: inspection scripts, `carModels.js`, picker, AI, demos |
-  | `ai-show-generation` | backend LLM prompt, patterns, expansion, generation test harness |
+  | `ai-show-generation` | AI show engine v2: music analysis, motifs, LLM designer, renderer, audio features, eval scripts |
   | `/release` | user-invoked: version bump, commit + tag, EAS build and submit |
   | `/deploy-backend` | user-invoked: backend deploy checklist for the VPS |
 - **Subagents** (`.claude/agents/`) — delegate to them instead of doing it inline:
@@ -34,7 +34,7 @@ Package Android: `com.guillaumebdx.tesla3dviewer`
   | `fseq-guardian` | Opus, read-only | review after any change to export, channels, parts, closures, car models — and before a release |
   | `compat-checker` | Opus, read-only | backward-compat check vs last `vX.Y.Z` tag before `/release` or `/deploy-backend`, or after API/storage/DB changes |
   | `translator` | Sonnet | fill fr/de/es for new or changed en.json keys |
-  | `ai-gen-tester` | Sonnet | run the AI generation harness (paid: get the user's OK on the run count first) |
+  | `ai-gen-tester` | Sonnet | run the AI show evals (free ones directly; paid ones need the user's OK first) |
 - **Hooks / permissions** (`.claude/settings.json`) — `check-i18n` runs automatically after edits to `src/i18n/*.json`; `eas build/submit`, AI test runs and `git push` always ask.
 - **Rules** (`.claude/rules/`) — auto-loaded by path: `mobile.md` (src/), `backend.md` (backend/), `i18n.md`, `api-endpoints.md`.
 - **Human docs** (`docs/`) — Firebase setup, website chat integration. `README.md` is the product overview (French).
@@ -86,7 +86,10 @@ cd backend && npm install && npm run dev      # dev with --watch, port 3001
 node scripts/check-i18n.mjs                     # must pass after any UI text change
 node scripts/fseq/validate-export.js            # FSEQ closure logic sanity check (48-ch)
 node scripts/fseq/analyze-fseq.js <file.fseq>   # inspect an exported file
-cd backend && node tests/test-generation.js --runs 1   # AI generation (paid API call — ask first)
+cd backend && node tests/eval-analysis.js              # AI: beat tracking vs librosa references (free)
+cd backend && node tests/eval-show.js                  # AI: show sync / darkness / app rules, rule designer (free)
+cd backend && node tests/eval-show.js --designer llm   # AI: same with the LLM designer (paid — ask first)
+node scripts/generate_track_features.mjs               # rerun when a built-in MP3 is added or replaced
 ```
 
 There is no automated test suite or linter for the mobile app. Verification means running the checks above and, for UI/3D changes, the app itself. Say so explicitly when something could only be checked by running it on a device.

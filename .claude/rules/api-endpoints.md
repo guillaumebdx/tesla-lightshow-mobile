@@ -16,7 +16,7 @@ Mounting and rate limiters are in `backend/src/index.js`.
 
 | Method & path | Auth | Body / query | Notes |
 |---|---|---|---|
-| `POST /api/generate-show` | Firebase App Check (`verifyAppCheck`) | `{ waveform, durationMs, mood, trackTitle, userPrompt, carModel }` | `carModel` coerced to `model_3` or `model_y_juniper` |
+| `POST /api/generate-show` | Firebase App Check (`verifyAppCheck`) | `{ waveform, durationMs, mood, trackTitle, userPrompt, carModel, trackId?, audioFeatures? }` | `carModel` coerced to `model_3` or `model_y_juniper`. `trackId` / `audioFeatures` are optional (newer apps), ignored when malformed. Response `{ events }` |
 | `POST /api/chat/messages` | `X-Device-Id` | `{ content, deviceInfo? }` | |
 | `GET /api/chat/messages?since_id=<id>` | `X-Device-Id` | | poll |
 | `GET /api/chat/status` | `X-Device-Id` | | unread count |

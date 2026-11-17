@@ -1,7 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { generateLightShow } = require('../services/llmService');
+const { generateLightShow } = require('../services/llmServiceV1');
+const { generateShowV2 } = require('../services/showEngine');
+const { isValidFeatures } = require('../services/showEngine/analysis');
 const db = require('../services/database');
+
+// v2 = beat-locked engine (default). v1 = previous LLM pattern generator, kept as a rollback.
+const ENGINE = process.env.SHOW_ENGINE === 'v1' ? 'v1' : 'v2';
+const MAX_FEATURE_FRAMES = 60000; // ~11.6 min at 11.6 ms per frame
 
 /**
  * POST /api/generate-show
@@ -11,6 +17,9 @@ const db = require('../services/database');
  *   mood?: string,            // optional: "intense", "chill", "spooky", "epic", "festive", "romantic"
  *   trackTitle?: string,      // optional: track name for context
  *   userPrompt?: string,      // optional: user description of desired show style (max 500 chars)
+ *   carModel?: string,        // 'model_3' | 'model_y_juniper'
+ *   trackId?: string,         // optional: built-in track id (backend has its audio features)
+ *   audioFeatures?: object,   // optional: audio features v1 computed on device (src/audioFeatures.js)
  * }
  * Response: { events: [...] }
  */
@@ -24,7 +33,7 @@ router.post('/', async (req, res) => {
   log('📥 New generate-show request received');
 
   try {
-    const { waveform, durationMs, mood, trackTitle, userPrompt, carModel } = req.body;
+    const { waveform, durationMs, mood, trackTitle, userPrompt, carModel, trackId, audioFeatures } = req.body;
     const validCarModel = carModel === 'model_y_juniper' ? 'model_y_juniper' : 'model_3';
 
     log(`🎵 Track: "${trackTitle}"`);
@@ -53,14 +62,24 @@ router.post('/', async (req, res) => {
     const sanitizedUserPrompt = (typeof userPrompt === 'string' && userPrompt.trim())
       ? userPrompt.trim().slice(0, 500)
       : undefined;
+    if (waveform.length > 20000) {
+      log(`❌ Validation failed: waveform too long (${waveform.length})`);
+      return res.status(400).json({ error: 'waveform too long' });
+    }
+    // Optional inputs from newer app versions: ignored (not rejected) when malformed.
+    const validTrackId = typeof trackId === 'string' && /^[a-z0-9_]{1,64}$/.test(trackId) ? trackId : undefined;
+    const validFeatures = isValidFeatures(audioFeatures) && audioFeatures.n <= MAX_FEATURE_FRAMES ? audioFeatures : undefined;
     log('✅ Validation passed');
+    log(`🎚  Engine: ${ENGINE} | trackId: ${validTrackId || 'none'} | audio features: ${validFeatures ? `${validFeatures.n} frames` : 'none'}`);
 
     // Downsample waveform to reduce processing (not sent to LLM, only used for music analysis)
     const downsampled = downsampleWaveform(waveform, 1000);
     log(`📉 Waveform downsampled: ${waveform.length} → ${downsampled.length} samples`);
 
     // Create DB record at start
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const model = ENGINE === 'v2'
+      ? (process.env.SHOW_DESIGNER_MODEL || 'gpt-5.5')
+      : (process.env.OPENAI_MODEL || 'gpt-4o-mini');
     const dbId = db.createGeneration({
       requestId: reqId,
       trackTitle: trackTitle || 'Unknown Track',
@@ -75,14 +94,26 @@ router.post('/', async (req, res) => {
     log('🤖 Calling LLM...');
     const startTime = Date.now();
 
-    const result = await generateLightShow({
-      waveform: downsampled,
-      durationMs,
-      mood: mood || 'auto',
-      trackTitle: trackTitle || 'Unknown Track',
-      userPrompt: sanitizedUserPrompt,
-      carModel: validCarModel,
-    });
+    const result = ENGINE === 'v2'
+      ? await generateShowV2({
+        // The v2 analysis works best on the full-resolution waveform.
+        waveform,
+        features: validFeatures,
+        trackId: validTrackId,
+        durationMs,
+        mood: mood || 'auto',
+        trackTitle: trackTitle || 'Unknown Track',
+        userPrompt: sanitizedUserPrompt,
+        carModel: validCarModel,
+      })
+      : await generateLightShow({
+        waveform: downsampled,
+        durationMs,
+        mood: mood || 'auto',
+        trackTitle: trackTitle || 'Unknown Track',
+        userPrompt: sanitizedUserPrompt,
+        carModel: validCarModel,
+      });
 
     const elapsed = Date.now() - startTime;
     log(`✅ LLM responded in ${elapsed}ms`);

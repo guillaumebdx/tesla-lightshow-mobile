@@ -1,46 +1,88 @@
 ---
 name: ai-show-generation
-description: Backend AI light show generation (OpenAI) — system prompt, pattern library, choreography expansion, per-car addenda, event validation, cost, and the generation test harness. Use when changing backend/src/systemPrompt.js, backend/src/services/patterns.js, backend/src/services/llmService.js or backend/src/routes/generateShow.js, when tuning the quality of generated shows, or when a generated show has wrong/missing parts.
+description: Backend AI light show generation — engine v2 (music analysis, beat-locked motifs, LLM designer, renderer), audio features sent by the app, the built-in track features, evaluation scripts and metrics, and the v1 rollback. Use when changing anything in backend/src/services/showEngine/, backend/src/routes/generateShow.js, src/audioFeatures.js, src/waveformGenerator.js or the AI call in src/aiService.js / ModelViewer.js, when tuning the quality of generated shows, or when users report shows that are random, out of sync, dark or wrong.
 ---
 
-# AI show generation
+# AI show generation (engine v2)
+
+Users complained that AI shows were "random and not synced to the music". Measured on the 8 built-in tracks, the v1 generator was **no better than chance**: 58% of light attacks on the beat/onset grid vs 59% for randomly shifted attacks, 97% of on/off runs shorter than 100 ms (blink flicker), 31% dark time. v2 was rebuilt from scratch around one rule: **the LLM never chooses a timestamp**.
 
 ## Pipeline
 
 ```
-mobile aiService.js --(waveform, durationMs, mood, trackTitle, userPrompt, carModel, App Check token)-->
-POST /api/generate-show  (routes/generateShow.js: App Check, rate limit, carModel coerced to model_3 | model_y_juniper)
-  -> llmService.generateLightShow()
-       system prompt = systemPrompt.js with {PATTERN_CATALOG} = patterns.getPatternCatalog(carModel)
-                       + JUNIPER_ADDENDUM when carModel === 'model_y_juniper'
-       LLM returns a *choreography* (pattern names + timestamps), not raw events
-  -> patterns.expandChoreography(plan, durationMs, carModel)  => concrete events
-  -> event filter (VALID_PARTS, timestamps)  => response + row in `generations` table (tokens, cost)
+app ──(waveform 2000 RMS bars, durationMs, trackTitle, carModel, userPrompt,
+       NEW optional: trackId (built-in) | audioFeatures (imported, computed on device))──▶
+POST /api/generate-show (routes/generateShow.js — SHOW_ENGINE=v1 switches back to llmServiceV1)
+  └─ showEngine/index.js  generateShowV2()
+       1. features: client audioFeatures → else built-in track (trackId, or title+duration for old apps:
+          src/data/trackFeatures/*.json) → else legacy waveform
+       2. analysis.js     onset envelope → tempo (autocorrelation + prior) → beats (Ellis DP)
+                          → meter + downbeats → bars → sections (novelty on bar SSM, 4-bar phrase grid)
+                          → repetition labels (A/B/C), energy level per section, onsets, moments
+       3. highlights.js   song-specific: intro (music arrives), drops, stops, hits, risers, climax,
+                          and each section's groove (16th-slot attack pattern per band low/mid/high)
+       4. llmDesigner.js  section table (+ groove line) and moment table → strict JSON schema plan:
+                          per section {motif, focus, accent, build, impact, bars, interior},
+                          per moment {fx: explosion | flash | blackout_flash | none}, closures, ending
+                          (fallback on any error/timeout: ruleDesigner.js, deterministic)
+       5. renderer.js     motifs.js turns each section into hits on beats / 8ths / 16ths / snapped onsets
+                          → moment effects (breath of darkness + explosion, flashes, blackouts, riser builds)
+                          → roles mapped to car parts → per-part min 100 ms on / 100 ms off
+                          → dark-gap fill → closures (mirrors fold on drops) → events (same format as v1)
 ```
 
-The LLM only picks patterns. The patterns themselves are deterministic code in `patterns.js`. Fix a bad *shape* in the pattern code, and a bad *choice* in the prompt.
+## Invariants
 
-## Compatibility constraint
+- Every light attack is on the beat grid (beat, 8th, 16th) or on a detected onset snapped to the 16th grid. Add a motif → keep that property and check `tests/eval-show.js` inSync.
+- No `blink` effect (it is a fixed 30-80 ms flicker unrelated to tempo). No `pulse` effect (fixed period). Rhythm comes from solid hits. Easing only on dimmable parts (Juniper bars, interior).
+- Most car lights are on/off (> 50% = on), need ≥ 100 ms on and ≥ 100 ms off: `normalizePart()` enforces it per part.
+- Response shape is unchanged (`{ events }`, same event fields): old apps keep working. The `< 1.15` legacy part mapping in the route still applies.
+- Closures follow the `tesla-closures` skill: mirrors roundtrip ≤ 6 (12 of 20 commands), windows ≤ 2 dances and ~28 s total (thermal), trunk open 13 s before its dance section then dance ≤ 15 s then close, flap open → rainbow → close (3 = limit).
+- Juniper: roles map to Juniper parts in `CAR_PROFILES`; `sig` = front light bar; bars/interior layers only on Juniper.
 
-The backend is deployed independently, and users run old app versions. Any change to the response shape, part IDs or effect names must stay readable by older apps. Check git history for "retrocomp" for precedent (`git log --oneline --grep retrocomp`, commit 39dad84).
+## "Made for this song" layer
 
-## Test before deploying
+- **Moments** (`highlights.js` → `listMoments`): `intro` (first attack once the level reaches the song's body), `drop` (beat-level loudness jump ≥ 4.5 dB vs the previous 4 or 2 beats or a short dip, snapped to a stronger pickup attack just before the beat), `stop` (≥ 12 dB under the previous 2 s for 0.25-3 s, return = strongest attack after), `hit` (onset ≥ 2.5x its ±3 s context). Big drops (≥ 8 dB) are all kept, small ones ~1 per 25 s.
+- **Effects** (`renderer.js` → `applyMoments`): `explosion` = darkness during the preceding stop or a one-beat breath, then one bar: whole car → left/right strobe on 16ths (8ths if too fast) → tail afterglow; Juniper bars full + white cabin flash. Max one explosion per 12 s (enforced in renderer whatever the plan says). `flash` = 120 ms dip then whole car on the attack. A riser before an exploding drop gets an automatic accelerating build (never over the previous effect).
+- **Groove motifs**: `groove` replays the section's strongest 16th slots (only in bars that really play them), each on its instrument's lights: low → rear, mid → headlights, high → blinkers L/R; `drumkit` follows every real attack by band. Both hold legato (dip before each hit) to avoid a dark car. On the legacy waveform path there is no band split: `groove` uses the main lights, `drumkit` falls back to `onsets`.
+- Detections were checked by plotting loudness with the moments on top: do the same (plot `analysis._signals.loudness`) after changing a threshold — the metrics alone can hide a moment placed on the wrong side of a dip.
 
-```bash
-cd backend
-node tests/test-generation.js --runs 1                 # quick smoke test (real OpenAI call, costs money)
-node tests/test-generation.js --runs 3 --judge         # + LLM-as-judge quality score
-node tests/test-generation.js --prompt "chill, slow fades"
-```
+## Audio features (src/audioFeatures.js, shared app/backend format v1)
 
-- Needs `OPENAI_API_KEY` in `backend/.env`. It calls `generateLightShow` directly, so no server is needed.
-- 12 deterministic checks (coverage, distribution, variety, closure limits, valid parts, monotony). See `backend/tests/README.md`.
-- **Gap:** the harness always generates for `model_3`. Juniper output is not covered. Pass `carModel: 'model_y_juniper'` in the script when working on Juniper patterns.
-- Ask before running more than a couple of runs: each run is a paid API call.
+Mel spectral flux (512-pt FFT on ~22 kHz audio, hop 256 ≈ 11.6 ms, 40 mel bands) → `onset`, `lowOnset` (< 200 Hz), plus `low/mid/high` band energies in dB, each 0-255 base64 (onsets square-root companded). ~30 KB per minute.
+- Built-in tracks: `node scripts/generate_track_features.mjs` → `backend/src/data/trackFeatures/<id>.json`. **Rerun it when a built-in MP3 is added or replaced** (and add its librosa reference, below).
+- Imported tracks: computed at import from the same decode as the waveform (`waveformGenerator.js`), cached as `<file>.features.json`; computed lazily at AI time for tracks imported before (`loadOrComputeAudioFeatures`). Uses the MP3's real sample rate (48 kHz files had a wrong duration before).
+- The extractor is ~1% of the js-mp3 decode time. It runs on device: only a real device tells the actual wait on a long track.
 
-## Rules
+## Designer model
 
-- Closure limits in patterns must respect the `tesla-closures` skill. The AI stays below the app limits on purpose.
-- A new part must be in `VALID_PARTS` (`llmService.js`), or its events are silently dropped. See `add-vehicle-part`.
-- The model name comes from `OPENAI_MODEL` in `.env`. Never hardcode it or the key.
-- `logBroadcaster` intercepts `console.log` / `console.error` and streams them live to the admin dashboard. Keep the `[Tag]` prefix style. The `log()` helper in `llmService.js` only prints when `isDev`.
+Default `SHOW_DESIGNER_MODEL=gpt-5.5`, `SHOW_DESIGNER_REASONING=medium` (35-60 s since the groove/moment tables were added, ~$0.06 per show). `low` takes 5-20 s (~$0.025) with the same sync, moments and groove scores and 8/8 requests followed, but slightly weaker structure (coherence 0.88 vs 0.94, section contrast 0.79 vs 0.96): switch to it if users find the wait too long. Chosen by `eval-judge.js` (blind o3 judge: gpt-5.5/medium 7.31, gpt-6-sol/low 7.00, gpt-5.4-mini/low 6.63, gpt-4.1-mini 6.38) and `eval-prompts.js` (7/7 user requests followed; gpt-4.1-mini failed "chill"). `SHOW_DESIGNER=rules` skips the LLM entirely. `OPENAI_MODEL` is only used by v1.
+
+## Evaluate before deploying (backend/)
+
+| Command | Cost | What it tells |
+|---|---|---|
+| `node tests/eval-analysis.js [--verbose]` | free | beat F-measure vs librosa references, tempo, sections — features and legacy waveform paths |
+| `node tests/eval-show.js` | free | rule-designer shows on 8 tracks: inSync vs chance, beatHit, darkPct, energyCorr, flicker, plan metrics, **app-rule violations** (`validateEvents.js`) |
+| `node tests/eval-show.js --designer llm [--car model_y_juniper] [--source waveform] [--model m --reasoning r]` | ~$0.3 | same with the LLM designer. `--source waveform` simulates an old app with an imported track |
+| `node tests/eval-show.js --old` | ~$0.05 | v1 baseline (cached in tests/output/old) |
+| `node tests/eval-prompts.js [--model m --reasoning r]` | ~$0.35 | 7 user requests with deterministic pass/fail checks |
+| `node tests/eval-judge.js --models a:low,b:medium --judge o3` | ~$2 | blind plan ranking between designer models |
+
+Targets reached at release: features path beat F 0.94 (exact 0.90); shows inSync ≈ 0.97 (chance ≈ 0.53), 0% flicker, ~16% dark (v1: 31%), 0 app-rule violations on both cars. Legacy waveform path (old app + imported track): inSync 0.89, beatHit 0.62 (half-tempo errors — the 2000-bar waveform cannot resolve them; the new app version fixes it by sending features).
+
+Song-specific metrics in `eval-show.js`: `momentHit` (share of librosa "big moments" — loudness jumps ≥ 8 dB, snapped to onsets — where ≥ 40% of the lights switch on within ±80 ms and the car goes from low to ≥ 60% lit), `momentImpact` (lit share just after minus the second before), `grooveFid` (cosine between the 16th-slot rhythm of light attacks and of librosa onsets, per section). v1: momentHit 0.23, grooveFid 0.72; v2 rule designer with effects: ~0.70 / ~0.77; all-`groove` sections reach grooveFid 0.86.
+
+Reference beats: `tests/fixtures/reference-beats/*.json` from librosa (`tests/tools/ref_beats.py`, needs a Python venv with librosa). librosa beats are ~25 ms late (measured on a synthetic click track; ours are ~4 ms early) — `showMetrics.js` compensates.
+
+## Where to change what
+
+- Show feels off-beat → analysis (`eval-analysis.js` first), never the LLM prompt.
+- A motif looks wrong → `motifs.js` (timing/shape), then `eval-show.js` + per-motif check.
+- Wrong artistic choices (energy, coherence, user request ignored) → `llmDesigner.js` prompt, then `eval-prompts.js`.
+- Too dark / too busy → renderer fill, motif lengths, or the designer prompt; watch `darkPct` and `energyCorr`.
+- New part → `CAR_PROFILES` + role groups in `motifs.js` (and the `add-vehicle-part` checklist).
+
+## v1 (rollback)
+
+`llmServiceV1.js` + `systemPrompt.js` + `patterns.js` (LLM picks patterns with timestamps). Selected with `SHOW_ENGINE=v1`. Its harness: `tests/test-generation.js`. Remove once v2 has been in production long enough.
